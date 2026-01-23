@@ -1,6 +1,5 @@
 package com.dv.logexp
 
-import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
@@ -57,6 +54,7 @@ import org.jetbrains.jewel.ui.component.Checkbox
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.OutlinedButton
+import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.TextField
 import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
@@ -257,7 +255,6 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                     1.dp,
                                     JewelTheme.globalColors.borders.normal
                                 ),
-//                        style = style,
                     ) {
                         LazyColumn(
                             state = listState,
@@ -287,27 +284,27 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val state1 = rememberTextFieldState("")
+                val textFilterState = rememberTextFieldState("")
+                val appFilterState = rememberTextFieldState("")
+
+                LaunchedEffect(textFilterState.text) {
+                    viewModel.updateSearchQuery(textFilterState.text.toString())
+                }
+
+                LaunchedEffect(appFilterState.text) {
+                    viewModel.updateAppFilter(appFilterState.text.toString())
+                }
+
                 TextField(
-                    state = state1,
+                    state = textFilterState,
                     placeholder = { Text("Search logs...") },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
-
-//                TextField(
-//                    value = searchQuery,
-//                    onValueChange = { viewModel.updateSearchQuery(it) },
-//                    modifier = Modifier.weight(1f),
-//                    placeholder = { Text("Search logs...") }
-//                )
-//
-//                TextField(
-//                    value = appFilter,
-//                    onValueChange = { viewModel.updateAppFilter(it) },
-//                    modifier = Modifier.width(150.dp),
-//                    placeholder = { Text("App/PID...") }
-//                )
-
+                TextField(
+                    state = appFilterState,
+                    placeholder = { Text("App/PID...") },
+                    modifier = Modifier.width(200.dp)
+                )
                 Text(
                     text = "Logs: ${filteredLogs.size}",
                     fontSize = 12.sp,
@@ -332,34 +329,47 @@ fun SettingsMenu(
             Text("Settings")
         }
 
-//        DropdownMenu(
-//            expanded = expanded,
-//            onDismissRequest = { expanded = false }
-//        ) {
-//            DropdownMenuItem(onClick = {
-//                onToggleTheme()
-//                expanded = false
-//            }) {
-//                Text("Theme: ${themeMode.name}")
-//            }
-//
-//            Divider(Orientation.Horizontal)
-//
-//            LogColumn.entries.forEach { column ->
-//                DropdownMenuItem(onClick = { onToggleColumn(column) }) {
-//                    Row(
-//                        modifier = Modifier.fillMaxWidth(),
-//                        verticalAlignment = Alignment.CenterVertically
-//                    ) {
-//                        Checkbox(
-//                            checked = visibleColumns.contains(column),
-//                            onCheckedChange = { onToggleColumn(column) }
-//                        )
-//                        Text(column.displayName, modifier = Modifier.padding(start = 8.dp))
-//                    }
-//                }
-//            }
-//        }
+        if (expanded) {
+            PopupMenu(
+                onDismissRequest = {
+                    expanded = false
+                    true
+                },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                selectableItem(
+                    selected = false,
+                    onClick = onToggleTheme
+                ) {
+                    Text("Theme: ${themeMode.name}")
+                }
+
+                passiveItem {
+                    Divider(
+                        orientation = Orientation.Horizontal,
+                        thickness = 8.dp,
+                    )
+                }
+
+                LogColumn.entries.forEach { column ->
+                    selectableItem(
+                        selected = visibleColumns.contains(column),
+                        onClick = { onToggleColumn(column) }
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = visibleColumns.contains(column),
+                                onCheckedChange = { onToggleColumn(column) }
+                            )
+                            Text(column.displayName, modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
