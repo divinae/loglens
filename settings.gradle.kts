@@ -23,6 +23,7 @@ dependencyResolutionManagement {
                 includeGroupAndSubgroups("com.android")
                 includeGroupAndSubgroups("com.google")
             }
+            maven("https://www.jetbrains.com/intellij-repository/releases")
         }
         mavenCentral()
     }

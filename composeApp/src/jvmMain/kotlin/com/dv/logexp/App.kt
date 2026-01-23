@@ -52,11 +52,13 @@ import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Checkbox
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Divider
+import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.OutlinedButton
 import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.TextField
 import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.textAreaStyle
 import java.awt.Cursor
 
@@ -324,9 +326,11 @@ fun SettingsMenu(
     var expanded by remember { mutableStateOf(false) }
 
     Box {
-        DefaultButton(onClick = { expanded = true }) {
-            Text("Settings")
-        }
+        IconActionButton(
+            key = AllIconsKeys.General.Gear,
+            contentDescription = null,
+            onClick = { expanded = true }
+        )
 
         if (expanded) {
             PopupMenu(

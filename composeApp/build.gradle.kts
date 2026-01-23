@@ -28,6 +28,7 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.jewel.int.ui.standalone)
+            implementation(libs.intellij.icons)
         }
     }
 }
