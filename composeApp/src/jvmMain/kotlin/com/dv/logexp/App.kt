@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
@@ -45,8 +46,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import org.jetbrains.jewel.foundation.Stroke
-import org.jetbrains.jewel.foundation.modifier.border
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
 import org.jetbrains.jewel.ui.Orientation
@@ -249,12 +248,12 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         listState as ScrollableState,
                         modifier =
                             Modifier.fillMaxSize()
-                                .background(JewelTheme.textAreaStyle.colors.background)
-                                .border(
-                                    Stroke.Alignment.Outside,
-                                    1.dp,
-                                    JewelTheme.globalColors.borders.normal
-                                ),
+                                .padding(horizontal = 8.dp)
+                                .background(
+                                    JewelTheme.textAreaStyle.colors.background,
+                                    RoundedCornerShape(16.dp)
+                                )
+
                     ) {
                         LazyColumn(
                             state = listState,
