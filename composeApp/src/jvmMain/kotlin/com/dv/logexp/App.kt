@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -26,11 +28,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -46,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
 import org.jetbrains.jewel.ui.Orientation
@@ -84,7 +93,9 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val columnWidths by viewModel.columnWidths.collectAsState()
     val autoFollow by viewModel.autoFollow.collectAsState()
     val selectedIds = viewModel.selectedIds
+    val bookmarkedIds = viewModel.bookmarkedIds
     val clipboardManager = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
 
     val isDark = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -128,6 +139,44 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
         Column(
             modifier = Modifier.fillMaxSize()
                 .background(JewelTheme.globalColors.panelBackground)
+                .onKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyUp) {
+                        when (event.key) {
+                            Key.B -> {
+                                if (selectedIds.isNotEmpty()) {
+                                    selectedIds.forEach { viewModel.toggleBookmark(it) }
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+
+                            Key.F3 -> {
+                                val currentLogId = selectedIds.lastOrNull()
+                                    ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
+                                    ?: -1
+                                viewModel.findNextBookmark(currentLogId)?.let { nextBookmarkId ->
+                                    val targetIndex =
+                                        filteredLogs.indexOfFirst { it.id == nextBookmarkId }
+                                    if (targetIndex != -1) {
+                                        scope.launch {
+                                            listState.animateScrollToItem(targetIndex)
+                                        }
+                                        viewModel.toggleSelection(
+                                            nextBookmarkId,
+                                            multiSelect = false
+                                        )
+                                    }
+                                }
+                                true
+                            }
+
+                            else -> false
+                        }
+                    } else {
+                        false
+                    }
+                }
         ) {
             // Top Bar
             Row(
@@ -186,6 +235,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Spacer(modifier = Modifier.width(8.dp)) // For bookmark indicator alignment
                 LogColumn.entries.forEach { column ->
                     if (visibleColumns.contains(column)) {
                         if (column == LogColumn.MESSAGE) {
@@ -263,12 +313,14 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         ) {
                             items(filteredLogs, key = { it.id }) { log ->
                                 val isSelected = selectedIds.contains(log.id)
+                                val isBookmarked = bookmarkedIds.contains(log.id)
                                 LogRow(
                                     log = log,
                                     visibleColumns = visibleColumns,
                                     columnWidths = columnWidths,
                                     isDarkMode = isDark,
                                     isSelected = isSelected,
+                                    isBookmarked = isBookmarked,
                                     onSelect = { multi -> viewModel.toggleSelection(log.id, multi) }
                                 )
                             }
@@ -384,6 +436,7 @@ fun LogRow(
     columnWidths: Map<LogColumn, Float>,
     isDarkMode: Boolean,
     isSelected: Boolean,
+    isBookmarked: Boolean,
     onSelect: (Boolean) -> Unit
 ) {
     val color = getLogColor(log.level, isDarkMode)
@@ -405,6 +458,16 @@ fun LogRow(
             .padding(vertical = 1.dp)
             .padding(horizontal = 8.dp)
     ) {
+        Box(Modifier.width(6.dp).align(Alignment.CenterVertically)) {
+            if (isBookmarked) {
+                Box(
+                    Modifier.size(6.dp)
+                        .background(JewelTheme.globalColors.text.info, shape = CircleShape)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(2.dp))
+
         LogColumn.entries.forEach { column ->
             if (visibleColumns.contains(column)) {
                 val text = when (column) {

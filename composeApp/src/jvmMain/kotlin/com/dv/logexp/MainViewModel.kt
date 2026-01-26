@@ -30,6 +30,7 @@ enum class ThemeMode {
 class MainViewModel : ViewModel() {
     val logs = mutableStateListOf<LogEntry>()
     val selectedIds = mutableStateSetOf<Int>()
+    val bookmarkedIds = mutableStateSetOf<Int>()
     val pidToPackage = mutableStateMapOf<String, String>()
 
     private val _isCapturing = MutableStateFlow(false)
@@ -64,6 +65,26 @@ class MainViewModel : ViewModel() {
     init {
         startCapture()
         refreshPackages()
+    }
+
+    fun findNextBookmark(currentId: Int): Int? {
+        val sortedBookmarks = bookmarkedIds.sorted()
+        if (sortedBookmarks.isEmpty()) return null
+
+        val currentIndex = sortedBookmarks.indexOfFirst { it > currentId }
+        return if (currentIndex != -1) {
+            sortedBookmarks[currentIndex]
+        } else {
+            sortedBookmarks.first()
+        }
+    }
+
+    fun toggleBookmark(id: Int) {
+        if (bookmarkedIds.contains(id)) {
+            bookmarkedIds.remove(id)
+        } else {
+            bookmarkedIds.add(id)
+        }
     }
 
     fun setAutoFollow(enabled: Boolean) {
