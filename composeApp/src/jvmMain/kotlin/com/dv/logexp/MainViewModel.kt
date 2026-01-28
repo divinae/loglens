@@ -21,6 +21,7 @@ import java.util.regex.Pattern
 
 @Serializable
 enum class LogColumn(val displayName: String) {
+    DATE("Date"),
     TIME("Time"),
     PID("PID"),
     TID("TID"),
@@ -38,13 +39,16 @@ enum class ThemeMode {
 @Serializable
 data class UserConfig(
     val visibleColumns: Set<LogColumn> = setOf(
+        LogColumn.DATE,
+        LogColumn.TIME,
         LogColumn.PROCESS,
         LogColumn.LEVEL,
         LogColumn.TAG,
         LogColumn.MESSAGE
     ),
     val columnWidths: Map<LogColumn, Float> = mapOf(
-        LogColumn.TIME to 160f,
+        LogColumn.DATE to 60f,
+        LogColumn.TIME to 100f,
         LogColumn.PID to 60f,
         LogColumn.TID to 60f,
         LogColumn.PROCESS to 120f,
@@ -82,6 +86,8 @@ class MainViewModel : ViewModel() {
 
     private val _visibleColumns = MutableStateFlow(
         setOf(
+            LogColumn.DATE,
+            LogColumn.TIME,
             LogColumn.PROCESS,
             LogColumn.LEVEL,
             LogColumn.TAG,
@@ -92,7 +98,8 @@ class MainViewModel : ViewModel() {
 
     private val _columnWidths = MutableStateFlow(
         mapOf(
-            LogColumn.TIME to 160f,
+            LogColumn.DATE to 60f,
+            LogColumn.TIME to 100f,
             LogColumn.PID to 60f,
             LogColumn.TID to 60f,
             LogColumn.PROCESS to 120f,
@@ -280,7 +287,7 @@ class MainViewModel : ViewModel() {
     }
 
     private val logPattern =
-        Pattern.compile("^([\\d-]+\\s[\\d:.]+)\\s+(\\d+)\\s+(\\d+)\\s+([VDIWEAF])\\s+(.*?):?\\s(.*)$")
+        Pattern.compile("^(\\d{2}-\\d{2})\\s+(\\d{2}:\\d{2}:\\d{2}\\.\\d{3})\\s+(\\d+)\\s+(\\d+)\\s+([VDIWEAF])\\s+(.*?):?\\s(.*)$")
 
     private fun parseLog(id: Int, rawLine: String): LogEntry {
         if (rawLine.startsWith("---------")) {
@@ -289,16 +296,17 @@ class MainViewModel : ViewModel() {
 
         val matcher = logPattern.matcher(rawLine.trim())
         return if (matcher.find()) {
-            val pid = matcher.group(2)
+            val pid = matcher.group(3)
             LogEntry(
                 id = id,
                 content = rawLine,
-                time = matcher.group(1),
+                date = matcher.group(1),
+                time = matcher.group(2),
                 pid = pid,
-                tid = matcher.group(3),
-                level = matcher.group(4),
-                tag = matcher.group(5).trim(),
-                message = matcher.group(6),
+                tid = matcher.group(4),
+                level = matcher.group(5),
+                tag = matcher.group(6).trim(),
+                message = matcher.group(7),
                 appName = pidToPackage[pid] ?: ""
             )
         } else {

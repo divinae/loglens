@@ -79,6 +79,7 @@ import java.awt.Cursor
 data class LogEntry(
     val id: Int,
     val content: String,
+    val date: String = "",
     val time: String = "",
     val pid: String = "",
     val tid: String = "",
@@ -535,6 +536,7 @@ fun LogRow(
         LogColumn.entries.forEach { column ->
             if (visibleColumns.contains(column)) {
                 val text = when (column) {
+                    LogColumn.DATE -> log.date
                     LogColumn.TIME -> log.time
                     LogColumn.PID -> log.pid
                     LogColumn.TID -> log.tid
