@@ -43,6 +43,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -172,7 +173,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                     val currentLogId = selectedIds.lastOrNull()
                                         ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
                                         ?: -1
-                                    
+
                                     val targetBookmarkId = if (event.isShiftPressed) {
                                         viewModel.findPreviousBookmark(currentLogId)
                                     } else {
@@ -302,17 +303,23 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 Spacer(modifier = Modifier.width(8.dp)) // For bookmark indicator alignment
                 LogColumn.entries.forEach { column ->
                     if (visibleColumns.contains(column)) {
-                        if (column == LogColumn.MESSAGE) {
-                            Text(
-                                text = column.displayName,
-                                modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                        val currentWidth =
+                            if (column == LogColumn.MESSAGE) null else columnWidths[column] ?: 100f
+                        var showContextMenu by remember { mutableStateOf(false) }
+                        val headerModifier =
+                            if (currentWidth == null) Modifier.weight(1f) else Modifier.width(
+                                currentWidth.dp
                             )
-                        } else {
-                            val currentWidth = columnWidths[column] ?: 100f
+
+                        Box(modifier = headerModifier) {
                             Row(
-                                modifier = Modifier.width(currentWidth.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onPointerEvent(PointerEventType.Press) {
+                                        if (it.button == PointerButton.Secondary) {
+                                            showContextMenu = true
+                                        }
+                                    },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
@@ -324,30 +331,53 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                     overflow = TextOverflow.Ellipsis
                                 )
 
-                                Box(
-                                    modifier = Modifier
-                                        .width(2.dp)
-                                        .height(16.dp)
-                                        .pointerHoverIcon(
-                                            PointerIcon(
-                                                Cursor.getPredefinedCursor(
-                                                    Cursor.E_RESIZE_CURSOR
+                                if (currentWidth != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(2.dp)
+                                            .height(16.dp)
+                                            .pointerHoverIcon(
+                                                PointerIcon(
+                                                    Cursor.getPredefinedCursor(
+                                                        Cursor.E_RESIZE_CURSOR
+                                                    )
                                                 )
                                             )
-                                        )
-                                        .pointerInput(column) {
-                                            detectDragGestures { change, dragAmount ->
-                                                change.consume()
-                                                val latestWidth =
-                                                    viewModel.columnWidths.value[column] ?: 100f
-                                                viewModel.updateColumnWidth(
-                                                    column,
-                                                    latestWidth + dragAmount.x
-                                                )
+                                            .pointerInput(column) {
+                                                detectDragGestures { change, dragAmount ->
+                                                    change.consume()
+                                                    val latestWidth =
+                                                        viewModel.columnWidths.value[column] ?: 100f
+                                                    viewModel.updateColumnWidth(
+                                                        column,
+                                                        latestWidth + dragAmount.x
+                                                    )
+                                                }
                                             }
+                                            .background(if (isDark) Color.Gray else Color.LightGray)
+                                    )
+                                }
+                            }
+
+                            if (showContextMenu) {
+                                PopupMenu(
+                                    onDismissRequest = {
+                                        showContextMenu = false
+                                        true
+                                    },
+                                    horizontalAlignment = Alignment.CenterHorizontally
+
+                                ) {
+                                    selectableItem(
+                                        selected = false,
+                                        onClick = {
+                                            viewModel.toggleColumn(column)
+                                            showContextMenu = false
                                         }
-                                        .background(if (isDark) Color.Gray else Color.LightGray)
-                                )
+                                    ) {
+                                        Text("Hide Column")
+                                    }
+                                }
                             }
                         }
                     }
