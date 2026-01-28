@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -38,6 +39,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
@@ -52,6 +54,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -168,15 +171,22 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                     val currentLogId = selectedIds.lastOrNull()
                                         ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
                                         ?: -1
-                                    viewModel.findNextBookmark(currentLogId)?.let { nextBookmarkId ->
+                                    
+                                    val targetBookmarkId = if (event.isShiftPressed) {
+                                        viewModel.findPreviousBookmark(currentLogId)
+                                    } else {
+                                        viewModel.findNextBookmark(currentLogId)
+                                    }
+
+                                    targetBookmarkId?.let { bookmarkId ->
                                         val targetIndex =
-                                            filteredLogs.indexOfFirst { it.id == nextBookmarkId }
+                                            filteredLogs.indexOfFirst { it.id == bookmarkId }
                                         if (targetIndex != -1) {
                                             scope.launch {
                                                 listState.animateScrollToItem(targetIndex)
                                             }
                                             viewModel.toggleSelection(
-                                                nextBookmarkId,
+                                                bookmarkId,
                                                 multiSelect = false
                                             )
                                         }
@@ -192,8 +202,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             when (event.key) {
                                 Key.DirectionDown -> {
                                     val currentSelection = selectedIds.firstOrNull()
-                                    val currentIndex = filteredLogs.indexOfFirst { it.id == currentSelection }
-                                    val nextIndex = (currentIndex + 1).coerceAtMost(filteredLogs.size - 1)
+                                    val currentIndex =
+                                        filteredLogs.indexOfFirst { it.id == currentSelection }
+                                    val nextIndex =
+                                        (currentIndex + 1).coerceAtMost(filteredLogs.size - 1)
                                     if (nextIndex != currentIndex) {
                                         val nextLog = filteredLogs[nextIndex]
                                         viewModel.toggleSelection(nextLog.id, multiSelect = false)
@@ -207,7 +219,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
 
                                 Key.DirectionUp -> {
                                     val currentSelection = selectedIds.firstOrNull()
-                                    val currentIndex = filteredLogs.indexOfFirst { it.id == currentSelection }
+                                    val currentIndex =
+                                        filteredLogs.indexOfFirst { it.id == currentSelection }
                                     val nextIndex = (currentIndex - 1).coerceAtLeast(0)
                                     if (nextIndex != currentIndex) {
                                         val nextLog = filteredLogs[nextIndex]
@@ -388,7 +401,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val textFilterState = rememberTextFieldState("")
-                val appFilterState = rememberTextFieldState("")
+                val appFilterState = rememberTextFieldState(appFilter)
 
                 LaunchedEffect(textFilterState.text) {
                     viewModel.updateSearchQuery(textFilterState.text.toString())
@@ -411,7 +424,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 Text(
                     text = "Logs: ${filteredLogs.size}",
                     fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 8.dp)
+                    textAlign = TextAlign.Right,
+                    modifier = Modifier.padding(start = 8.dp).widthIn(min = 100.dp)
                 )
             }
         }
@@ -530,13 +544,11 @@ fun LogRow(
                     LogColumn.MESSAGE -> log.message
                 }
 
-                val isWrap = column == LogColumn.MESSAGE || column == LogColumn.TAG
-
                 if (column == LogColumn.MESSAGE) {
-                    LogCell(text, color, Modifier.weight(1f), wrapText = isWrap)
+                    LogCell(text, color, Modifier.weight(1f), wrapText = true)
                 } else {
                     val width = columnWidths[column] ?: 100f
-                    LogCell(text, color, Modifier.width(width.dp), wrapText = isWrap)
+                    LogCell(text, color, Modifier.width(width.dp), wrapText = false)
                 }
             }
         }

@@ -103,11 +103,7 @@ class MainViewModel : ViewModel() {
     val columnWidths = _columnWidths.asStateFlow()
 
     init {
-        val config = loadConfig()
-        _visibleColumns.value = config.visibleColumns
-        _columnWidths.value = config.columnWidths
-        _appFilter.value = config.appFilter
-        _themeMode.value = config.themeMode
+        loadAndApplyConfig()
 
         viewModelScope.launch {
             while (isActive) {
@@ -117,6 +113,14 @@ class MainViewModel : ViewModel() {
         }
 
         startCapture()
+    }
+
+    private fun loadAndApplyConfig() {
+        val config = loadConfig()
+        _visibleColumns.value = config.visibleColumns
+        _columnWidths.value = config.columnWidths
+        _appFilter.value = config.appFilter
+        _themeMode.value = config.themeMode
     }
 
     private fun loadConfig(): UserConfig = try {
@@ -151,6 +155,18 @@ class MainViewModel : ViewModel() {
         if (sortedBookmarks.isEmpty()) return null
 
         val currentIndex = sortedBookmarks.indexOfFirst { it > currentId }
+        return if (currentIndex != -1) {
+            sortedBookmarks[currentIndex]
+        } else {
+            sortedBookmarks.first()
+        }
+    }
+
+    fun findPreviousBookmark(currentId: Int): Int? {
+        val sortedBookmarks = bookmarkedIds.sortedDescending()
+        if (sortedBookmarks.isEmpty()) return null
+
+        val currentIndex = sortedBookmarks.indexOfFirst { it < currentId }
         return if (currentIndex != -1) {
             sortedBookmarks[currentIndex]
         } else {
