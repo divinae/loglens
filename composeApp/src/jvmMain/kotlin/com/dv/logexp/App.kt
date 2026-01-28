@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -96,6 +98,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val bookmarkedIds = viewModel.bookmarkedIds
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val focusRequester = remember { FocusRequester() }
 
     val isDark = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -120,14 +123,18 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             }
         }
 
+        var isAutoScrolling by remember { mutableStateOf(false) }
+
         LaunchedEffect(filteredLogs.size, autoFollow) {
             if (autoFollow && filteredLogs.isNotEmpty() && !listState.isScrollInProgress) {
+                isAutoScrolling = true
                 listState.animateScrollToItem(filteredLogs.size - 1)
+                isAutoScrolling = false
             }
         }
 
         LaunchedEffect(listState.isScrollInProgress) {
-            if (listState.isScrollInProgress && autoFollow) {
+            if (listState.isScrollInProgress && autoFollow && !isAutoScrolling) {
                 val lastVisibleIndex =
                     listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
                 if (lastVisibleIndex < filteredLogs.size - 5) {
@@ -136,45 +143,88 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             }
         }
 
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
+
         Column(
             modifier = Modifier.fillMaxSize()
                 .background(JewelTheme.globalColors.panelBackground)
+                .focusRequester(focusRequester)
                 .onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyUp) {
-                        when (event.key) {
-                            Key.B -> {
-                                if (selectedIds.isNotEmpty()) {
-                                    selectedIds.forEach { viewModel.toggleBookmark(it) }
-                                    true
-                                } else {
-                                    false
-                                }
-                            }
-
-                            Key.F3 -> {
-                                val currentLogId = selectedIds.lastOrNull()
-                                    ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
-                                    ?: -1
-                                viewModel.findNextBookmark(currentLogId)?.let { nextBookmarkId ->
-                                    val targetIndex =
-                                        filteredLogs.indexOfFirst { it.id == nextBookmarkId }
-                                    if (targetIndex != -1) {
-                                        scope.launch {
-                                            listState.animateScrollToItem(targetIndex)
-                                        }
-                                        viewModel.toggleSelection(
-                                            nextBookmarkId,
-                                            multiSelect = false
-                                        )
+                    when (event.type) {
+                        KeyEventType.KeyUp -> {
+                            when (event.key) {
+                                Key.B -> {
+                                    if (selectedIds.isNotEmpty()) {
+                                        selectedIds.forEach { viewModel.toggleBookmark(it) }
+                                        true
+                                    } else {
+                                        false
                                     }
                                 }
-                                true
-                            }
 
-                            else -> false
+                                Key.F3 -> {
+                                    val currentLogId = selectedIds.lastOrNull()
+                                        ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
+                                        ?: -1
+                                    viewModel.findNextBookmark(currentLogId)?.let { nextBookmarkId ->
+                                        val targetIndex =
+                                            filteredLogs.indexOfFirst { it.id == nextBookmarkId }
+                                        if (targetIndex != -1) {
+                                            scope.launch {
+                                                listState.animateScrollToItem(targetIndex)
+                                            }
+                                            viewModel.toggleSelection(
+                                                nextBookmarkId,
+                                                multiSelect = false
+                                            )
+                                        }
+                                    }
+                                    true
+                                }
+
+                                else -> false
+                            }
                         }
-                    } else {
-                        false
+
+                        KeyEventType.KeyDown -> {
+                            when (event.key) {
+                                Key.DirectionDown -> {
+                                    val currentSelection = selectedIds.firstOrNull()
+                                    val currentIndex = filteredLogs.indexOfFirst { it.id == currentSelection }
+                                    val nextIndex = (currentIndex + 1).coerceAtMost(filteredLogs.size - 1)
+                                    if (nextIndex != currentIndex) {
+                                        val nextLog = filteredLogs[nextIndex]
+                                        viewModel.toggleSelection(nextLog.id, multiSelect = false)
+                                        viewModel.setAutoFollow(false)
+                                        scope.launch {
+                                            listState.animateScrollToItem(nextIndex)
+                                        }
+                                    }
+                                    true
+                                }
+
+                                Key.DirectionUp -> {
+                                    val currentSelection = selectedIds.firstOrNull()
+                                    val currentIndex = filteredLogs.indexOfFirst { it.id == currentSelection }
+                                    val nextIndex = (currentIndex - 1).coerceAtLeast(0)
+                                    if (nextIndex != currentIndex) {
+                                        val nextLog = filteredLogs[nextIndex]
+                                        viewModel.toggleSelection(nextLog.id, multiSelect = false)
+                                        viewModel.setAutoFollow(false)
+                                        scope.launch {
+                                            listState.animateScrollToItem(nextIndex)
+                                        }
+                                    }
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
+
+                        else -> false
                     }
                 }
         ) {
@@ -311,7 +361,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             state = listState,
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(filteredLogs, key = { it.id }) { log ->
+                            itemsIndexed(filteredLogs, key = { _, log -> log.id }) { index, log ->
                                 val isSelected = selectedIds.contains(log.id)
                                 val isBookmarked = bookmarkedIds.contains(log.id)
                                 LogRow(
@@ -474,6 +524,7 @@ fun LogRow(
                     LogColumn.TIME -> log.time
                     LogColumn.PID -> log.pid
                     LogColumn.TID -> log.tid
+                    LogColumn.PROCESS -> log.appName
                     LogColumn.LEVEL -> log.level
                     LogColumn.TAG -> log.tag
                     LogColumn.MESSAGE -> log.message

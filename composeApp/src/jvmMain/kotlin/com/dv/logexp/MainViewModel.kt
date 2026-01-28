@@ -6,8 +6,10 @@ import androidx.compose.runtime.mutableStateSetOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -18,6 +20,7 @@ enum class LogColumn(val displayName: String) {
     TIME("Time"),
     PID("PID"),
     TID("TID"),
+    PROCESS("Process"),
     LEVEL("Level"),
     TAG("Tag"),
     MESSAGE("Message")
@@ -48,7 +51,7 @@ class MainViewModel : ViewModel() {
     private val _autoFollow = MutableStateFlow(true)
     val autoFollow = _autoFollow.asStateFlow()
 
-    private val _visibleColumns = MutableStateFlow(setOf(LogColumn.LEVEL, LogColumn.TAG, LogColumn.MESSAGE))
+    private val _visibleColumns = MutableStateFlow(setOf(LogColumn.PROCESS, LogColumn.LEVEL, LogColumn.TAG, LogColumn.MESSAGE))
     val visibleColumns = _visibleColumns.asStateFlow()
 
     private val _columnWidths = MutableStateFlow(
@@ -56,6 +59,7 @@ class MainViewModel : ViewModel() {
             LogColumn.TIME to 160f,
             LogColumn.PID to 60f,
             LogColumn.TID to 60f,
+            LogColumn.PROCESS to 120f,
             LogColumn.LEVEL to 30f,
             LogColumn.TAG to 120f
         )
@@ -64,7 +68,12 @@ class MainViewModel : ViewModel() {
 
     init {
         startCapture()
-        refreshPackages()
+        viewModelScope.launch {
+            while (isActive) {
+                refreshPackages()
+                delay(5000)
+            }
+        }
     }
 
     fun findNextBookmark(currentId: Int): Int? {
@@ -104,11 +113,16 @@ class MainViewModel : ViewModel() {
             try {
                 val process = ProcessBuilder("adb", "shell", "ps", "-A", "-o", "PID,NAME").start()
                 val reader = BufferedReader(InputStreamReader(process.inputStream))
+                val newPidToPackage = mutableMapOf<String, String>()
                 reader.forEachLine { line ->
                     val parts = line.trim().split(Regex("\\s+"), 2)
                     if (parts.size == 2 && parts[0].all { it.isDigit() }) {
-                        pidToPackage[parts[0]] = parts[1]
+                        newPidToPackage[parts[0]] = parts[1]
                     }
+                }
+                withContext(Dispatchers.Main) {
+                    pidToPackage.clear()
+                    pidToPackage.putAll(newPidToPackage)
                 }
             } catch (e: Exception) {
                 // Ignore
