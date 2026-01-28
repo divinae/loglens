@@ -37,7 +37,12 @@ enum class ThemeMode {
 
 @Serializable
 data class UserConfig(
-    val visibleColumns: Set<LogColumn> = setOf(LogColumn.PROCESS, LogColumn.LEVEL, LogColumn.TAG, LogColumn.MESSAGE),
+    val visibleColumns: Set<LogColumn> = setOf(
+        LogColumn.PROCESS,
+        LogColumn.LEVEL,
+        LogColumn.TAG,
+        LogColumn.MESSAGE
+    ),
     val columnWidths: Map<LogColumn, Float> = mapOf(
         LogColumn.TIME to 160f,
         LogColumn.PID to 60f,
@@ -75,7 +80,14 @@ class MainViewModel : ViewModel() {
     private val _autoFollow = MutableStateFlow(true)
     val autoFollow = _autoFollow.asStateFlow()
 
-    private val _visibleColumns = MutableStateFlow(setOf(LogColumn.PROCESS, LogColumn.LEVEL, LogColumn.TAG, LogColumn.MESSAGE))
+    private val _visibleColumns = MutableStateFlow(
+        setOf(
+            LogColumn.PROCESS,
+            LogColumn.LEVEL,
+            LogColumn.TAG,
+            LogColumn.MESSAGE
+        )
+    )
     val visibleColumns = _visibleColumns.asStateFlow()
 
     private val _columnWidths = MutableStateFlow(
@@ -97,25 +109,24 @@ class MainViewModel : ViewModel() {
         _appFilter.value = config.appFilter
         _themeMode.value = config.themeMode
 
-        startCapture()
         viewModelScope.launch {
             while (isActive) {
                 refreshPackages()
                 delay(5000)
             }
         }
+
+        startCapture()
     }
 
-    private fun loadConfig(): UserConfig {
-        return try {
-            if (configFile.exists()) {
-                json.decodeFromString<UserConfig>(configFile.readText())
-            } else {
-                UserConfig()
-            }
-        } catch (e: Exception) {
+    private fun loadConfig(): UserConfig = try {
+        if (configFile.exists()) {
+            json.decodeFromString<UserConfig>(configFile.readText())
+        } else {
             UserConfig()
         }
+    } catch (e: Exception) {
+        UserConfig()
     }
 
     private fun saveConfig() {
@@ -252,13 +263,14 @@ class MainViewModel : ViewModel() {
         selectedIds.clear()
     }
 
-    private val logPattern = Pattern.compile("^([\\d-]+\\s[\\d:.]+)\\s+(\\d+)\\s+(\\d+)\\s+([VDIWEAF])\\s+(.*?):?\\s(.*)$")
+    private val logPattern =
+        Pattern.compile("^([\\d-]+\\s[\\d:.]+)\\s+(\\d+)\\s+(\\d+)\\s+([VDIWEAF])\\s+(.*?):?\\s(.*)$")
 
     private fun parseLog(id: Int, rawLine: String): LogEntry {
         if (rawLine.startsWith("---------")) {
             return LogEntry(id = id, content = rawLine, message = rawLine, level = "I")
         }
-        
+
         val matcher = logPattern.matcher(rawLine.trim())
         return if (matcher.find()) {
             val pid = matcher.group(2)
@@ -283,10 +295,10 @@ class MainViewModel : ViewModel() {
             try {
                 val process = ProcessBuilder("adb", "logcat", "-v", "threadtime").start()
                 val reader = BufferedReader(InputStreamReader(process.inputStream))
-                
+
                 if (!process.isAlive && process.exitValue() != 0) {
-                   onLogReceived("Error: Process adb exited with code ${process.exitValue()}")
-                   return@withContext
+                    onLogReceived("Error: Process adb exited with code ${process.exitValue()}")
+                    return@withContext
                 }
 
                 reader.forEachLine { line ->
