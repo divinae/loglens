@@ -12,10 +12,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.util.regex.Pattern
 
+@Serializable
 enum class LogColumn(val displayName: String) {
     TIME("Time"),
     PID("PID"),
@@ -26,11 +30,31 @@ enum class LogColumn(val displayName: String) {
     MESSAGE("Message")
 }
 
+@Serializable
 enum class ThemeMode {
     SYSTEM, LIGHT, DARK
 }
 
+@Serializable
+data class UserConfig(
+    val visibleColumns: Set<LogColumn> = setOf(LogColumn.PROCESS, LogColumn.LEVEL, LogColumn.TAG, LogColumn.MESSAGE),
+    val columnWidths: Map<LogColumn, Float> = mapOf(
+        LogColumn.TIME to 160f,
+        LogColumn.PID to 60f,
+        LogColumn.TID to 60f,
+        LogColumn.PROCESS to 120f,
+        LogColumn.LEVEL to 30f,
+        LogColumn.TAG to 120f
+    ),
+    val appFilter: String = "",
+    val themeMode: ThemeMode = ThemeMode.SYSTEM
+)
+
 class MainViewModel : ViewModel() {
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+    private val configDir = File(System.getProperty("user.home"), ".config/logexp")
+    private val configFile = File(configDir, "config.json")
+
     val logs = mutableStateListOf<LogEntry>()
     val selectedIds = mutableStateSetOf<Int>()
     val bookmarkedIds = mutableStateSetOf<Int>()
@@ -67,11 +91,46 @@ class MainViewModel : ViewModel() {
     val columnWidths = _columnWidths.asStateFlow()
 
     init {
+        val config = loadConfig()
+        _visibleColumns.value = config.visibleColumns
+        _columnWidths.value = config.columnWidths
+        _appFilter.value = config.appFilter
+        _themeMode.value = config.themeMode
+
         startCapture()
         viewModelScope.launch {
             while (isActive) {
                 refreshPackages()
                 delay(5000)
+            }
+        }
+    }
+
+    private fun loadConfig(): UserConfig {
+        return try {
+            if (configFile.exists()) {
+                json.decodeFromString<UserConfig>(configFile.readText())
+            } else {
+                UserConfig()
+            }
+        } catch (e: Exception) {
+            UserConfig()
+        }
+    }
+
+    private fun saveConfig() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                if (!configDir.exists()) configDir.mkdirs()
+                val config = UserConfig(
+                    visibleColumns = _visibleColumns.value,
+                    columnWidths = _columnWidths.value,
+                    appFilter = _appFilter.value,
+                    themeMode = _themeMode.value
+                )
+                configFile.writeText(json.encodeToString(config))
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -106,6 +165,7 @@ class MainViewModel : ViewModel() {
 
     fun updateAppFilter(filter: String) {
         _appFilter.value = filter
+        saveConfig()
     }
 
     fun refreshPackages() {
@@ -151,12 +211,14 @@ class MainViewModel : ViewModel() {
         } else {
             _visibleColumns.value = current + column
         }
+        saveConfig()
     }
 
     fun updateColumnWidth(column: LogColumn, width: Float) {
         val current = _columnWidths.value.toMutableMap()
         current[column] = width.coerceAtLeast(10f)
         _columnWidths.value = current
+        saveConfig()
     }
 
     fun toggleTheme() {
@@ -165,6 +227,7 @@ class MainViewModel : ViewModel() {
             ThemeMode.DARK -> ThemeMode.LIGHT
             ThemeMode.LIGHT -> ThemeMode.SYSTEM
         }
+        saveConfig()
     }
 
     fun updateSearchQuery(query: String) {
