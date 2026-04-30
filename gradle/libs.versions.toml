@@ -1,13 +1,13 @@
 [versions]
-androidx-lifecycle = "2.9.6"
-composeHotReload = "1.0.0"
-composeMultiplatform = "1.9.3"
+androidx-lifecycle = "2.10.0"
+composeHotReload = "1.1.0"
+composeMultiplatform = "1.10.3"
 junit = "4.13.2"
-kotlin = "2.3.0"
+kotlin = "2.3.21"
 kotlinx-coroutines = "1.10.2"
-kotlinx-serialization = "1.10.0"
-jewel = "0.33.0-253.29795"
-icons = "253.29346.308"
+kotlinx-serialization = "1.11.0"
+jewel = "0.35.0-261.23567.138"
+icons = "261.23567.174"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
