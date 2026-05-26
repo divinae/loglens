@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -17,17 +21,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dv.logexp.model.FieldPattern
+import com.dv.logexp.model.FilterMode
+import com.dv.logexp.model.FilterRule
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
 import com.dv.logexp.ui.theme.ROW_SELECTED_DARK
 import com.dv.logexp.ui.theme.ROW_SELECTED_LIGHT
 import com.dv.logexp.ui.theme.logLevelColor
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.Orientation
+import org.jetbrains.jewel.ui.component.Divider
+import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -39,13 +52,17 @@ fun LogRow(
     isDarkMode: Boolean,
     isSelected: Boolean,
     isBookmarked: Boolean,
+    highlightColor: Color? = null,
     onSelect: (Boolean) -> Unit,
+    onAddFilter: (FilterRule) -> Unit = {},
 ) {
+    val clipboard = LocalClipboardManager.current
     val color = logLevelColor(log.level, isDarkMode)
     val backgroundColor = when {
-        !isSelected -> Color.Transparent
-        isDarkMode -> ROW_SELECTED_DARK
-        else -> ROW_SELECTED_LIGHT
+        isSelected && isDarkMode -> ROW_SELECTED_DARK
+        isSelected -> ROW_SELECTED_LIGHT
+        highlightColor != null -> highlightColor
+        else -> Color.Transparent
     }
 
     Row(
@@ -53,6 +70,7 @@ fun LogRow(
             .fillMaxWidth()
             .background(backgroundColor)
             .onPointerEvent(PointerEventType.Press) {
+                if (it.buttons.isSecondaryPressed) return@onPointerEvent
                 val multi = it.keyboardModifiers.isCtrlPressed || it.keyboardModifiers.isMetaPressed
                 onSelect(multi)
             }
@@ -81,14 +99,127 @@ fun LogRow(
                 LogColumn.MESSAGE -> log.message
             }
 
-            if (column == LogColumn.MESSAGE) {
-                LogCell(text, color, Modifier.weight(1f), wrapText = true)
+            val cellModifier = if (column == LogColumn.MESSAGE) {
+                Modifier.weight(1f)
             } else {
-                val width = columnWidths[column] ?: 100f
-                LogCell(text, color, Modifier.width(width.dp), wrapText = false)
+                Modifier.width((columnWidths[column] ?: 100f).dp)
+            }
+            val wrap = column == LogColumn.MESSAGE
+
+            FilterableCell(
+                column = column,
+                value = text,
+                onAddFilter = onAddFilter,
+                onCopyCell = { clipboard.setText(AnnotatedString(text)) },
+                onCopyRow = { clipboard.setText(AnnotatedString(log.content)) },
+                modifier = cellModifier,
+            ) {
+                LogCell(text, color, Modifier, wrapText = wrap)
             }
         }
     }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun FilterableCell(
+    column: LogColumn,
+    value: String,
+    onAddFilter: (FilterRule) -> Unit,
+    onCopyCell: () -> Unit,
+    onCopyRow: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val filterItems = filterMenuItems(column, value, onAddFilter)
+    val copyItems = buildList {
+        if (value.isNotEmpty()) add(FilterMenuItem("Copy ${columnLabel(column)}", onCopyCell))
+        add(FilterMenuItem("Copy row", onCopyRow))
+    }
+    var showMenu by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier.onPointerEvent(PointerEventType.Press) { event ->
+            if (event.buttons.isSecondaryPressed) showMenu = true
+        }
+    ) {
+        content()
+        if (showMenu) {
+            PopupMenu(
+                onDismissRequest = { showMenu = false; true },
+                horizontalAlignment = Alignment.Start,
+            ) {
+                copyItems.forEach { item ->
+                    selectableItem(
+                        selected = false,
+                        onClick = { item.action(); showMenu = false },
+                    ) {
+                        Text(item.label)
+                    }
+                }
+                if (copyItems.isNotEmpty() && filterItems.isNotEmpty()) {
+                    passiveItem {
+                        Divider(
+                            orientation = Orientation.Horizontal,
+                            thickness = 1.dp,
+                            color = JewelTheme.globalColors.borders.normal,
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
+                    }
+                }
+                filterItems.forEach { item ->
+                    selectableItem(
+                        selected = false,
+                        onClick = { item.action(); showMenu = false },
+                    ) {
+                        Text(item.label)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class FilterMenuItem(val label: String, val action: () -> Unit)
+
+private fun filterMenuItems(
+    column: LogColumn,
+    value: String,
+    onAddFilter: (FilterRule) -> Unit,
+): List<FilterMenuItem> {
+    if (value.isBlank()) return emptyList()
+    val builder = ruleBuilder(column, value) ?: return emptyList()
+    val label = labelFor(column, value)
+    return listOf(
+        FilterMenuItem("Show only $label") { onAddFilter(builder(FilterMode.SHOW)) },
+        FilterMenuItem("Hide $label") { onAddFilter(builder(FilterMode.HIDE)) },
+        FilterMenuItem("Highlight $label") { onAddFilter(builder(FilterMode.HIGHLIGHT)) },
+    )
+}
+
+private fun ruleBuilder(column: LogColumn, value: String): ((FilterMode) -> FilterRule)? {
+    val name = "${columnLabel(column)}: ${value.take(40)}"
+    return when (column) {
+        LogColumn.MESSAGE -> { mode -> FilterRule(name = name, mode = mode, message = FieldPattern(value)) }
+        LogColumn.TAG -> { mode -> FilterRule(name = name, mode = mode, tag = FieldPattern(value, caseSensitive = true)) }
+        LogColumn.PROCESS -> { mode -> FilterRule(name = name, mode = mode, app = FieldPattern(value, caseSensitive = true)) }
+        LogColumn.PID -> { mode -> FilterRule(name = name, mode = mode, pid = FieldPattern(value, caseSensitive = true)) }
+        LogColumn.LEVEL -> { mode -> FilterRule(name = name, mode = mode, levels = setOf(value)) }
+        LogColumn.DATE, LogColumn.TIME, LogColumn.TID -> null
+    }
+}
+
+private fun columnLabel(column: LogColumn): String = when (column) {
+    LogColumn.MESSAGE -> "Message"
+    LogColumn.TAG -> "Tag"
+    LogColumn.PROCESS -> "App"
+    LogColumn.PID -> "PID"
+    LogColumn.LEVEL -> "Level"
+    else -> column.displayName
+}
+
+private fun labelFor(column: LogColumn, value: String): String {
+    val short = if (value.length > 30) value.take(30) + "..." else value
+    return "${columnLabel(column)}=\"$short\""
 }
 
 @Composable

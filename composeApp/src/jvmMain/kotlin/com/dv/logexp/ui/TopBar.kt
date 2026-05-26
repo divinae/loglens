@@ -23,12 +23,14 @@ fun TopBar(
     autoFollow: Boolean,
     visibleColumns: Set<LogColumn>,
     themeMode: ThemeMode,
+    activeFilterCount: Int,
     onStart: () -> Unit,
     onClear: () -> Unit,
     onCopySelected: () -> Unit,
     onToggleAutoFollow: () -> Unit,
     onToggleColumn: (LogColumn) -> Unit,
     onToggleTheme: () -> Unit,
+    onOpenFilters: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -48,6 +50,10 @@ fun TopBar(
         }
 
         Spacer(Modifier.weight(1f))
+
+        OutlinedButton(onClick = onOpenFilters) {
+            Text(if (activeFilterCount > 0) "Filters ($activeFilterCount)" else "Filters")
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = autoFollow, onCheckedChange = { onToggleAutoFollow() })

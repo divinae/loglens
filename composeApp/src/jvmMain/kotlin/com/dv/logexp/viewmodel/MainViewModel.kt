@@ -6,8 +6,10 @@ import androidx.compose.runtime.mutableStateSetOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dv.logexp.config.ConfigManager
+import com.dv.logexp.config.FilterStore
 import com.dv.logexp.model.DEFAULT_COLUMN_WIDTHS
 import com.dv.logexp.model.DEFAULT_VISIBLE_COLUMNS
+import com.dv.logexp.model.FilterRule
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
 import com.dv.logexp.model.ThemeMode
@@ -25,6 +27,7 @@ import kotlinx.coroutines.withContext
 
 class MainViewModel(
     private val configManager: ConfigManager = ConfigManager(),
+    private val filterStore: FilterStore = FilterStore(),
     private val logcatService: LogcatService = LogcatService(),
 ) : ViewModel() {
 
@@ -54,8 +57,12 @@ class MainViewModel(
     private val _columnWidths = MutableStateFlow(DEFAULT_COLUMN_WIDTHS)
     val columnWidths = _columnWidths.asStateFlow()
 
+    private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
+    val filters = _filters.asStateFlow()
+
     init {
         applyConfig(configManager.load())
+        _filters.value = filterStore.load()
 
         viewModelScope.launch {
             while (isActive) {
@@ -181,6 +188,35 @@ class MainViewModel(
     fun clearLogs() {
         logs.clear()
         selectedIds.clear()
+    }
+
+    fun replaceFilters(newFilters: List<FilterRule>) {
+        _filters.value = newFilters
+        persistFilters()
+    }
+
+    fun addFilter(rule: FilterRule) {
+        _filters.value = _filters.value + rule
+        persistFilters()
+    }
+
+    fun removeFilter(id: String) {
+        val current = _filters.value
+        if (current.none { it.id == id }) return
+        _filters.value = current.filterNot { it.id == id }
+        persistFilters()
+    }
+
+    fun setFilterEnabled(id: String, enabled: Boolean) {
+        val current = _filters.value
+        if (current.none { it.id == id && it.enabled != enabled }) return
+        _filters.value = current.map { if (it.id == id) it.copy(enabled = enabled) else it }
+        persistFilters()
+    }
+
+    private fun persistFilters() {
+        val snapshot = _filters.value
+        viewModelScope.launch(Dispatchers.IO) { filterStore.save(snapshot) }
     }
 
     override fun onCleared() {
