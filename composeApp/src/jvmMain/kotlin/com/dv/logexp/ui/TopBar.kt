@@ -33,6 +33,10 @@ fun TopBar(
     onToggleColumn: (LogColumn) -> Unit,
     onToggleTheme: () -> Unit,
     onOpenFilters: () -> Unit,
+    fontSize: Float,
+    onSetFontSize: (Float) -> Unit,
+    fontFamily: String,
+    onSetFontFamily: (String) -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -70,6 +74,10 @@ fun TopBar(
             onToggleColumn = onToggleColumn,
             themeMode = themeMode,
             onToggleTheme = onToggleTheme,
+            fontSize = fontSize,
+            onSetFontSize = onSetFontSize,
+            fontFamily = fontFamily,
+            onSetFontFamily = onSetFontFamily,
         )
     }
 }

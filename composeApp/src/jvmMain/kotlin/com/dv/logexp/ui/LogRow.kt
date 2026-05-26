@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import com.dv.logexp.model.FieldPattern
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
@@ -53,6 +54,8 @@ fun LogRow(
     isSelected: Boolean,
     isBookmarked: Boolean,
     highlightColor: Color? = null,
+    fontSize: TextUnit = 12.sp,
+    fontFamily: FontFamily = FontFamily.Monospace,
     onSelect: (Boolean) -> Unit,
     onAddFilter: (FilterRule) -> Unit = {},
     onToggleBookmark: () -> Unit = {},
@@ -119,7 +122,7 @@ fun LogRow(
                 onToggleBookmark = onToggleBookmark,
                 modifier = cellModifier,
             ) {
-                LogCell(text, color, Modifier, wrapText = wrap)
+                LogCell(text, color, Modifier, wrapText = wrap, fontSize = fontSize, fontFamily = fontFamily)
             }
         }
     }
@@ -248,12 +251,19 @@ private fun labelFor(column: LogColumn, value: String): String {
 }
 
 @Composable
-private fun LogCell(text: String, color: Color, modifier: Modifier, wrapText: Boolean) {
+private fun LogCell(
+    text: String,
+    color: Color,
+    modifier: Modifier,
+    wrapText: Boolean,
+    fontSize: TextUnit,
+    fontFamily: FontFamily,
+) {
     Text(
         text = text,
         color = color,
-        fontSize = 12.sp,
-        fontFamily = FontFamily.Monospace,
+        fontSize = fontSize,
+        fontFamily = fontFamily,
         maxLines = if (wrapText) Int.MAX_VALUE else 1,
         overflow = if (wrapText) TextOverflow.Clip else TextOverflow.Ellipsis,
         modifier = modifier.padding(horizontal = 4.dp),

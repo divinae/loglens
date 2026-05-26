@@ -28,9 +28,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.ThemeMode
+import com.dv.logexp.service.SystemFonts
 import com.dv.logexp.ui.BottomBar
 import com.dv.logexp.ui.FilterChipsBar
 import com.dv.logexp.ui.FiltersDialog
@@ -58,6 +60,9 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val filters by viewModel.filters.collectAsState()
     val devices by viewModel.devices.collectAsState()
     val selectedDevice by viewModel.selectedDevice.collectAsState()
+    val fontSize by viewModel.fontSize.collectAsState()
+    val fontFamily by viewModel.fontFamily.collectAsState()
+    val resolvedFontFamily = remember(fontFamily) { SystemFonts.resolve(fontFamily) }
     val selectedIds = viewModel.selectedIds
     val bookmarkedIds = viewModel.bookmarkedIds
     val logs = viewModel.logs
@@ -163,6 +168,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onToggleColumn = viewModel::toggleColumn,
                 onToggleTheme = viewModel::toggleTheme,
                 onOpenFilters = { showFiltersDialog = true },
+                fontSize = fontSize,
+                onSetFontSize = viewModel::setFontSize,
+                fontFamily = fontFamily,
+                onSetFontFamily = viewModel::setFontFamily,
             )
 
             Divider(Orientation.Horizontal)
@@ -200,6 +209,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 isSelected = log.id in selectedIds,
                                 isBookmarked = log.id in bookmarkedIds,
                                 highlightColor = hl?.let { Color(it.highlightColor.toInt()) },
+                                fontSize = fontSize.sp,
+                                fontFamily = resolvedFontFamily,
                                 onSelect = { multi -> viewModel.toggleSelection(log.id, multi) },
                                 onAddFilter = viewModel::addFilter,
                                 onToggleBookmark = { viewModel.toggleBookmark(log.id) },

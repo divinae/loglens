@@ -8,11 +8,15 @@ import androidx.lifecycle.viewModelScope
 import com.dv.logexp.config.ConfigManager
 import com.dv.logexp.config.FilterStore
 import com.dv.logexp.model.DEFAULT_COLUMN_WIDTHS
+import com.dv.logexp.model.DEFAULT_FONT_FAMILY
+import com.dv.logexp.model.DEFAULT_FONT_SIZE
 import com.dv.logexp.model.DEFAULT_VISIBLE_COLUMNS
 import com.dv.logexp.model.Device
 import com.dv.logexp.model.FilterRule
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
+import com.dv.logexp.model.MAX_FONT_SIZE
+import com.dv.logexp.model.MIN_FONT_SIZE
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.model.UserConfig
 import com.dv.logexp.parser.LogParser
@@ -59,6 +63,12 @@ class MainViewModel(
 
     private val _columnWidths = MutableStateFlow(DEFAULT_COLUMN_WIDTHS)
     val columnWidths = _columnWidths.asStateFlow()
+
+    private val _fontSize = MutableStateFlow(DEFAULT_FONT_SIZE)
+    val fontSize = _fontSize.asStateFlow()
+
+    private val _fontFamily = MutableStateFlow(DEFAULT_FONT_FAMILY)
+    val fontFamily = _fontFamily.asStateFlow()
 
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
@@ -124,6 +134,8 @@ class MainViewModel(
         _columnWidths.value = config.columnWidths
         _appFilter.value = config.appFilter
         _themeMode.value = config.themeMode
+        _fontSize.value = config.fontSize.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
+        _fontFamily.value = config.fontFamily
     }
 
     private fun persistConfig() {
@@ -134,9 +146,24 @@ class MainViewModel(
                     columnWidths = _columnWidths.value,
                     appFilter = _appFilter.value,
                     themeMode = _themeMode.value,
+                    fontSize = _fontSize.value,
+                    fontFamily = _fontFamily.value,
                 )
             )
         }
+    }
+
+    fun setFontSize(size: Float) {
+        val clamped = size.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
+        if (_fontSize.value == clamped) return
+        _fontSize.value = clamped
+        persistConfig()
+    }
+
+    fun setFontFamily(family: String) {
+        if (_fontFamily.value == family) return
+        _fontFamily.value = family
+        persistConfig()
     }
 
     fun findNextBookmark(currentId: Int): Int? {
