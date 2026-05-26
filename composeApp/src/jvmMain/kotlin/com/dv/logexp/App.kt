@@ -55,8 +55,9 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val visibleColumns by viewModel.visibleColumns.collectAsState()
     val columnWidths by viewModel.columnWidths.collectAsState()
     val autoFollow by viewModel.autoFollow.collectAsState()
-    val isCapturing by viewModel.isCapturing.collectAsState()
     val filters by viewModel.filters.collectAsState()
+    val devices by viewModel.devices.collectAsState()
+    val selectedDevice by viewModel.selectedDevice.collectAsState()
     val selectedIds = viewModel.selectedIds
     val bookmarkedIds = viewModel.bookmarkedIds
     val logs = viewModel.logs
@@ -145,16 +146,15 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 )
         ) {
             TopBar(
-                isCapturing = isCapturing,
                 selectedCount = selectedIds.size,
                 autoFollow = autoFollow,
                 visibleColumns = visibleColumns,
                 themeMode = themeMode,
                 activeFilterCount = filters.count { it.enabled },
-                onStart = {
-                    viewModel.refreshPackages()
-                    viewModel.startCapture()
-                },
+                devices = devices,
+                selectedDevice = selectedDevice,
+                onSelectDevice = viewModel::selectDevice,
+                onRefreshDevices = viewModel::refreshDevices,
                 onClear = viewModel::clearLogs,
                 onCopySelected = {
                     val text = logs.filter { it.id in selectedIds }.joinToString("\n") { it.content }

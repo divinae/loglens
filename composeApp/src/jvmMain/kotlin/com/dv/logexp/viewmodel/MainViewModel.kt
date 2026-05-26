@@ -9,14 +9,17 @@ import com.dv.logexp.config.ConfigManager
 import com.dv.logexp.config.FilterStore
 import com.dv.logexp.model.DEFAULT_COLUMN_WIDTHS
 import com.dv.logexp.model.DEFAULT_VISIBLE_COLUMNS
+import com.dv.logexp.model.Device
 import com.dv.logexp.model.FilterRule
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.model.UserConfig
 import com.dv.logexp.parser.LogParser
+import com.dv.logexp.service.DeviceService
 import com.dv.logexp.service.LogcatService
 import com.dv.logexp.service.PackageService
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,17 +63,59 @@ class MainViewModel(
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
 
+    private val _devices = MutableStateFlow<List<Device>>(emptyList())
+    val devices = _devices.asStateFlow()
+
+    private val _selectedDevice = MutableStateFlow<String?>(null)
+    val selectedDevice = _selectedDevice.asStateFlow()
+
+    private var captureJob: Job? = null
+
     init {
         applyConfig(configManager.load())
         _filters.value = filterStore.load()
 
         viewModelScope.launch {
             while (isActive) {
+                refreshDevices()
                 refreshPackages()
                 delay(5000)
             }
         }
 
+        startCapture()
+    }
+
+    fun refreshDevices() {
+        viewModelScope.launch {
+            val list = DeviceService.list()
+            withContext(Dispatchers.Main) {
+                _devices.value = list
+                val current = _selectedDevice.value
+                if (current != null && list.none { it.serial == current }) {
+                    _selectedDevice.value = null
+                    restartCapture()
+                } else if (current == null && list.size == 1 && list[0].isOnline) {
+                    _selectedDevice.value = list[0].serial
+                    restartCapture()
+                }
+            }
+        }
+    }
+
+    fun selectDevice(serial: String?) {
+        if (_selectedDevice.value == serial) return
+        _selectedDevice.value = serial
+        restartCapture()
+    }
+
+    private fun restartCapture() {
+        captureJob?.cancel()
+        captureJob = null
+        logcatService.stop()
+        _isCapturing.value = false
+        logs.clear()
+        selectedIds.clear()
         startCapture()
     }
 
@@ -123,7 +168,7 @@ class MainViewModel(
 
     fun refreshPackages() {
         viewModelScope.launch {
-            val newMap = PackageService.fetchPidMap()
+            val newMap = PackageService.fetchPidMap(_selectedDevice.value)
             if (newMap.isEmpty()) return@launch
             withContext(Dispatchers.Main) {
                 pidToPackage.clear()
@@ -172,9 +217,9 @@ class MainViewModel(
         if (_isCapturing.value) return
         _isCapturing.value = true
 
-        viewModelScope.launch {
+        captureJob = viewModelScope.launch {
             try {
-                logcatService.stream().collect { line ->
+                logcatService.stream(_selectedDevice.value).collect { line ->
                     withContext(Dispatchers.Main) {
                         logs.add(LogParser.parse(logs.size, line, pidToPackage))
                     }

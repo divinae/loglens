@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dv.logexp.model.Device
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.ThemeMode
 import org.jetbrains.jewel.ui.component.Checkbox
@@ -18,13 +19,15 @@ import org.jetbrains.jewel.ui.component.Text
 
 @Composable
 fun TopBar(
-    isCapturing: Boolean,
     selectedCount: Int,
     autoFollow: Boolean,
     visibleColumns: Set<LogColumn>,
     themeMode: ThemeMode,
     activeFilterCount: Int,
-    onStart: () -> Unit,
+    devices: List<Device>,
+    selectedDevice: String?,
+    onSelectDevice: (String?) -> Unit,
+    onRefreshDevices: () -> Unit,
     onClear: () -> Unit,
     onCopySelected: () -> Unit,
     onToggleAutoFollow: () -> Unit,
@@ -37,9 +40,12 @@ fun TopBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DefaultButton(onClick = onStart, enabled = !isCapturing) {
-            Text(if (isCapturing) "Capturing..." else "Start")
-        }
+        DeviceMenu(
+            devices = devices,
+            selectedSerial = selectedDevice,
+            onSelect = onSelectDevice,
+            onRefresh = onRefreshDevices,
+        )
 
         DefaultButton(onClick = onClear) { Text("Clear") }
 

@@ -11,9 +11,14 @@ class LogcatService {
     @Volatile
     private var process: Process? = null
 
-    fun stream(): Flow<String> = flow {
+    fun stream(deviceSerial: String? = null): Flow<String> = flow {
         try {
-            val proc = ProcessBuilder("adb", "logcat", "-v", "threadtime")
+            val cmd = buildList {
+                add("adb")
+                if (deviceSerial != null) { add("-s"); add(deviceSerial) }
+                add("logcat"); add("-v"); add("threadtime")
+            }
+            val proc = ProcessBuilder(cmd)
                 .redirectErrorStream(true)
                 .start()
             process = proc
