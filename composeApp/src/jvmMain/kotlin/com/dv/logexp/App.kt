@@ -203,6 +203,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 highlightColor = hl?.let { Color(it.highlightColor.toInt()) },
                                 onSelect = { multi -> viewModel.toggleSelection(log.id, multi) },
                                 onAddFilter = viewModel::addFilter,
+                                onToggleBookmark = { viewModel.toggleBookmark(log.id) },
                             )
                         }
                     }

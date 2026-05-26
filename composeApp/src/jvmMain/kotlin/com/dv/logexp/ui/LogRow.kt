@@ -55,13 +55,16 @@ fun LogRow(
     highlightColor: Color? = null,
     onSelect: (Boolean) -> Unit,
     onAddFilter: (FilterRule) -> Unit = {},
+    onToggleBookmark: () -> Unit = {},
 ) {
     val clipboard = LocalClipboardManager.current
     val color = logLevelColor(log.level, isDarkMode)
+    val bookmarkTint = JewelTheme.globalColors.text.info.copy(alpha = 0.10f)
     val backgroundColor = when {
         isSelected && isDarkMode -> ROW_SELECTED_DARK
         isSelected -> ROW_SELECTED_LIGHT
         highlightColor != null -> highlightColor
+        isBookmarked -> bookmarkTint
         else -> Color.Transparent
     }
 
@@ -112,6 +115,8 @@ fun LogRow(
                 onAddFilter = onAddFilter,
                 onCopyCell = { clipboard.setText(AnnotatedString(text)) },
                 onCopyRow = { clipboard.setText(AnnotatedString(log.content)) },
+                isBookmarked = isBookmarked,
+                onToggleBookmark = onToggleBookmark,
                 modifier = cellModifier,
             ) {
                 LogCell(text, color, Modifier, wrapText = wrap)
@@ -128,6 +133,8 @@ private fun FilterableCell(
     onAddFilter: (FilterRule) -> Unit,
     onCopyCell: () -> Unit,
     onCopyRow: () -> Unit,
+    isBookmarked: Boolean,
+    onToggleBookmark: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -136,6 +143,10 @@ private fun FilterableCell(
         if (value.isNotEmpty()) add(FilterMenuItem("Copy ${columnLabel(column)}", onCopyCell))
         add(FilterMenuItem("Copy row", onCopyRow))
     }
+    val bookmarkItem = FilterMenuItem(
+        if (isBookmarked) "Remove bookmark" else "Add bookmark",
+        onToggleBookmark,
+    )
     var showMenu by remember { mutableStateOf(false) }
     Box(
         modifier = modifier.onPointerEvent(PointerEventType.Press) { event ->
@@ -148,6 +159,20 @@ private fun FilterableCell(
                 onDismissRequest = { showMenu = false; true },
                 horizontalAlignment = Alignment.Start,
             ) {
+                selectableItem(
+                    selected = false,
+                    onClick = { bookmarkItem.action(); showMenu = false },
+                ) {
+                    Text(bookmarkItem.label)
+                }
+                passiveItem {
+                    Divider(
+                        orientation = Orientation.Horizontal,
+                        thickness = 1.dp,
+                        color = JewelTheme.globalColors.borders.normal,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
                 copyItems.forEach { item ->
                     selectableItem(
                         selected = false,
