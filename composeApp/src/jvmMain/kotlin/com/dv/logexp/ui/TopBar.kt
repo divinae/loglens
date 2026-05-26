@@ -23,7 +23,6 @@ fun TopBar(
     autoFollow: Boolean,
     visibleColumns: Set<LogColumn>,
     themeMode: ThemeMode,
-    activeFilterCount: Int,
     devices: List<Device>,
     selectedDevice: String?,
     onSelectDevice: (String?) -> Unit,
@@ -58,7 +57,7 @@ fun TopBar(
         Spacer(Modifier.weight(1f))
 
         OutlinedButton(onClick = onOpenFilters) {
-            Text(if (activeFilterCount > 0) "Filters ($activeFilterCount)" else "Filters")
+            Text("Filters")
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {

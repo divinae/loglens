@@ -150,7 +150,6 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 autoFollow = autoFollow,
                 visibleColumns = visibleColumns,
                 themeMode = themeMode,
-                activeFilterCount = filters.count { it.enabled },
                 devices = devices,
                 selectedDevice = selectedDevice,
                 onSelectDevice = viewModel::selectDevice,
