@@ -21,7 +21,6 @@ import org.jetbrains.jewel.ui.component.Text
 fun TopBar(
     selectedCount: Int,
     autoFollow: Boolean,
-    visibleColumns: Set<LogColumn>,
     themeMode: ThemeMode,
     devices: List<Device>,
     selectedDevice: String?,
@@ -30,9 +29,9 @@ fun TopBar(
     onClear: () -> Unit,
     onCopySelected: () -> Unit,
     onSaveLogs: () -> Unit,
+    onOpenFilters: () -> Unit,
     onToggleAutoFollow: () -> Unit,
-    onToggleColumn: (LogColumn) -> Unit,
-    onToggleTheme: () -> Unit,
+    onSetTheme: (ThemeMode) -> Unit,
     fontSize: Float,
     onSetFontSize: (Float) -> Unit,
     fontFamily: String,
@@ -45,7 +44,7 @@ fun TopBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MainMenu(onSaveLogs = onSaveLogs)
+        MainMenu(onSaveLogs = onSaveLogs, onOpenFilters = onOpenFilters)
 
         DeviceMenu(
             devices = devices,
@@ -70,10 +69,8 @@ fun TopBar(
         }
 
         SettingsMenu(
-            visibleColumns = visibleColumns,
-            onToggleColumn = onToggleColumn,
             themeMode = themeMode,
-            onToggleTheme = onToggleTheme,
+            onSetTheme = onSetTheme,
             fontSize = fontSize,
             onSetFontSize = onSetFontSize,
             fontFamily = fontFamily,

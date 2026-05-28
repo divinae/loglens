@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
 import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.LogColumn
@@ -19,6 +20,7 @@ import com.dv.logexp.model.MAX_FONT_SIZE
 import com.dv.logexp.model.MIN_FONT_SIZE
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.service.SystemFonts
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Checkbox
 import org.jetbrains.jewel.ui.component.Divider
@@ -33,10 +35,8 @@ private val LOGICAL_FONTS = listOf("Monospaced", "SansSerif", "Serif", "Dialog")
 
 @Composable
 fun SettingsMenu(
-    visibleColumns: Set<LogColumn>,
-    onToggleColumn: (LogColumn) -> Unit,
     themeMode: ThemeMode,
-    onToggleTheme: () -> Unit,
+    onSetTheme: (ThemeMode) -> Unit,
     fontSize: Float,
     onSetFontSize: (Float) -> Unit,
     fontFamily: String,
@@ -54,7 +54,9 @@ fun SettingsMenu(
         IconActionButton(
             key = AllIconsKeys.General.Gear,
             contentDescription = null,
-            onClick = { expanded = true }
+            onClick = { expanded = true },
+            focusable = false,
+            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)),
         )
 
         if (expanded) {
@@ -65,11 +67,21 @@ fun SettingsMenu(
                 },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                selectableItem(
-                    selected = false,
-                    onClick = onToggleTheme,
-                ) {
-                    Text("Theme: ${themeMode.name}")
+                passiveItem {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Theme", modifier = Modifier.padding(end = 8.dp))
+                        val themeOptions = ThemeMode.entries.toList()
+                        val selectedIdx = themeOptions.indexOf(themeMode).coerceAtLeast(0)
+                        ListComboBox(
+                            items = themeOptions.map { it.name },
+                            selectedIndex = selectedIdx,
+                            onSelectedItemChange = { idx -> onSetTheme(themeOptions[idx]) },
+                            modifier = Modifier.width(220.dp),
+                        )
+                    }
                 }
 
                 passiveItem {

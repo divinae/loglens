@@ -108,10 +108,10 @@ class MainViewModel(
                 val current = _selectedDevice.value
                 if (current != null && list.none { it.serial == current }) {
                     _selectedDevice.value = null
-                    restartCapture()
+                    restartCapture(clearLogs = false)
                 } else if (current == null && list.size == 1 && list[0].isOnline) {
                     _selectedDevice.value = list[0].serial
-                    restartCapture()
+                    restartCapture(clearLogs = true)
                 }
             }
         }
@@ -120,16 +120,18 @@ class MainViewModel(
     fun selectDevice(serial: String?) {
         if (_selectedDevice.value == serial) return
         _selectedDevice.value = serial
-        restartCapture()
+        restartCapture(clearLogs = true)
     }
 
-    private fun restartCapture() {
+    private fun restartCapture(clearLogs: Boolean) {
         captureJob?.cancel()
         captureJob = null
         logcatService.stop()
         _isCapturing.value = false
-        logs.clear()
-        selectedIds.clear()
+        if (clearLogs) {
+            logs.clear()
+            selectedIds.clear()
+        }
         startCapture()
     }
 
@@ -248,12 +250,9 @@ class MainViewModel(
         persistConfig()
     }
 
-    fun toggleTheme() {
-        _themeMode.value = when (_themeMode.value) {
-            ThemeMode.SYSTEM -> ThemeMode.DARK
-            ThemeMode.DARK -> ThemeMode.LIGHT
-            ThemeMode.LIGHT -> ThemeMode.SYSTEM
-        }
+    fun setTheme(mode: ThemeMode) {
+        if (_themeMode.value == mode) return
+        _themeMode.value = mode
         persistConfig()
     }
 

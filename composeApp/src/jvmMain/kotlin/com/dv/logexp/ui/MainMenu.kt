@@ -1,8 +1,7 @@
 package com.dv.logexp.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -10,28 +9,40 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
-import org.jetbrains.jewel.ui.component.Icon
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 @Composable
-fun MainMenu(onSaveLogs: () -> Unit) {
+fun MainMenu(onSaveLogs: () -> Unit, onOpenFilters: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
-        Icon(
-            key = AllIconsKeys.General.Menu,
+    Box(modifier = Modifier.padding(horizontal = 4.dp)) {
+        IconActionButton(
+            key = AllIconsKeys.General.WindowsMenu_20x20,
             contentDescription = "Menu",
-            modifier = Modifier
-                .size(20.dp)
-                .clickable { expanded = true },
+            onClick = { expanded = true },
+            focusable = false,
+            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)),
         )
         if (expanded) {
             PopupMenu(
                 onDismissRequest = { expanded = false; true },
                 horizontalAlignment = Alignment.Start,
             ) {
+                selectableItem(
+                    selected = false,
+                    iconKey = AllIconsKeys.General.Filter,
+                    onClick = {
+                        expanded = false
+                        onOpenFilters()
+                    },
+                ) {
+                    Text("Filters...")
+                }
                 selectableItem(
                     selected = false,
                     iconKey = AllIconsKeys.Actions.MenuSaveall,

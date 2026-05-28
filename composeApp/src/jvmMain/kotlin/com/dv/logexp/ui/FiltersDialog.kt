@@ -138,11 +138,11 @@ fun FiltersDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (dirty) Text("Unsaved changes", fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
+                DefaultButton(onClick = { onSave(draft); onDismiss() }, enabled = dirty) { Text("Save") }
                 OutlinedButton(onClick = { draft = filters; selectedId = draft.firstOrNull()?.id }, enabled = dirty) {
                     Text("Discard")
                 }
                 OutlinedButton(onClick = onDismiss) { Text("Close") }
-                DefaultButton(onClick = { onSave(draft); onDismiss() }, enabled = dirty) { Text("Save") }
             }
         }
     }

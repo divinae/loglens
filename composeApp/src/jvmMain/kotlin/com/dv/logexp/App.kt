@@ -3,6 +3,7 @@ package com.dv.logexp
 import androidx.compose.foundation.ScrollbarStyle
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.layout.*
@@ -140,7 +141,6 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
 
         LaunchedEffect(findVisible) {
             if (findVisible) findFocusRequester.requestFocus()
-            else focusRequester.requestFocus()
         }
 
         var isAutoScrolling by remember { mutableStateOf(false) }
@@ -167,13 +167,13 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 }
         }
 
-        LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(JewelTheme.globalColors.panelBackground)
                 .focusRequester(focusRequester)
+                .focusable()
                 .logKeyboardShortcuts(
                     filteredLogs = filteredLogs,
                     selectedIds = selectedIds,
@@ -196,7 +196,6 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             TopBar(
                 selectedCount = selectedIds.size,
                 autoFollow = autoFollow,
-                visibleColumns = visibleColumns,
                 themeMode = themeMode,
                 devices = devices,
                 selectedDevice = selectedDevice,
@@ -206,6 +205,11 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onCopySelected = {
                     val text = logs.filter { it.id in selectedIds }.joinToString("\n") { it.content }
                     clipboardManager.setText(AnnotatedString(text))
+                },
+                onOpenFilters = {
+                    filtersDialogInitialId = null
+                    filtersDialogAddOnOpen = false
+                    showFiltersDialog = true
                 },
                 onSaveLogs = {
                     val dialog = FileDialog(null as Frame?, "Save logs", FileDialog.SAVE)
@@ -221,8 +225,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     }
                 },
                 onToggleAutoFollow = viewModel::toggleAutoFollow,
-                onToggleColumn = viewModel::toggleColumn,
-                onToggleTheme = viewModel::toggleTheme,
+                onSetTheme = viewModel::setTheme,
                 fontSize = fontSize,
                 onSetFontSize = viewModel::setFontSize,
                 fontFamily = fontFamily,
