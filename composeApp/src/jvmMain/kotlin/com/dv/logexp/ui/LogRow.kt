@@ -69,6 +69,8 @@ fun LogRow(
     onSelect: (multi: Boolean, range: Boolean) -> Unit,
     onAddFilter: (FilterRule) -> Unit = {},
     onToggleBookmark: () -> Unit = {},
+    selectedCount: Int = 0,
+    onCopySelected: () -> Unit = {},
 ) {
     val clipboard = LocalClipboardManager.current
     val color = logLevelColor(log.level, isDarkMode)
@@ -131,12 +133,17 @@ fun LogRow(
             }
             val wrap = column == LogColumn.MESSAGE
 
+            val copyMulti = isSelected && selectedCount > 1
             FilterableCell(
                 column = column,
                 value = text,
                 onAddFilter = onAddFilter,
                 onCopyCell = { clipboard.setText(AnnotatedString(text)) },
-                onCopyRow = { clipboard.setText(AnnotatedString(log.content)) },
+                onCopyRow = {
+                    if (copyMulti) onCopySelected()
+                    else clipboard.setText(AnnotatedString(log.content))
+                },
+                copyRowLabel = if (copyMulti) "Copy $selectedCount rows" else "Copy row",
                 isBookmarked = isBookmarked,
                 onToggleBookmark = onToggleBookmark,
                 modifier = cellModifier,
@@ -165,6 +172,7 @@ private fun FilterableCell(
     onAddFilter: (FilterRule) -> Unit,
     onCopyCell: () -> Unit,
     onCopyRow: () -> Unit,
+    copyRowLabel: String,
     isBookmarked: Boolean,
     onToggleBookmark: () -> Unit,
     modifier: Modifier = Modifier,
@@ -175,7 +183,7 @@ private fun FilterableCell(
         if (value.isNotEmpty()) {
             add(FilterMenuItem("Copy ${columnLabel(column)}", AllIconsKeys.Actions.Copy, onCopyCell))
         }
-        add(FilterMenuItem("Copy row", AllIconsKeys.Actions.Copy, onCopyRow))
+        add(FilterMenuItem(copyRowLabel, AllIconsKeys.Actions.Copy, onCopyRow))
     }
     val bookmarkItem = FilterMenuItem(
         if (isBookmarked) "Remove bookmark" else "Add bookmark",

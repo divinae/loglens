@@ -4,7 +4,9 @@ import androidx.compose.foundation.ScrollbarStyle
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -23,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -32,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
@@ -340,12 +344,33 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     unhoverColor = thumbBase.copy(alpha = 0.20f),
                     hoverColor = thumbBase.copy(alpha = 0.45f),
                 )
+                var dragAnchorIdx by remember { mutableStateOf<Int?>(null) }
+                val filteredLogsRef = rememberUpdatedState(filteredLogs)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 8.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(islandsEditor(isDark)),
+                        .background(islandsEditor(isDark))
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = { pos ->
+                                    dragAnchorIdx = indexAtY(listState, pos.y)
+                                },
+                                onDragEnd = { dragAnchorIdx = null },
+                                onDragCancel = { dragAnchorIdx = null },
+                                onDrag = { change, _ ->
+                                    val anchor = dragAnchorIdx ?: return@detectDragGestures
+                                    val idx = indexAtY(listState, change.position.y) ?: return@detectDragGestures
+                                    val logsNow = filteredLogsRef.value
+                                    val (lo, hi) = if (anchor <= idx) anchor to idx else idx to anchor
+                                    val hiSafe = (hi + 1).coerceAtMost(logsNow.size)
+                                    if (lo >= logsNow.size) return@detectDragGestures
+                                    viewModel.selectRange(logsNow.subList(lo, hiSafe).map { it.id })
+                                    viewModel.setAutoFollow(false)
+                                },
+                            )
+                        },
                 ) {
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                         itemsIndexed(filteredLogs, key = { _, log -> log.id }) { index, log ->
@@ -380,6 +405,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 },
                                 onAddFilter = viewModel::addFilter,
                                 onToggleBookmark = { viewModel.toggleBookmark(log.id) },
+                                selectedCount = selectedIds.size,
+                                onCopySelected = copySelected,
                             )
                         }
                     }
@@ -455,4 +482,12 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             )
         }
     }
+}
+
+private fun indexAtY(state: LazyListState, y: Float): Int? {
+    val visible = state.layoutInfo.visibleItemsInfo
+    if (visible.isEmpty()) return null
+    if (y < visible.first().offset) return visible.first().index
+    if (y >= visible.last().offset + visible.last().size) return visible.last().index
+    return visible.firstOrNull { y >= it.offset && y < it.offset + it.size }?.index
 }
