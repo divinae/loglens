@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dv.logexp.model.LogColumn
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
 import java.awt.Cursor
@@ -48,7 +49,7 @@ fun LogHeaders(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 12.dp)
+            .padding(start = 6.dp)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
@@ -99,7 +100,7 @@ fun LogHeaders(
                                         onResize(column, currentWidthOf(column) + dragAmount.x)
                                     }
                                 }
-                                .background(if (isDarkMode) Color.Gray else Color.LightGray)
+                                .background(JewelTheme.globalColors.borders.normal.copy(alpha = 0.6f))
                         )
                     }
                 }

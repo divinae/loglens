@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -324,19 +327,6 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onSetSoftWrap = viewModel::setSoftWrap,
             )
 
-            Divider(Orientation.Horizontal)
-
-            LogHeaders(
-                visibleColumns = visibleColumns,
-                columnWidths = columnWidths,
-                isDarkMode = isDark,
-                onResize = viewModel::updateColumnWidth,
-                onToggleColumn = viewModel::toggleColumn,
-                currentWidthOf = { col -> viewModel.columnWidths.value[col] ?: 100f },
-            )
-
-            Divider(Orientation.Horizontal)
-
             Box(modifier = Modifier.weight(1f)) {
                 val thumbBase = if (isDark) Color.White else Color.Black
                 val scrollbarStyle = ScrollbarStyle(
@@ -353,28 +343,47 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 8.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(islandsEditor(isDark))
-                        .pointerInput(Unit) {
-                            detectDragGestures(
-                                onDragStart = { pos ->
-                                    dragAnchorIdx = indexAtY(listState, pos.y)
-                                },
-                                onDragEnd = { dragAnchorIdx = null },
-                                onDragCancel = { dragAnchorIdx = null },
-                                onDrag = { change, _ ->
-                                    val anchor = dragAnchorIdx ?: return@detectDragGestures
-                                    val idx = indexAtY(listState, change.position.y) ?: return@detectDragGestures
-                                    val logsNow = filteredLogsRef.value
-                                    val (lo, hi) = if (anchor <= idx) anchor to idx else idx to anchor
-                                    val hiSafe = (hi + 1).coerceAtMost(logsNow.size)
-                                    if (lo >= logsNow.size) return@detectDragGestures
-                                    viewModel.selectRange(logsNow.subList(lo, hiSafe).map { it.id })
-                                    viewModel.setAutoFollow(false)
-                                },
-                            )
-                        },
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(islandsEditor(isDark)),
                 ) {
+                    Column(Modifier.fillMaxSize()) {
+                    LogHeaders(
+                        visibleColumns = visibleColumns,
+                        columnWidths = columnWidths,
+                        isDarkMode = isDark,
+                        onResize = viewModel::updateColumnWidth,
+                        onToggleColumn = viewModel::toggleColumn,
+                        currentWidthOf = { col -> viewModel.columnWidths.value[col] ?: 100f },
+                    )
+                    Divider(
+                        orientation = Orientation.Horizontal,
+                        color = JewelTheme.globalColors.borders.normal.copy(alpha = 0.4f),
+                        thickness = 1.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDragStart = { pos ->
+                                        dragAnchorIdx = indexAtY(listState, pos.y)
+                                    },
+                                    onDragEnd = { dragAnchorIdx = null },
+                                    onDragCancel = { dragAnchorIdx = null },
+                                    onDrag = { change, _ ->
+                                        val anchor = dragAnchorIdx ?: return@detectDragGestures
+                                        val idx = indexAtY(listState, change.position.y) ?: return@detectDragGestures
+                                        val logsNow = filteredLogsRef.value
+                                        val (lo, hi) = if (anchor <= idx) anchor to idx else idx to anchor
+                                        val hiSafe = (hi + 1).coerceAtMost(logsNow.size)
+                                        if (lo >= logsNow.size) return@detectDragGestures
+                                        viewModel.selectRange(logsNow.subList(lo, hiSafe).map { it.id })
+                                        viewModel.setAutoFollow(false)
+                                    },
+                                )
+                            },
+                    ) {
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                         itemsIndexed(filteredLogs, key = { _, log -> log.id }) { index, log ->
                             val hl = highlightFilters.firstOrNull { it.matches(log) }
@@ -414,6 +423,20 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             )
                         }
                     }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = 0.03f),
+                                        Color.Transparent,
+                                    ),
+                                ),
+                            ),
+                    )
                     if (!autoFollow) {
                         VerticalScrollbar(
                             adapter = rememberScrollbarAdapter(listState),
@@ -423,6 +446,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 .padding(vertical = 8.dp, horizontal = 4.dp),
                             style = scrollbarStyle,
                         )
+                    }
+                    }
                     }
                 }
 

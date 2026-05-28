@@ -55,7 +55,7 @@ fun FindBar(
         snapshotFlow { state.text.toString() }.collectLatest { onQueryChange(it) }
     }
 
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(6.dp)
     Row(
         modifier = modifier
             .background(islandsPopup(JewelTheme.isDark), shape)
