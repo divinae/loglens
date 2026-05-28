@@ -218,7 +218,22 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 fontSize = fontSize.sp,
                                 fontFamily = resolvedFontFamily,
                                 fontWeight = fontWeight,
-                                onSelect = { multi -> viewModel.toggleSelection(log.id, multi) },
+                                onSelect = { multi, range ->
+                                    if (range) {
+                                        val anchor = viewModel.selectionAnchor
+                                        val ids = filteredLogs.map { it.id }
+                                        val a = anchor?.let { ids.indexOf(it) } ?: -1
+                                        val b = ids.indexOf(log.id)
+                                        if (a < 0 || b < 0) {
+                                            viewModel.toggleSelection(log.id, multi)
+                                        } else {
+                                            val (lo, hi) = if (a <= b) a to b else b to a
+                                            viewModel.selectRange(ids.subList(lo, hi + 1))
+                                        }
+                                    } else {
+                                        viewModel.toggleSelection(log.id, multi)
+                                    }
+                                },
                                 onAddFilter = viewModel::addFilter,
                                 onToggleBookmark = { viewModel.toggleBookmark(log.id) },
                             )

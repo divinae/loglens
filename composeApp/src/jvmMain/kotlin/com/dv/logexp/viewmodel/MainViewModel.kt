@@ -216,6 +216,9 @@ class MainViewModel(
         }
     }
 
+    var selectionAnchor: Int? = null
+        private set
+
     fun toggleSelection(id: Int, multiSelect: Boolean) {
         if (!multiSelect) {
             val wasSelected = selectedIds.contains(id)
@@ -224,6 +227,12 @@ class MainViewModel(
         } else {
             if (!selectedIds.add(id)) selectedIds.remove(id)
         }
+        selectionAnchor = id
+    }
+
+    fun selectRange(ids: Collection<Int>) {
+        selectedIds.clear()
+        selectedIds.addAll(ids)
     }
 
     fun toggleColumn(column: LogColumn) {

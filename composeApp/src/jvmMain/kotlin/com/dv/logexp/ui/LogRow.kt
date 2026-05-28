@@ -22,6 +22,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -59,7 +60,7 @@ fun LogRow(
     fontSize: TextUnit = 12.sp,
     fontFamily: FontFamily = FontFamily.Monospace,
     fontWeight: String = "NORMAL",
-    onSelect: (Boolean) -> Unit,
+    onSelect: (multi: Boolean, range: Boolean) -> Unit,
     onAddFilter: (FilterRule) -> Unit = {},
     onToggleBookmark: () -> Unit = {},
 ) {
@@ -82,7 +83,8 @@ fun LogRow(
             .onPointerEvent(PointerEventType.Press) {
                 if (it.buttons.isSecondaryPressed) return@onPointerEvent
                 val multi = it.keyboardModifiers.isCtrlPressed || it.keyboardModifiers.isMetaPressed
-                onSelect(multi)
+                val range = it.keyboardModifiers.isShiftPressed
+                onSelect(multi, range)
             }
             .padding(vertical = 1.dp)
             .padding(horizontal = 8.dp)
