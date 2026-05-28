@@ -26,6 +26,8 @@ import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +63,7 @@ fun LogRow(
     isDarkMode: Boolean,
     isSelected: Boolean,
     isBookmarked: Boolean,
+    findQuery: String = "",
     highlightColor: Color? = null,
     fontSize: TextUnit = 12.sp,
     fontFamily: FontFamily = FontFamily.Monospace,
@@ -80,6 +83,7 @@ fun LogRow(
         isBookmarked -> bookmarkTint
         else -> Color.Transparent
     }
+    val findHighlightColor = if (isDarkMode) Color(0xFF5A4A1F) else Color(0xFFFFF59D)
 
     Row(
         modifier = Modifier
@@ -120,6 +124,7 @@ fun LogRow(
             }
 
             val cellModifier = if (column == LogColumn.MESSAGE) {
+
                 Modifier.weight(1f)
             } else {
                 Modifier.width((columnWidths[column] ?: 100f).dp)
@@ -136,7 +141,7 @@ fun LogRow(
                 onToggleBookmark = onToggleBookmark,
                 modifier = cellModifier,
             ) {
-                LogCell(text, color, Modifier, wrapText = wrap, fontSize = fontSize, fontFamily = fontFamily, fontWeight = resolvedWeight)
+                LogCell(text, color, Modifier, wrapText = wrap, fontSize = fontSize, fontFamily = fontFamily, fontWeight = resolvedWeight, findQuery = findQuery, findColor = findHighlightColor)
             }
         }
     }
@@ -293,9 +298,14 @@ private fun LogCell(
     fontSize: TextUnit,
     fontFamily: FontFamily,
     fontWeight: FontWeight,
+    findQuery: String,
+    findColor: Color,
 ) {
+    val annotated = remember(text, findQuery, findColor) {
+        highlightMatches(text, findQuery, findColor)
+    }
     Text(
-        text = text,
+        text = annotated,
         color = color,
         fontSize = fontSize,
         fontFamily = fontFamily,
@@ -304,4 +314,19 @@ private fun LogCell(
         overflow = if (wrapText) TextOverflow.Clip else TextOverflow.Ellipsis,
         modifier = modifier.padding(horizontal = 4.dp),
     )
+}
+
+private fun highlightMatches(text: String, query: String, color: Color): AnnotatedString {
+    if (query.isBlank()) return AnnotatedString(text)
+    val lower = text.lowercase()
+    val q = query.lowercase()
+    var i = lower.indexOf(q)
+    if (i < 0) return AnnotatedString(text)
+    return buildAnnotatedString {
+        append(text)
+        while (i >= 0) {
+            addStyle(SpanStyle(background = color), i, i + q.length)
+            i = lower.indexOf(q, i + q.length)
+        }
+    }
 }

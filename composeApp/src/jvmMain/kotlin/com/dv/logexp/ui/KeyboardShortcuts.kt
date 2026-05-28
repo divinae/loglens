@@ -5,6 +5,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -24,8 +26,25 @@ fun Modifier.logKeyboardShortcuts(
     findPreviousBookmark: (Int) -> Int?,
     onSelect: (Int) -> Unit,
     onDisableAutoFollow: () -> Unit,
+    onFocusSearch: () -> Unit,
 ): Modifier = this.onKeyEvent { event ->
     when (event.type) {
+        KeyEventType.KeyDown -> when {
+            event.key == Key.F && (event.isCtrlPressed || event.isMetaPressed) -> {
+                onFocusSearch()
+                true
+            }
+            event.key == Key.DirectionDown -> {
+                moveSelection(filteredLogs, selectedIds, listState, scope, onSelect, onDisableAutoFollow, delta = 1)
+                true
+            }
+            event.key == Key.DirectionUp -> {
+                moveSelection(filteredLogs, selectedIds, listState, scope, onSelect, onDisableAutoFollow, delta = -1)
+                true
+            }
+            else -> false
+        }
+
         KeyEventType.KeyUp -> when (event.key) {
             Key.B -> {
                 if (selectedIds.isNotEmpty()) {
@@ -52,18 +71,6 @@ fun Modifier.logKeyboardShortcuts(
                 true
             }
 
-            else -> false
-        }
-
-        KeyEventType.KeyDown -> when (event.key) {
-            Key.DirectionDown -> {
-                moveSelection(filteredLogs, selectedIds, listState, scope, onSelect, onDisableAutoFollow, delta = 1)
-                true
-            }
-            Key.DirectionUp -> {
-                moveSelection(filteredLogs, selectedIds, listState, scope, onSelect, onDisableAutoFollow, delta = -1)
-                true
-            }
             else -> false
         }
 

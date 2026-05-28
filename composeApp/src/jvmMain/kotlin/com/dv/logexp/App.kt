@@ -3,23 +3,13 @@ package com.dv.logexp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -34,14 +24,9 @@ import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.service.SystemFonts
-import com.dv.logexp.ui.BottomBar
-import com.dv.logexp.ui.FilterChipsBar
-import com.dv.logexp.ui.FiltersDialog
-import com.dv.logexp.ui.LogHeaders
-import com.dv.logexp.ui.LogRow
-import com.dv.logexp.ui.TopBar
-import com.dv.logexp.ui.logKeyboardShortcuts
+import com.dv.logexp.ui.*
 import com.dv.logexp.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
 import org.jetbrains.jewel.ui.Orientation
@@ -72,10 +57,14 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val logs = viewModel.logs
 
     var showFiltersDialog by remember { mutableStateOf(false) }
+    var findVisible by remember { mutableStateOf(false) }
+    var findQuery by remember { mutableStateOf("") }
+    var currentMatchIdx by remember { mutableStateOf(0) }
 
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
+    val findFocusRequester = remember { FocusRequester() }
 
     val isDark = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -94,10 +83,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             val hideFilters = activeFilters.filter { it.mode == FilterMode.HIDE }
             logs.filter { log ->
                 val matchesQuery = searchQuery.isBlank()
-                    || log.content.contains(searchQuery, ignoreCase = true)
+                        || log.content.contains(searchQuery, ignoreCase = true)
                 val matchesApp = appFilter.isBlank()
-                    || log.appName.contains(appFilter, ignoreCase = true)
-                    || log.pid == appFilter
+                        || log.appName.contains(appFilter, ignoreCase = true)
+                        || log.pid == appFilter
                 if (!matchesQuery || !matchesApp) return@filter false
                 if (hideFilters.any { it.matches(log) }) return@filter false
                 if (showFilters.isNotEmpty() && showFilters.none { it.matches(log) }) return@filter false
@@ -109,6 +98,42 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             filters.filter {
                 it.enabled && (it.mode == FilterMode.HIGHLIGHT || it.mode == FilterMode.SHOW_AND_HIGHLIGHT)
             }
+        }
+
+        val findMatchIndices = remember(filteredLogs.size, findQuery) {
+            if (findQuery.isBlank()) emptyList<Int>()
+            else filteredLogs.mapIndexedNotNull { idx, log ->
+                if (log.content.contains(findQuery, ignoreCase = true)) idx else null
+            }
+        }
+        LaunchedEffect(findMatchIndices) {
+            if (currentMatchIdx >= findMatchIndices.size) currentMatchIdx = 0
+        }
+
+        fun jumpToMatch(target: Int) {
+            if (findMatchIndices.isEmpty()) return
+            val safe = ((target % findMatchIndices.size) + findMatchIndices.size) % findMatchIndices.size
+            currentMatchIdx = safe
+            val rowIdx = findMatchIndices[safe]
+            val info = listState.layoutInfo
+            val visible = info.visibleItemsInfo
+            val viewportStart = info.viewportStartOffset
+            val viewportEnd = info.viewportEndOffset
+            val fullyVisible = visible.any { v ->
+                v.index == rowIdx && v.offset >= viewportStart && v.offset + v.size <= viewportEnd
+            }
+            if (!fullyVisible) {
+                val rowSize = visible.firstOrNull()?.size ?: 20
+                val centerOffset = -((viewportEnd - viewportStart - rowSize) / 2)
+                scope.launch { listState.animateScrollToItem(rowIdx, centerOffset) }
+            }
+            viewModel.toggleSelection(filteredLogs[rowIdx].id, multiSelect = false)
+            viewModel.setAutoFollow(false)
+        }
+
+        LaunchedEffect(findVisible) {
+            if (findVisible) findFocusRequester.requestFocus()
+            else focusRequester.requestFocus()
         }
 
         var isAutoScrolling by remember { mutableStateOf(false) }
@@ -152,6 +177,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     findPreviousBookmark = viewModel::findPreviousBookmark,
                     onSelect = { id -> viewModel.toggleSelection(id, multiSelect = false) },
                     onDisableAutoFollow = { viewModel.setAutoFollow(false) },
+                    onFocusSearch = {
+                        findVisible = true
+                        runCatching { findFocusRequester.requestFocus() }
+                    },
                 )
         ) {
             TopBar(
@@ -205,7 +234,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         ),
                 ) {
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                        itemsIndexed(filteredLogs, key = { _, log -> log.id }) { _, log ->
+                        itemsIndexed(filteredLogs, key = { _, log -> log.id }) { index, log ->
                             val hl = highlightFilters.firstOrNull { it.matches(log) }
                             LogRow(
                                 log = log,
@@ -214,6 +243,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 isDarkMode = isDark,
                                 isSelected = log.id in selectedIds,
                                 isBookmarked = log.id in bookmarkedIds,
+                                findQuery = findQuery,
                                 highlightColor = hl?.let { Color(it.highlightColor.toInt()) },
                                 fontSize = fontSize.sp,
                                 fontFamily = resolvedFontFamily,
@@ -239,6 +269,24 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             )
                         }
                     }
+                }
+
+                if (findVisible) {
+                    FindBar(
+                        query = findQuery,
+                        onQueryChange = { findQuery = it; currentMatchIdx = 0 },
+                        matchCount = findMatchIndices.size,
+                        currentIdx = currentMatchIdx,
+                        onNext = { jumpToMatch(currentMatchIdx + 1) },
+                        onPrev = { jumpToMatch(currentMatchIdx - 1) },
+                        onClose = { findVisible = false; findQuery = "" },
+                        focusRequester = findFocusRequester,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(horizontal = 16.dp)
+                            .padding(top = 8.dp)
+                            .widthIn(min = 360.dp),
+                    )
                 }
             }
 
