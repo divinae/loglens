@@ -7,6 +7,13 @@ plugins {
     alias(libs.plugins.kotlinxSerialization)
 }
 
+val appVersion: String = (findProperty("appVersion") as? String) ?: "0.0.0"
+val gitSha: String = providers.exec {
+    commandLine("git", "rev-parse", "--short", "HEAD")
+    isIgnoreExitValue = true
+}.standardOutput.asText.map { it.trim() }.getOrElse("dev")
+val fullVersion = "$appVersion+$gitSha"
+
 kotlin {
     jvm()
 
@@ -44,7 +51,22 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.dv.logexp"
-            packageVersion = "1.0.0"
+            packageVersion = appVersion
         }
     }
+}
+
+val generateBuildInfo by tasks.registering {
+    val outDir = layout.buildDirectory.dir("generated/buildinfo/resources")
+    outputs.dir(outDir)
+    val version = fullVersion
+    doLast {
+        val file = outDir.get().file("build-info.properties").asFile
+        file.parentFile.mkdirs()
+        file.writeText("version=$version\n")
+    }
+}
+
+kotlin.sourceSets.named("jvmMain") {
+    resources.srcDir(generateBuildInfo)
 }
