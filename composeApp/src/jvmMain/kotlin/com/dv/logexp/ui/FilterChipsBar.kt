@@ -6,6 +6,7 @@ import androidx.compose.foundation.ContextMenuState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,16 +19,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun FilterChipsBar(
     filters: List<FilterRule>,
@@ -37,10 +44,16 @@ fun FilterChipsBar(
     onAddNew: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
+            .horizontalScroll(scrollState)
+            .onPointerEvent(PointerEventType.Scroll) { event ->
+                val dy = event.changes.first().scrollDelta.y
+                if (dy != 0f) scope.launch { scrollState.scrollBy(dy * 60f) }
+            }
             .padding(horizontal = 8.dp)
             .padding(top = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
