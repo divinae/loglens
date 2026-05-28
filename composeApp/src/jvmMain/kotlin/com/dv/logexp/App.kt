@@ -296,14 +296,16 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             }
                         }
                     }
-                    VerticalScrollbar(
-                        adapter = rememberScrollbarAdapter(listState),
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .fillMaxHeight()
-                            .padding(vertical = 8.dp, horizontal = 4.dp),
-                        style = scrollbarStyle,
-                    )
+                    if (!autoFollow) {
+                        VerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(listState),
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            style = scrollbarStyle,
+                        )
+                    }
                 }
 
                 if (findVisible) {
