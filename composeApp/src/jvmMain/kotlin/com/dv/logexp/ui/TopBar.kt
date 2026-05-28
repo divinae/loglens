@@ -29,6 +29,7 @@ fun TopBar(
     onRefreshDevices: () -> Unit,
     onClear: () -> Unit,
     onCopySelected: () -> Unit,
+    onSaveLogs: () -> Unit,
     onToggleAutoFollow: () -> Unit,
     onToggleColumn: (LogColumn) -> Unit,
     onToggleTheme: () -> Unit,
@@ -44,6 +45,8 @@ fun TopBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        MainMenu(onSaveLogs = onSaveLogs)
+
         DeviceMenu(
             devices = devices,
             selectedSerial = selectedDevice,

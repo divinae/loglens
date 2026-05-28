@@ -28,7 +28,11 @@ import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.service.SystemFonts
 import com.dv.logexp.ui.*
 import com.dv.logexp.viewmodel.MainViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.awt.FileDialog
+import java.awt.Frame
+import java.io.File
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
 import org.jetbrains.jewel.ui.Orientation
@@ -202,6 +206,19 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onCopySelected = {
                     val text = logs.filter { it.id in selectedIds }.joinToString("\n") { it.content }
                     clipboardManager.setText(AnnotatedString(text))
+                },
+                onSaveLogs = {
+                    val dialog = FileDialog(null as Frame?, "Save logs", FileDialog.SAVE)
+                    dialog.file = "logs.txt"
+                    dialog.isVisible = true
+                    val dir = dialog.directory
+                    val name = dialog.file
+                    if (dir != null && name != null) {
+                        val payload = filteredLogs.joinToString("\n") { it.content }
+                        scope.launch(Dispatchers.IO) {
+                            File(dir, name).writeText(payload)
+                        }
+                    }
                 },
                 onToggleAutoFollow = viewModel::toggleAutoFollow,
                 onToggleColumn = viewModel::toggleColumn,
