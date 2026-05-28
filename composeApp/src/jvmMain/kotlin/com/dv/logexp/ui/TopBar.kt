@@ -32,7 +32,6 @@ fun TopBar(
     onToggleAutoFollow: () -> Unit,
     onToggleColumn: (LogColumn) -> Unit,
     onToggleTheme: () -> Unit,
-    onOpenFilters: () -> Unit,
     fontSize: Float,
     onSetFontSize: (Float) -> Unit,
     fontFamily: String,
@@ -61,10 +60,6 @@ fun TopBar(
         }
 
         Spacer(Modifier.weight(1f))
-
-        OutlinedButton(onClick = onOpenFilters) {
-            Text("Filters")
-        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = autoFollow, onCheckedChange = { onToggleAutoFollow() })

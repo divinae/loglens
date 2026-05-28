@@ -60,12 +60,22 @@ fun FiltersDialog(
     filters: List<FilterRule>,
     onDismiss: () -> Unit,
     onSave: (List<FilterRule>) -> Unit,
+    initialSelectedId: String? = null,
+    addOnOpen: Boolean = false,
 ) {
     val state = rememberDialogState(size = DpSize(900.dp, 600.dp))
     var draft by remember { mutableStateOf(filters) }
-    var selectedId by remember { mutableStateOf(draft.firstOrNull()?.id) }
+    var selectedId by remember { mutableStateOf(initialSelectedId ?: draft.firstOrNull()?.id) }
     val selected = draft.firstOrNull { it.id == selectedId }
     val dirty = draft != filters
+
+    LaunchedEffect(Unit) {
+        if (addOnOpen) {
+            val rule = FilterRule()
+            draft = draft + rule
+            selectedId = rule.id
+        }
+    }
 
     fun update(rule: FilterRule) {
         draft = draft.map { if (it.id == rule.id) rule else it }

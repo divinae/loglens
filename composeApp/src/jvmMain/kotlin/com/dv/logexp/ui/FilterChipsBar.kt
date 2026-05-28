@@ -33,6 +33,8 @@ fun FilterChipsBar(
     filters: List<FilterRule>,
     onToggleEnabled: (String, Boolean) -> Unit,
     onRemove: (String) -> Unit,
+    onEdit: (String) -> Unit,
+    onAddNew: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -47,12 +49,32 @@ fun FilterChipsBar(
         filters.forEach { rule ->
             val state = remember(rule.id) { ContextMenuState() }
             ContextMenuArea(
-                items = { listOf(ContextMenuItem("Delete filter") { onRemove(rule.id) }) },
+                items = {
+                    listOf(
+                        ContextMenuItem("Edit filter") { onEdit(rule.id) },
+                        ContextMenuItem("Delete filter") { onRemove(rule.id) },
+                    )
+                },
                 state = state,
             ) {
                 FilterChip(rule = rule, onClick = { onToggleEnabled(rule.id, !rule.enabled) })
             }
         }
+        AddFilterChip(onClick = onAddNew)
+    }
+}
+
+@Composable
+private fun AddFilterChip(onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .border(1.dp, Color.Gray.copy(alpha = 0.5f), shape)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("+", fontSize = 14.sp, color = JewelTheme.globalColors.text.normal)
     }
 }
 

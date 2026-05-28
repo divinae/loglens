@@ -62,6 +62,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val logs = viewModel.logs
 
     var showFiltersDialog by remember { mutableStateOf(false) }
+    var filtersDialogInitialId by remember { mutableStateOf<String?>(null) }
+    var filtersDialogAddOnOpen by remember { mutableStateOf(false) }
     var findVisible by remember { mutableStateOf(false) }
     var findQuery by remember { mutableStateOf("") }
     var currentMatchIdx by remember { mutableStateOf(0) }
@@ -213,7 +215,6 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onToggleAutoFollow = viewModel::toggleAutoFollow,
                 onToggleColumn = viewModel::toggleColumn,
                 onToggleTheme = viewModel::toggleTheme,
-                onOpenFilters = { showFiltersDialog = true },
                 fontSize = fontSize,
                 onSetFontSize = viewModel::setFontSize,
                 fontFamily = fontFamily,
@@ -331,6 +332,16 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     filters = filters,
                     onToggleEnabled = viewModel::setFilterEnabled,
                     onRemove = viewModel::removeFilter,
+                    onEdit = { id ->
+                        filtersDialogInitialId = id
+                        filtersDialogAddOnOpen = false
+                        showFiltersDialog = true
+                    },
+                    onAddNew = {
+                        filtersDialogInitialId = null
+                        filtersDialogAddOnOpen = true
+                        showFiltersDialog = true
+                    },
                 )
                 Divider(Orientation.Horizontal)
             }
@@ -349,6 +360,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 filters = filters,
                 onDismiss = { showFiltersDialog = false },
                 onSave = viewModel::replaceFilters,
+                initialSelectedId = filtersDialogInitialId,
+                addOnOpen = filtersDialogAddOnOpen,
             )
         }
     }
