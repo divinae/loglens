@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.selection.DisableSelection
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -15,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
@@ -65,6 +69,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     val findFocusRequester = remember { FocusRequester() }
+    var shiftHeld by remember { mutableStateOf(false) }
 
     val isDark = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -167,6 +172,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 .fillMaxSize()
                 .background(JewelTheme.globalColors.panelBackground)
                 .focusRequester(focusRequester)
+                .onPreviewKeyEvent { event ->
+                    shiftHeld = event.isShiftPressed
+                    false
+                }
                 .logKeyboardShortcuts(
                     filteredLogs = filteredLogs,
                     selectedIds = selectedIds,
@@ -233,40 +242,45 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             RoundedCornerShape(16.dp),
                         ),
                 ) {
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                        itemsIndexed(filteredLogs, key = { _, log -> log.id }) { index, log ->
-                            val hl = highlightFilters.firstOrNull { it.matches(log) }
-                            LogRow(
-                                log = log,
-                                visibleColumns = visibleColumns,
-                                columnWidths = columnWidths,
-                                isDarkMode = isDark,
-                                isSelected = log.id in selectedIds,
-                                isBookmarked = log.id in bookmarkedIds,
-                                findQuery = findQuery,
-                                highlightColor = hl?.let { Color(it.highlightColor.toInt()) },
-                                fontSize = fontSize.sp,
-                                fontFamily = resolvedFontFamily,
-                                fontWeight = fontWeight,
-                                onSelect = { multi, range ->
-                                    if (range) {
-                                        val anchor = viewModel.selectionAnchor
-                                        val ids = filteredLogs.map { it.id }
-                                        val a = anchor?.let { ids.indexOf(it) } ?: -1
-                                        val b = ids.indexOf(log.id)
-                                        if (a < 0 || b < 0) {
-                                            viewModel.toggleSelection(log.id, multi)
+                    SelectionContainer {
+                        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                            itemsIndexed(filteredLogs, key = { _, log -> log.id }) { index, log ->
+                                val hl = highlightFilters.firstOrNull { it.matches(log) }
+                                val rowContent = @Composable {
+                                LogRow(
+                                    log = log,
+                                    visibleColumns = visibleColumns,
+                                    columnWidths = columnWidths,
+                                    isDarkMode = isDark,
+                                    isSelected = log.id in selectedIds,
+                                    isBookmarked = log.id in bookmarkedIds,
+                                    findQuery = findQuery,
+                                    highlightColor = hl?.let { Color(it.highlightColor.toInt()) },
+                                    fontSize = fontSize.sp,
+                                    fontFamily = resolvedFontFamily,
+                                    fontWeight = fontWeight,
+                                    onSelect = { multi, range ->
+                                        if (range) {
+                                            val anchor = viewModel.selectionAnchor
+                                            val ids = filteredLogs.map { it.id }
+                                            val a = anchor?.let { ids.indexOf(it) } ?: -1
+                                            val b = ids.indexOf(log.id)
+                                            if (a < 0 || b < 0) {
+                                                viewModel.toggleSelection(log.id, multi)
+                                            } else {
+                                                val (lo, hi) = if (a <= b) a to b else b to a
+                                                viewModel.selectRange(ids.subList(lo, hi + 1))
+                                            }
                                         } else {
-                                            val (lo, hi) = if (a <= b) a to b else b to a
-                                            viewModel.selectRange(ids.subList(lo, hi + 1))
+                                            viewModel.toggleSelection(log.id, multi)
                                         }
-                                    } else {
-                                        viewModel.toggleSelection(log.id, multi)
-                                    }
-                                },
-                                onAddFilter = viewModel::addFilter,
-                                onToggleBookmark = { viewModel.toggleBookmark(log.id) },
-                            )
+                                    },
+                                    onAddFilter = viewModel::addFilter,
+                                    onToggleBookmark = { viewModel.toggleBookmark(log.id) },
+                                )
+                                }
+                                if (shiftHeld) DisableSelection { rowContent() } else rowContent()
+                            }
                         }
                     }
                 }
