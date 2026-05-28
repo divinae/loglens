@@ -30,11 +30,16 @@ fun Modifier.logKeyboardShortcuts(
     findActive: Boolean,
     onFindNext: () -> Unit,
     onFindPrev: () -> Unit,
+    onCloseFind: () -> Unit,
 ): Modifier = this.onKeyEvent { event ->
     when (event.type) {
         KeyEventType.KeyDown -> when {
             event.key == Key.F && (event.isCtrlPressed || event.isMetaPressed) -> {
                 onFocusSearch()
+                true
+            }
+            event.key == Key.Escape && findActive -> {
+                onCloseFind()
                 true
             }
             event.key == Key.DirectionDown -> {

@@ -196,6 +196,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     findActive = findVisible,
                     onFindNext = { jumpToMatch(currentMatchIdx + 1) },
                     onFindPrev = { jumpToMatch(currentMatchIdx - 1) },
+                    onCloseFind = { findVisible = false; findQuery = "" },
                 )
         ) {
             TopBar(
