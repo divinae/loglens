@@ -190,6 +190,9 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         findVisible = true
                         runCatching { findFocusRequester.requestFocus() }
                     },
+                    findActive = findVisible,
+                    onFindNext = { jumpToMatch(currentMatchIdx + 1) },
+                    onFindPrev = { jumpToMatch(currentMatchIdx - 1) },
                 )
         ) {
             TopBar(

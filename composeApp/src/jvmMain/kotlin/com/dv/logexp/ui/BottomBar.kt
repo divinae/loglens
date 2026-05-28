@@ -43,7 +43,7 @@ fun BottomBar(
 
         TextField(
             state = searchState,
-            placeholder = { Text("Search logs...") },
+            placeholder = { Text("Filter logs...") },
             modifier = Modifier.weight(1f),
         )
         TextField(

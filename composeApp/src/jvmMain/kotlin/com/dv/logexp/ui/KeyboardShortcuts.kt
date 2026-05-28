@@ -27,6 +27,9 @@ fun Modifier.logKeyboardShortcuts(
     onSelect: (Int) -> Unit,
     onDisableAutoFollow: () -> Unit,
     onFocusSearch: () -> Unit,
+    findActive: Boolean,
+    onFindNext: () -> Unit,
+    onFindPrev: () -> Unit,
 ): Modifier = this.onKeyEvent { event ->
     when (event.type) {
         KeyEventType.KeyDown -> when {
@@ -54,6 +57,10 @@ fun Modifier.logKeyboardShortcuts(
             }
 
             Key.F3 -> {
+                if (findActive) {
+                    if (event.isShiftPressed) onFindPrev() else onFindNext()
+                    return@onKeyEvent true
+                }
                 val currentLogId = selectedIds.lastOrNull()
                     ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
                     ?: -1
