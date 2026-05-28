@@ -11,6 +11,7 @@ data class UserConfig(
     val fontSize: Float = DEFAULT_FONT_SIZE,
     val fontFamily: String = DEFAULT_FONT_FAMILY,
     val fontWeight: String = DEFAULT_FONT_WEIGHT,
+    val softWrap: Boolean = true,
 )
 
 val DEFAULT_VISIBLE_COLUMNS: Set<LogColumn> = setOf(

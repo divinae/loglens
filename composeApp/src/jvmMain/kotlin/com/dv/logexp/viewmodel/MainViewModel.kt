@@ -74,6 +74,9 @@ class MainViewModel(
     private val _fontWeight = MutableStateFlow(DEFAULT_FONT_WEIGHT)
     val fontWeight = _fontWeight.asStateFlow()
 
+    private val _softWrap = MutableStateFlow(true)
+    val softWrap = _softWrap.asStateFlow()
+
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
 
@@ -144,6 +147,7 @@ class MainViewModel(
         _fontSize.value = config.fontSize.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
         _fontFamily.value = config.fontFamily
         _fontWeight.value = config.fontWeight
+        _softWrap.value = config.softWrap
     }
 
     private fun persistConfig() {
@@ -157,6 +161,7 @@ class MainViewModel(
                     fontSize = _fontSize.value,
                     fontFamily = _fontFamily.value,
                     fontWeight = _fontWeight.value,
+                    softWrap = _softWrap.value,
                 )
             )
         }
@@ -178,6 +183,12 @@ class MainViewModel(
     fun setFontWeight(weight: String) {
         if (_fontWeight.value == weight) return
         _fontWeight.value = weight
+        persistConfig()
+    }
+
+    fun setSoftWrap(enabled: Boolean) {
+        if (_softWrap.value == enabled) return
+        _softWrap.value = enabled
         persistConfig()
     }
 

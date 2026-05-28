@@ -92,6 +92,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val fontSize by viewModel.fontSize.collectAsState()
     val fontFamily by viewModel.fontFamily.collectAsState()
     val fontWeight by viewModel.fontWeight.collectAsState()
+    val softWrap by viewModel.softWrap.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
     }
@@ -319,6 +320,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onSetFontFamily = viewModel::setFontFamily,
                 fontWeight = fontWeight,
                 onSetFontWeight = viewModel::setFontWeight,
+                softWrap = softWrap,
+                onSetSoftWrap = viewModel::setSoftWrap,
             )
 
             Divider(Orientation.Horizontal)
@@ -387,6 +390,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 fontSize = fontSize.sp,
                                 fontFamily = resolvedFontFamily,
                                 fontWeight = fontWeight,
+                                softWrap = softWrap,
                                 onSelect = { multi, range ->
                                     if (range) {
                                         val anchor = viewModel.selectionAnchor

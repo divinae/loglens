@@ -39,6 +39,8 @@ fun TopBar(
     onSetFontFamily: (String) -> Unit,
     fontWeight: String,
     onSetFontWeight: (String) -> Unit,
+    softWrap: Boolean,
+    onSetSoftWrap: (Boolean) -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -86,6 +88,8 @@ fun TopBar(
             onSetFontFamily = onSetFontFamily,
             fontWeight = fontWeight,
             onSetFontWeight = onSetFontWeight,
+            softWrap = softWrap,
+            onSetSoftWrap = onSetSoftWrap,
         )
     }
 }
