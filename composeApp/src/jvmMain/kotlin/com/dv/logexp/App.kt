@@ -325,6 +325,15 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onSetFontWeight = viewModel::setFontWeight,
                 softWrap = softWrap,
                 onSetSoftWrap = viewModel::setSoftWrap,
+                onOpenFind = {
+                    if (findVisible) {
+                        findVisible = false
+                        findQuery = ""
+                    } else {
+                        findVisible = true
+                        runCatching { findFocusRequester.requestFocus() }
+                    }
+                },
             )
 
             Box(modifier = Modifier.weight(1f)) {

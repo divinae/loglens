@@ -41,6 +41,7 @@ fun TopBar(
     onSetFontWeight: (String) -> Unit,
     softWrap: Boolean,
     onSetSoftWrap: (Boolean) -> Unit,
+    onOpenFind: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -78,6 +79,14 @@ fun TopBar(
             Checkbox(checked = autoFollow, onCheckedChange = { onToggleAutoFollow() })
             Text("Auto-Follow", modifier = Modifier.padding(start = 4.dp))
         }
+
+        IconActionButton(
+            key = AllIconsKeys.Actions.Find,
+            contentDescription = "Find",
+            onClick = onOpenFind,
+            focusable = false,
+            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)),
+        )
 
         SettingsMenu(
             themeMode = themeMode,
