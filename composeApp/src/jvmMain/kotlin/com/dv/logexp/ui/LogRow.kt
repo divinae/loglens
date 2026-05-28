@@ -86,7 +86,10 @@ fun LogRow(
             .fillMaxWidth()
             .background(backgroundColor)
             .onPointerEvent(PointerEventType.Press) {
-                if (it.buttons.isSecondaryPressed) return@onPointerEvent
+                if (it.buttons.isSecondaryPressed) {
+                    if (!isSelected) onSelect(false, false)
+                    return@onPointerEvent
+                }
                 val multi = it.keyboardModifiers.isCtrlPressed || it.keyboardModifiers.isMetaPressed
                 val range = it.keyboardModifiers.isShiftPressed
                 onSelect(multi, range)
