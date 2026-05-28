@@ -29,7 +29,12 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import com.dv.logexp.model.FieldPattern
@@ -157,16 +162,21 @@ private fun FilterableCell(
         onToggleBookmark,
     )
     var showMenu by remember { mutableStateOf(false) }
+    var menuOffset by remember { mutableStateOf(IntOffset.Zero) }
     Box(
         modifier = modifier.onPointerEvent(PointerEventType.Press) { event ->
-            if (event.buttons.isSecondaryPressed) showMenu = true
+            if (event.buttons.isSecondaryPressed) {
+                val pos = event.changes.first().position
+                menuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
+                showMenu = true
+            }
         }
     ) {
         content()
         if (showMenu) {
             PopupMenu(
                 onDismissRequest = { showMenu = false; true },
-                horizontalAlignment = Alignment.Start,
+                popupPositionProvider = CursorPositionProvider(menuOffset),
             ) {
                 selectableItem(
                     selected = false,
@@ -254,6 +264,21 @@ private fun columnLabel(column: LogColumn): String = when (column) {
 private fun labelFor(column: LogColumn, value: String): String {
     val short = if (value.length > 30) value.take(30) + "..." else value
     return "${columnLabel(column)}=\"$short\""
+}
+
+private class CursorPositionProvider(private val offset: IntOffset) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
+        val maxY = (windowSize.height - popupContentSize.height).coerceAtLeast(0)
+        val x = (anchorBounds.left + offset.x).coerceIn(0, maxX)
+        val y = (anchorBounds.top + offset.y).coerceIn(0, maxY)
+        return IntOffset(x, y)
+    }
 }
 
 @Composable
