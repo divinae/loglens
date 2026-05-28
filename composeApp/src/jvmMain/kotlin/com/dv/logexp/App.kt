@@ -1,8 +1,10 @@
 package com.dv.logexp
 
+import androidx.compose.foundation.ScrollbarStyle
+import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -35,7 +37,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
-import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 import org.jetbrains.jewel.ui.theme.textAreaStyle
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -235,8 +236,16 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             Divider(Orientation.Horizontal)
 
             Box(modifier = Modifier.weight(1f)) {
-                VerticallyScrollableContainer(
-                    listState as ScrollableState,
+                val thumbBase = if (isDark) Color.White else Color.Black
+                val scrollbarStyle = ScrollbarStyle(
+                    minimalHeight = 24.dp,
+                    thickness = 8.dp,
+                    shape = RoundedCornerShape(50),
+                    hoverDurationMillis = 200,
+                    unhoverColor = thumbBase.copy(alpha = 0.20f),
+                    hoverColor = thumbBase.copy(alpha = 0.45f),
+                )
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 8.dp)
@@ -286,6 +295,14 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             }
                         }
                     }
+                    VerticalScrollbar(
+                        adapter = rememberScrollbarAdapter(listState),
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        style = scrollbarStyle,
+                    )
                 }
 
                 if (findVisible) {
