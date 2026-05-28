@@ -230,7 +230,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 columnWidths = columnWidths,
                 isDarkMode = isDark,
                 onResize = viewModel::updateColumnWidth,
-                onHideColumn = viewModel::toggleColumn,
+                onToggleColumn = viewModel::toggleColumn,
                 currentWidthOf = { col -> viewModel.columnWidths.value[col] ?: 100f },
             )
 

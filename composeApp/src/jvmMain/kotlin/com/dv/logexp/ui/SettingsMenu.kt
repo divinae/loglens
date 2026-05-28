@@ -130,27 +130,6 @@ fun SettingsMenu(
                     }
                 }
 
-                passiveItem {
-                    Divider(orientation = Orientation.Horizontal, thickness = 8.dp)
-                }
-
-                LogColumn.entries.forEach { column ->
-                    selectableItem(
-                        selected = column in visibleColumns,
-                        onClick = { onToggleColumn(column) },
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                checked = column in visibleColumns,
-                                onCheckedChange = { onToggleColumn(column) },
-                            )
-                            Text(column.displayName, modifier = Modifier.padding(start = 8.dp))
-                        }
-                    }
-                }
             }
         }
     }

@@ -27,6 +27,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dv.logexp.model.LogColumn
@@ -41,7 +42,7 @@ fun LogHeaders(
     columnWidths: Map<LogColumn, Float>,
     isDarkMode: Boolean,
     onResize: (LogColumn, Float) -> Unit,
-    onHideColumn: (LogColumn) -> Unit,
+    onToggleColumn: (LogColumn) -> Unit,
     currentWidthOf: (LogColumn) -> Float,
 ) {
     Row(
@@ -57,6 +58,7 @@ fun LogHeaders(
 
             val widthDp = if (column == LogColumn.MESSAGE) null else (columnWidths[column] ?: 100f)
             var showContextMenu by remember { mutableStateOf(false) }
+            var menuOffset by remember { mutableStateOf(IntOffset.Zero) }
             val headerModifier =
                 if (widthDp == null) Modifier.weight(1f) else Modifier.width(widthDp.dp)
 
@@ -64,8 +66,12 @@ fun LogHeaders(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onPointerEvent(PointerEventType.Press) {
-                            if (it.button == PointerButton.Secondary) showContextMenu = true
+                        .onPointerEvent(PointerEventType.Press) { event ->
+                            if (event.button == PointerButton.Secondary) {
+                                val pos = event.changes.first().position
+                                menuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
+                                showContextMenu = true
+                            }
                         },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -103,16 +109,19 @@ fun LogHeaders(
                             showContextMenu = false
                             true
                         },
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                        popupPositionProvider = CursorPositionProvider(menuOffset),
                     ) {
-                        selectableItem(
-                            selected = false,
-                            onClick = {
-                                onHideColumn(column)
-                                showContextMenu = false
-                            },
-                        ) {
-                            Text("Hide Column")
+                        LogColumn.entries.forEach { col ->
+                            val isVisible = col in visibleColumns
+                            selectableItem(
+                                selected = isVisible,
+                                onClick = {
+                                    onToggleColumn(col)
+                                    showContextMenu = false
+                                },
+                            ) {
+                                Text(if (isVisible) "✓ ${col.displayName}" else "    ${col.displayName}")
+                            }
                         }
                     }
                 }
