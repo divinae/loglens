@@ -139,8 +139,13 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             viewModel.setAutoFollow(false)
         }
 
+        LaunchedEffect(Unit) {
+            runCatching { focusRequester.requestFocus() }
+        }
+
         LaunchedEffect(findVisible) {
             if (findVisible) findFocusRequester.requestFocus()
+            else runCatching { focusRequester.requestFocus() }
         }
 
         var isAutoScrolling by remember { mutableStateOf(false) }

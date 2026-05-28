@@ -71,7 +71,7 @@ fun Modifier.logKeyboardShortcuts(
                 targetId?.let { id ->
                     val targetIndex = filteredLogs.indexOfFirst { it.id == id }
                     if (targetIndex != -1) {
-                        scope.launch { listState.animateScrollToItem(targetIndex) }
+                        scrollToIfNeeded(listState, scope, targetIndex)
                         onSelect(id)
                     }
                 }
@@ -100,5 +100,23 @@ private fun moveSelection(
     if (nextIndex == currentIndex || nextIndex < 0) return
     onSelect(filteredLogs[nextIndex].id)
     onDisableAutoFollow()
-    scope.launch { listState.animateScrollToItem(nextIndex) }
+    scrollToIfNeeded(listState, scope, nextIndex)
+}
+
+private fun scrollToIfNeeded(
+    listState: LazyListState,
+    scope: CoroutineScope,
+    targetIndex: Int,
+) {
+    val info = listState.layoutInfo
+    val visible = info.visibleItemsInfo
+    val viewportStart = info.viewportStartOffset
+    val viewportEnd = info.viewportEndOffset
+    val fullyVisible = visible.any { v ->
+        v.index == targetIndex && v.offset >= viewportStart && v.offset + v.size <= viewportEnd
+    }
+    if (fullyVisible) return
+    val rowSize = visible.firstOrNull()?.size ?: 20
+    val centerOffset = -((viewportEnd - viewportStart - rowSize) / 2)
+    scope.launch { listState.animateScrollToItem(targetIndex, centerOffset) }
 }
