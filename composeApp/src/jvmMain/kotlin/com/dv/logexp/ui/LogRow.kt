@@ -173,6 +173,7 @@ private fun FilterableCell(
                 val pos = event.changes.first().position
                 menuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
                 showMenu = true
+                event.changes.forEach { it.consume() }
             }
         }
     ) {
