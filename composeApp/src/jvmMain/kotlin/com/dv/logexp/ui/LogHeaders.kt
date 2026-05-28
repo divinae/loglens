@@ -48,6 +48,7 @@ fun LogHeaders(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(start = 12.dp)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,8 +46,11 @@ import com.dv.logexp.ui.theme.logLevelColor
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
+import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.icon.IconKey
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -97,10 +99,12 @@ fun LogRow(
             .padding(vertical = 1.dp)
             .padding(horizontal = 8.dp)
     ) {
-        Box(Modifier.width(6.dp).align(Alignment.CenterVertically)) {
+        Box(Modifier.width(12.dp).align(Alignment.Top).padding(top = 2.dp)) {
             if (isBookmarked) {
-                Box(
-                    Modifier.size(6.dp).background(JewelTheme.globalColors.text.info, CircleShape)
+                Icon(
+                    key = AllIconsKeys.Nodes.Bookmark,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
                 )
             }
         }
@@ -158,11 +162,12 @@ private fun FilterableCell(
 ) {
     val filterItems = filterMenuItems(column, value, onAddFilter)
     val copyItems = buildList {
-        if (value.isNotEmpty()) add(FilterMenuItem("Copy ${columnLabel(column)}", onCopyCell))
-        add(FilterMenuItem("Copy row", onCopyRow))
+        if (value.isNotEmpty()) add(FilterMenuItem("Copy ${columnLabel(column)}", AllIconsKeys.Actions.Copy, onCopyCell))
+        add(FilterMenuItem("Copy row", AllIconsKeys.Actions.Copy, onCopyRow))
     }
     val bookmarkItem = FilterMenuItem(
         if (isBookmarked) "Remove bookmark" else "Add bookmark",
+        if (isBookmarked) AllIconsKeys.Actions.Cancel else AllIconsKeys.Nodes.Bookmark,
         onToggleBookmark,
     )
     var showMenu by remember { mutableStateOf(false) }
@@ -173,7 +178,6 @@ private fun FilterableCell(
                 val pos = event.changes.first().position
                 menuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
                 showMenu = true
-                event.changes.forEach { it.consume() }
             }
         }
     ) {
@@ -185,6 +189,7 @@ private fun FilterableCell(
             ) {
                 selectableItem(
                     selected = false,
+                    iconKey = bookmarkItem.icon,
                     onClick = { bookmarkItem.action(); showMenu = false },
                 ) {
                     Text(bookmarkItem.label)
@@ -200,6 +205,7 @@ private fun FilterableCell(
                 copyItems.forEach { item ->
                     selectableItem(
                         selected = false,
+                        iconKey = item.icon,
                         onClick = { item.action(); showMenu = false },
                     ) {
                         Text(item.label)
@@ -218,6 +224,7 @@ private fun FilterableCell(
                 filterItems.forEach { item ->
                     selectableItem(
                         selected = false,
+                        iconKey = item.icon,
                         onClick = { item.action(); showMenu = false },
                     ) {
                         Text(item.label)
@@ -228,7 +235,7 @@ private fun FilterableCell(
     }
 }
 
-private data class FilterMenuItem(val label: String, val action: () -> Unit)
+private data class FilterMenuItem(val label: String, val icon: IconKey, val action: () -> Unit)
 
 private fun filterMenuItems(
     column: LogColumn,
@@ -239,9 +246,9 @@ private fun filterMenuItems(
     val builder = ruleBuilder(column, value) ?: return emptyList()
     val label = labelFor(column, value)
     return listOf(
-        FilterMenuItem("Show only $label") { onAddFilter(builder(FilterMode.SHOW)) },
-        FilterMenuItem("Hide $label") { onAddFilter(builder(FilterMode.HIDE)) },
-        FilterMenuItem("Highlight $label") { onAddFilter(builder(FilterMode.HIGHLIGHT)) },
+        FilterMenuItem("Show only $label", AllIconsKeys.Actions.Show) { onAddFilter(builder(FilterMode.SHOW)) },
+        FilterMenuItem("Hide $label", AllIconsKeys.Actions.Cancel) { onAddFilter(builder(FilterMode.HIDE)) },
+        FilterMenuItem("Highlight $label", AllIconsKeys.Actions.Highlighting) { onAddFilter(builder(FilterMode.HIGHLIGHT)) },
     )
 }
 
