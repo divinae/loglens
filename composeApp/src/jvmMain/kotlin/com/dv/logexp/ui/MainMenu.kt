@@ -2,6 +2,7 @@ package com.dv.logexp.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,6 +23,7 @@ fun MainMenu(onSaveLogs: () -> Unit, onOpenFilters: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.padding(horizontal = 4.dp)) {
         IconActionButton(
+            modifier = Modifier.size(18.dp),
             key = AllIconsKeys.General.WindowsMenu_20x20,
             contentDescription = "Menu",
             onClick = { expanded = true },

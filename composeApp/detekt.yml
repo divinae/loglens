@@ -1,0 +1,41 @@
+style:
+  MagicNumber:
+    active: true
+    excludes:
+      - '**/ui/theme/**'
+  ReturnCount:
+    active: true
+    max: 4
+  WildcardImport:
+    active: false
+
+naming:
+  FunctionNaming:
+    active: true
+    ignoreAnnotated:
+      - 'Composable'
+
+complexity:
+  LongMethod:
+    active: true
+    ignoreAnnotated:
+      - 'Composable'
+  LongParameterList:
+    active: true
+    ignoreAnnotated:
+      - 'Composable'
+    functionThreshold: 10
+    constructorThreshold: 10
+  CyclomaticComplexMethod:
+    active: true
+    ignoreAnnotated:
+      - 'Composable'
+  TooManyFunctions:
+    active: true
+    thresholdInClasses: 30
+    thresholdInFiles: 30
+    thresholdInObjects: 30
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false

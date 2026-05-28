@@ -5,16 +5,30 @@ import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.rememberScrollbarAdapter
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -27,18 +41,36 @@ import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.service.SystemFonts
-import com.dv.logexp.ui.*
+import com.dv.logexp.ui.BottomBar
+import com.dv.logexp.ui.FilterChipsBar
+import com.dv.logexp.ui.FiltersDialog
+import com.dv.logexp.ui.FindBar
+import com.dv.logexp.ui.LogHeaders
+import com.dv.logexp.ui.LogRow
+import com.dv.logexp.ui.TopBar
+import com.dv.logexp.ui.logKeyboardShortcuts
+import com.dv.logexp.ui.theme.IslandsDark
+import com.dv.logexp.ui.theme.IslandsLight
+import com.dv.logexp.ui.theme.islandsEditor
+import com.dv.logexp.ui.theme.islandsPanel
 import com.dv.logexp.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.jetbrains.jewel.foundation.BorderColors
+import org.jetbrains.jewel.foundation.GlobalColors
+import org.jetbrains.jewel.foundation.TextColors
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
+import org.jetbrains.jewel.intui.standalone.theme.dark
+import org.jetbrains.jewel.intui.standalone.theme.darkThemeDefinition
+import org.jetbrains.jewel.intui.standalone.theme.light
+import org.jetbrains.jewel.intui.standalone.theme.lightThemeDefinition
+import org.jetbrains.jewel.ui.ComponentStyling
+import org.jetbrains.jewel.ui.Orientation
+import org.jetbrains.jewel.ui.component.Divider
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
-import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
-import org.jetbrains.jewel.ui.Orientation
-import org.jetbrains.jewel.ui.component.Divider
-import org.jetbrains.jewel.ui.theme.textAreaStyle
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -49,6 +81,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val visibleColumns by viewModel.visibleColumns.collectAsState()
     val columnWidths by viewModel.columnWidths.collectAsState()
     val autoFollow by viewModel.autoFollow.collectAsState()
+    val isCapturing by viewModel.isCapturing.collectAsState()
     val filters by viewModel.filters.collectAsState()
     val devices by viewModel.devices.collectAsState()
     val selectedDevice by viewModel.selectedDevice.collectAsState()
@@ -70,6 +103,11 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     var currentMatchIdx by remember { mutableStateOf(0) }
 
     val clipboardManager = LocalClipboardManager.current
+    val copySelected: () -> Unit = {
+        val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
+            .joinToString("\n") { it.content }
+        clipboardManager.setText(AnnotatedString(text))
+    }
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     val findFocusRequester = remember { FocusRequester() }
@@ -80,7 +118,48 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
         ThemeMode.LIGHT -> false
     }
 
-    IntUiTheme(isDark = isDark) {
+    val islandsTheme = remember(isDark) {
+        if (isDark) {
+            JewelTheme.darkThemeDefinition(
+                colors = GlobalColors.dark(
+                    panelBackground = IslandsDark.panel,
+                    borders = BorderColors.dark(
+                        normal = IslandsDark.borderNormal,
+                        focused = IslandsDark.borderFocused,
+                        disabled = IslandsDark.borderNormal,
+                    ),
+                    text = TextColors.dark(
+                        normal = IslandsDark.textNormal,
+                        selected = IslandsDark.textNormal,
+                        disabled = IslandsDark.textDisabled,
+                        info = IslandsDark.textInfo,
+                        error = IslandsDark.textError,
+                    ),
+                ),
+                contentColor = IslandsDark.textNormal,
+            )
+        } else {
+            JewelTheme.lightThemeDefinition(
+                colors = GlobalColors.light(
+                    panelBackground = IslandsLight.panel,
+                    borders = BorderColors.light(
+                        normal = IslandsLight.borderNormal,
+                        focused = IslandsLight.borderFocused,
+                        disabled = IslandsLight.borderNormal,
+                    ),
+                    text = TextColors.light(
+                        normal = IslandsLight.textNormal,
+                        selected = IslandsLight.textNormal,
+                        disabled = IslandsLight.textDisabled,
+                        info = IslandsLight.textInfo,
+                        error = IslandsLight.textError,
+                    ),
+                ),
+                contentColor = IslandsLight.textNormal,
+            )
+        }
+    }
+    IntUiTheme(theme = islandsTheme, styling = ComponentStyling) {
         val listState = rememberLazyListState()
 
         val filteredLogs = remember(logs.size, searchQuery, appFilter, filters) {
@@ -176,7 +255,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(JewelTheme.globalColors.panelBackground)
+                .background(islandsPanel(isDark))
                 .focusRequester(focusRequester)
                 .focusable()
                 .logKeyboardShortcuts(
@@ -197,10 +276,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     onFindNext = { jumpToMatch(currentMatchIdx + 1) },
                     onFindPrev = { jumpToMatch(currentMatchIdx - 1) },
                     onCloseFind = { findVisible = false; findQuery = "" },
+                    onCopySelected = copySelected,
                 )
         ) {
             TopBar(
-                selectedCount = selectedIds.size,
                 autoFollow = autoFollow,
                 themeMode = themeMode,
                 devices = devices,
@@ -208,10 +287,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onSelectDevice = viewModel::selectDevice,
                 onRefreshDevices = viewModel::refreshDevices,
                 onClear = viewModel::clearLogs,
-                onCopySelected = {
-                    val text = logs.filter { it.id in selectedIds }.joinToString("\n") { it.content }
-                    clipboardManager.setText(AnnotatedString(text))
-                },
+                isCapturing = isCapturing,
+                onToggleCapture = viewModel::toggleCapture,
                 onOpenFilters = {
                     filtersDialogInitialId = null
                     filtersDialogAddOnOpen = false
@@ -267,10 +344,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 8.dp)
-                        .background(
-                            JewelTheme.textAreaStyle.colors.background,
-                            RoundedCornerShape(16.dp),
-                        ),
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(islandsEditor(isDark)),
                 ) {
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                         itemsIndexed(filteredLogs, key = { _, log -> log.id }) { index, log ->
@@ -329,6 +404,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         onNext = { jumpToMatch(currentMatchIdx + 1) },
                         onPrev = { jumpToMatch(currentMatchIdx - 1) },
                         onClose = { findVisible = false; findQuery = "" },
+                        onCopySelected = copySelected,
                         focusRequester = findFocusRequester,
                         modifier = Modifier
                             .align(Alignment.TopEnd)

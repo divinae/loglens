@@ -141,7 +141,17 @@ fun LogRow(
                 onToggleBookmark = onToggleBookmark,
                 modifier = cellModifier,
             ) {
-                LogCell(text, color, Modifier, wrapText = wrap, fontSize = fontSize, fontFamily = fontFamily, fontWeight = resolvedWeight, findQuery = findQuery, findColor = findHighlightColor)
+                LogCell(
+                    text,
+                    color,
+                    Modifier,
+                    wrapText = wrap,
+                    fontSize = fontSize,
+                    fontFamily = fontFamily,
+                    fontWeight = resolvedWeight,
+                    findQuery = findQuery,
+                    findColor = findHighlightColor,
+                )
             }
         }
     }
@@ -162,7 +172,9 @@ private fun FilterableCell(
 ) {
     val filterItems = filterMenuItems(column, value, onAddFilter)
     val copyItems = buildList {
-        if (value.isNotEmpty()) add(FilterMenuItem("Copy ${columnLabel(column)}", AllIconsKeys.Actions.Copy, onCopyCell))
+        if (value.isNotEmpty()) {
+            add(FilterMenuItem("Copy ${columnLabel(column)}", AllIconsKeys.Actions.Copy, onCopyCell))
+        }
         add(FilterMenuItem("Copy row", AllIconsKeys.Actions.Copy, onCopyRow))
     }
     val bookmarkItem = FilterMenuItem(
@@ -248,7 +260,9 @@ private fun filterMenuItems(
     return listOf(
         FilterMenuItem("Show only $label", AllIconsKeys.Actions.Show) { onAddFilter(builder(FilterMode.SHOW)) },
         FilterMenuItem("Hide $label", AllIconsKeys.Actions.Cancel) { onAddFilter(builder(FilterMode.HIDE)) },
-        FilterMenuItem("Highlight $label", AllIconsKeys.Actions.Highlighting) { onAddFilter(builder(FilterMode.HIGHLIGHT)) },
+        FilterMenuItem("Highlight $label", AllIconsKeys.Actions.Highlighting) {
+            onAddFilter(builder(FilterMode.HIGHLIGHT))
+        },
     )
 }
 
@@ -256,9 +270,15 @@ private fun ruleBuilder(column: LogColumn, value: String): ((FilterMode) -> Filt
     val name = "${columnLabel(column)}: ${value.take(40)}"
     return when (column) {
         LogColumn.MESSAGE -> { mode -> FilterRule(name = name, mode = mode, message = FieldPattern(value)) }
-        LogColumn.TAG -> { mode -> FilterRule(name = name, mode = mode, tag = FieldPattern(value, caseSensitive = true)) }
-        LogColumn.PROCESS -> { mode -> FilterRule(name = name, mode = mode, app = FieldPattern(value, caseSensitive = true)) }
-        LogColumn.PID -> { mode -> FilterRule(name = name, mode = mode, pid = FieldPattern(value, caseSensitive = true)) }
+        LogColumn.TAG -> { mode ->
+            FilterRule(name = name, mode = mode, tag = FieldPattern(value, caseSensitive = true))
+        }
+        LogColumn.PROCESS -> { mode ->
+            FilterRule(name = name, mode = mode, app = FieldPattern(value, caseSensitive = true))
+        }
+        LogColumn.PID -> { mode ->
+            FilterRule(name = name, mode = mode, pid = FieldPattern(value, caseSensitive = true))
+        }
         LogColumn.LEVEL -> { mode -> FilterRule(name = name, mode = mode, levels = setOf(value)) }
         LogColumn.DATE, LogColumn.TIME, LogColumn.TID -> null
     }

@@ -8,18 +8,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
 import com.dv.logexp.model.Device
-import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.ThemeMode
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Checkbox
-import org.jetbrains.jewel.ui.component.DefaultButton
-import org.jetbrains.jewel.ui.component.OutlinedButton
+import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 @Composable
 fun TopBar(
-    selectedCount: Int,
     autoFollow: Boolean,
     themeMode: ThemeMode,
     devices: List<Device>,
@@ -27,7 +27,8 @@ fun TopBar(
     onSelectDevice: (String?) -> Unit,
     onRefreshDevices: () -> Unit,
     onClear: () -> Unit,
-    onCopySelected: () -> Unit,
+    isCapturing: Boolean,
+    onToggleCapture: () -> Unit,
     onSaveLogs: () -> Unit,
     onOpenFilters: () -> Unit,
     onToggleAutoFollow: () -> Unit,
@@ -53,13 +54,21 @@ fun TopBar(
             onRefresh = onRefreshDevices,
         )
 
-        DefaultButton(onClick = onClear) { Text("Clear") }
+        IconActionButton(
+            key = if (isCapturing) AllIconsKeys.Actions.Pause else AllIconsKeys.Toolwindows.ToolWindowRun,
+            contentDescription = if (isCapturing) "Pause log capture" else "Resume log capture",
+            onClick = onToggleCapture,
+            focusable = false,
+            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.7f)),
+        )
 
-        if (selectedCount > 0) {
-            OutlinedButton(onClick = onCopySelected) {
-                Text("Copy Selected ($selectedCount)")
-            }
-        }
+        IconActionButton(
+            key = AllIconsKeys.General.Delete,
+            contentDescription = "Clear logs",
+            onClick = onClear,
+            focusable = false,
+            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.7f)),
+        )
 
         Spacer(Modifier.weight(1f))
 

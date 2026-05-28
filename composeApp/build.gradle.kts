@@ -5,6 +5,14 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinxSerialization)
+    alias(libs.plugins.detekt)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    ignoreFailures = true
+    config.setFrom(files("detekt.yml"))
+    source.setFrom(files("src/jvmMain/kotlin", "src/commonMain/kotlin"))
 }
 
 val appVersion: String = (findProperty("appVersion") as? String) ?: "0.0.0"

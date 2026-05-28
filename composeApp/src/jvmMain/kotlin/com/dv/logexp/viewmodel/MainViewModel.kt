@@ -84,6 +84,7 @@ class MainViewModel(
     val selectedDevice = _selectedDevice.asStateFlow()
 
     private var captureJob: Job? = null
+    private var captureGen: Long = 0
 
     init {
         applyConfig(configManager.load())
@@ -263,6 +264,7 @@ class MainViewModel(
     fun startCapture() {
         if (_isCapturing.value) return
         _isCapturing.value = true
+        val gen = ++captureGen
 
         captureJob = viewModelScope.launch {
             try {
@@ -272,9 +274,21 @@ class MainViewModel(
                     }
                 }
             } finally {
-                _isCapturing.value = false
+                if (gen == captureGen) _isCapturing.value = false
             }
         }
+    }
+
+    fun stopCapture() {
+        captureGen++
+        captureJob?.cancel()
+        captureJob = null
+        logcatService.stop()
+        _isCapturing.value = false
+    }
+
+    fun toggleCapture() {
+        if (_isCapturing.value) stopCapture() else startCapture()
     }
 
     fun clearLogs() {
