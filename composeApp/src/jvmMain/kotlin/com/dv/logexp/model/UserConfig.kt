@@ -10,6 +10,7 @@ data class UserConfig(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fontSize: Float = DEFAULT_FONT_SIZE,
     val fontFamily: String = DEFAULT_FONT_FAMILY,
+    val fontWeight: String = DEFAULT_FONT_WEIGHT,
 )
 
 val DEFAULT_VISIBLE_COLUMNS: Set<LogColumn> = setOf(

@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dv.logexp.model.FilterMode
+import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.service.SystemFonts
 import com.dv.logexp.ui.BottomBar
@@ -62,7 +63,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val selectedDevice by viewModel.selectedDevice.collectAsState()
     val fontSize by viewModel.fontSize.collectAsState()
     val fontFamily by viewModel.fontFamily.collectAsState()
-    val resolvedFontFamily = remember(fontFamily) { SystemFonts.resolve(fontFamily) }
+    val fontWeight by viewModel.fontWeight.collectAsState()
+    val resolvedFontFamily = remember(fontFamily, fontWeight) {
+        SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
+    }
     val selectedIds = viewModel.selectedIds
     val bookmarkedIds = viewModel.bookmarkedIds
     val logs = viewModel.logs
@@ -172,6 +176,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onSetFontSize = viewModel::setFontSize,
                 fontFamily = fontFamily,
                 onSetFontFamily = viewModel::setFontFamily,
+                fontWeight = fontWeight,
+                onSetFontWeight = viewModel::setFontWeight,
             )
 
             Divider(Orientation.Horizontal)
@@ -211,6 +217,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 highlightColor = hl?.let { Color(it.highlightColor.toInt()) },
                                 fontSize = fontSize.sp,
                                 fontFamily = resolvedFontFamily,
+                                fontWeight = fontWeight,
                                 onSelect = { multi -> viewModel.toggleSelection(log.id, multi) },
                                 onAddFilter = viewModel::addFilter,
                                 onToggleBookmark = { viewModel.toggleBookmark(log.id) },

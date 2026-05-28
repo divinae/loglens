@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.MAX_FONT_SIZE
 import com.dv.logexp.model.MIN_FONT_SIZE
@@ -40,11 +41,14 @@ fun SettingsMenu(
     onSetFontSize: (Float) -> Unit,
     fontFamily: String,
     onSetFontFamily: (String) -> Unit,
+    fontWeight: String,
+    onSetFontWeight: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val fontOptions = remember {
         (LOGICAL_FONTS + SystemFonts.list()).distinct()
     }
+    val weightOptions = remember { FontWeightPreset.entries.toList() }
 
     Box {
         IconActionButton(
@@ -104,6 +108,23 @@ fun SettingsMenu(
                             items = fontOptions,
                             selectedIndex = selectedIdx,
                             onSelectedItemChange = { idx -> onSetFontFamily(fontOptions[idx]) },
+                            modifier = Modifier.width(220.dp),
+                        )
+                    }
+                }
+
+                passiveItem {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Weight", modifier = Modifier.padding(end = 8.dp))
+                        val currentWeight = FontWeightPreset.fromName(fontWeight)
+                        val selectedIdx = weightOptions.indexOf(currentWeight).coerceAtLeast(0)
+                        ListComboBox(
+                            items = weightOptions.map { it.displayName },
+                            selectedIndex = selectedIdx,
+                            onSelectedItemChange = { idx -> onSetFontWeight(weightOptions[idx].name) },
                             modifier = Modifier.width(220.dp),
                         )
                     }

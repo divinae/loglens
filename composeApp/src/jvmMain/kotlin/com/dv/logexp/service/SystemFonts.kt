@@ -1,12 +1,12 @@
 package com.dv.logexp.service
 
-import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.platform.asComposeFontFamily
-import java.awt.Font
+import androidx.compose.ui.text.platform.Typeface
+import org.jetbrains.skia.FontMgr
+import org.jetbrains.skia.FontSlant
+import org.jetbrains.skia.FontStyle
 import java.awt.GraphicsEnvironment
 
-@OptIn(ExperimentalTextApi::class)
 object SystemFonts {
     private val cachedNames: List<String> by lazy {
         runCatching {
@@ -20,7 +20,19 @@ object SystemFonts {
 
     fun list(): List<String> = cachedNames
 
-    fun resolve(name: String): FontFamily = runCatching {
-        Font(name, Font.PLAIN, 12).asComposeFontFamily()
-    }.getOrElse { FontFamily.Monospace }
+    fun resolve(name: String, weight: Int = 400): FontFamily = when (name) {
+        "Monospaced" -> FontFamily.Monospace
+        "SansSerif" -> FontFamily.SansSerif
+        "Serif" -> FontFamily.Serif
+        "Dialog", "DialogInput" -> FontFamily.Default
+        else -> resolveNamed(name, weight) ?: FontFamily.Monospace
+    }
+
+    private fun resolveNamed(name: String, weight: Int): FontFamily? = runCatching {
+        val skTypeface = FontMgr.default.matchFamilyStyle(
+            name,
+            FontStyle(weight.coerceIn(100, 900), 5, FontSlant.UPRIGHT),
+        ) ?: return@runCatching null
+        FontFamily(Typeface(skTypeface))
+    }.getOrNull()
 }

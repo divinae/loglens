@@ -26,6 +26,7 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.TextUnit
 import com.dv.logexp.model.FieldPattern
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
+import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
 import com.dv.logexp.ui.theme.ROW_SELECTED_DARK
@@ -56,12 +58,14 @@ fun LogRow(
     highlightColor: Color? = null,
     fontSize: TextUnit = 12.sp,
     fontFamily: FontFamily = FontFamily.Monospace,
+    fontWeight: String = "NORMAL",
     onSelect: (Boolean) -> Unit,
     onAddFilter: (FilterRule) -> Unit = {},
     onToggleBookmark: () -> Unit = {},
 ) {
     val clipboard = LocalClipboardManager.current
     val color = logLevelColor(log.level, isDarkMode)
+    val resolvedWeight = remember(fontWeight) { FontWeight(FontWeightPreset.fromName(fontWeight).weight) }
     val bookmarkTint = JewelTheme.globalColors.text.info.copy(alpha = 0.10f)
     val backgroundColor = when {
         isSelected && isDarkMode -> ROW_SELECTED_DARK
@@ -122,7 +126,7 @@ fun LogRow(
                 onToggleBookmark = onToggleBookmark,
                 modifier = cellModifier,
             ) {
-                LogCell(text, color, Modifier, wrapText = wrap, fontSize = fontSize, fontFamily = fontFamily)
+                LogCell(text, color, Modifier, wrapText = wrap, fontSize = fontSize, fontFamily = fontFamily, fontWeight = resolvedWeight)
             }
         }
     }
@@ -258,12 +262,14 @@ private fun LogCell(
     wrapText: Boolean,
     fontSize: TextUnit,
     fontFamily: FontFamily,
+    fontWeight: FontWeight,
 ) {
     Text(
         text = text,
         color = color,
         fontSize = fontSize,
         fontFamily = fontFamily,
+        fontWeight = fontWeight,
         maxLines = if (wrapText) Int.MAX_VALUE else 1,
         overflow = if (wrapText) TextOverflow.Clip else TextOverflow.Ellipsis,
         modifier = modifier.padding(horizontal = 4.dp),

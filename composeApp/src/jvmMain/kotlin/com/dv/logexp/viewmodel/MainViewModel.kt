@@ -10,6 +10,7 @@ import com.dv.logexp.config.FilterStore
 import com.dv.logexp.model.DEFAULT_COLUMN_WIDTHS
 import com.dv.logexp.model.DEFAULT_FONT_FAMILY
 import com.dv.logexp.model.DEFAULT_FONT_SIZE
+import com.dv.logexp.model.DEFAULT_FONT_WEIGHT
 import com.dv.logexp.model.DEFAULT_VISIBLE_COLUMNS
 import com.dv.logexp.model.Device
 import com.dv.logexp.model.FilterRule
@@ -69,6 +70,9 @@ class MainViewModel(
 
     private val _fontFamily = MutableStateFlow(DEFAULT_FONT_FAMILY)
     val fontFamily = _fontFamily.asStateFlow()
+
+    private val _fontWeight = MutableStateFlow(DEFAULT_FONT_WEIGHT)
+    val fontWeight = _fontWeight.asStateFlow()
 
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
@@ -136,6 +140,7 @@ class MainViewModel(
         _themeMode.value = config.themeMode
         _fontSize.value = config.fontSize.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
         _fontFamily.value = config.fontFamily
+        _fontWeight.value = config.fontWeight
     }
 
     private fun persistConfig() {
@@ -148,6 +153,7 @@ class MainViewModel(
                     themeMode = _themeMode.value,
                     fontSize = _fontSize.value,
                     fontFamily = _fontFamily.value,
+                    fontWeight = _fontWeight.value,
                 )
             )
         }
@@ -163,6 +169,12 @@ class MainViewModel(
     fun setFontFamily(family: String) {
         if (_fontFamily.value == family) return
         _fontFamily.value = family
+        persistConfig()
+    }
+
+    fun setFontWeight(weight: String) {
+        if (_fontWeight.value == weight) return
+        _fontWeight.value = weight
         persistConfig()
     }
 
