@@ -297,8 +297,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         focusRequester = findFocusRequester,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 8.dp)
+                            .padding(horizontal = 12.dp)
+                            .padding(top = 4.dp)
                             .widthIn(min = 360.dp),
                     )
                 }
@@ -318,6 +318,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             BottomBar(
                 initialAppFilter = appFilter,
                 logCount = filteredLogs.size,
+                totalLogCount = logs.size,
                 onSearchChange = viewModel::updateSearchQuery,
                 onAppFilterChange = viewModel::updateAppFilter,
             )

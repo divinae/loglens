@@ -21,6 +21,7 @@ import org.jetbrains.jewel.ui.component.TextField
 fun BottomBar(
     initialAppFilter: String,
     logCount: Int,
+    totalLogCount: Int,
     onSearchChange: (String) -> Unit,
     onAppFilterChange: (String) -> Unit,
 ) {
@@ -51,7 +52,7 @@ fun BottomBar(
             modifier = Modifier.width(200.dp),
         )
         Text(
-            text = "Logs: $logCount",
+            text = if (logCount < totalLogCount) "Logs: $logCount/$totalLogCount" else "Logs: $logCount",
             fontSize = 12.sp,
             textAlign = TextAlign.Right,
             modifier = Modifier.padding(start = 8.dp).widthIn(min = 100.dp),
