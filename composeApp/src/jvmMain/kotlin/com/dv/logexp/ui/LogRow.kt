@@ -1,30 +1,15 @@
 package com.dv.logexp.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.HorizontalScrollbar
-import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.rememberScrollbarAdapter
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,12 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
@@ -54,44 +34,27 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogWindow
-import androidx.compose.ui.window.rememberDialogState
-import com.dv.logexp.model.FieldPattern
-import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
 import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
 import com.dv.logexp.model.cell
-import com.dv.logexp.ui.theme.HIGHLIGHT_COLORS
 import com.dv.logexp.ui.theme.ROW_SELECTED_DARK
 import com.dv.logexp.ui.theme.ROW_SELECTED_LIGHT
-import com.dv.logexp.ui.theme.islandsEditor
-import com.dv.logexp.ui.theme.islandsPanel
 import com.dv.logexp.ui.theme.islandsPopup
 import com.dv.logexp.ui.theme.logLevelColor
 import com.dv.logexp.util.copyToClipboard
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.Orientation
-import org.jetbrains.jewel.ui.component.DefaultButton
-import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.OutlinedButton
-import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.component.styling.TooltipColors
 import org.jetbrains.jewel.ui.component.styling.TooltipMetrics
 import org.jetbrains.jewel.ui.component.styling.TooltipStyle
-import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -251,346 +214,6 @@ fun LogRow(
             }
         }
     }
-}
-
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
-private fun FilterableCell(
-    column: LogColumn,
-    value: String,
-    onAddFilter: (FilterRule) -> Unit,
-    onCopyCell: () -> Unit,
-    copyCellLabel: String,
-    onCopyRow: () -> Unit,
-    copyRowLabel: String,
-    isBookmarked: Boolean,
-    onToggleBookmark: () -> Unit,
-    jsonFontFamily: FontFamily,
-    jsonFontSize: TextUnit,
-    jsonCandidate: () -> String,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    val filterBuilder = if (value.isNotBlank()) ruleBuilder(column, value) else null
-    val filterLabel = labelFor(column, value)
-    val copyItems = buildList {
-        if (value.isNotEmpty()) {
-            add(FilterMenuItem(copyCellLabel, AllIconsKeys.Actions.Copy, onCopyCell))
-        }
-        add(FilterMenuItem(copyRowLabel, AllIconsKeys.Actions.Copy, onCopyRow))
-    }
-    val bookmarkItem = FilterMenuItem(
-        if (isBookmarked) "Remove bookmark" else "Add bookmark",
-        if (isBookmarked) AllIconsKeys.Actions.Cancel else AllIconsKeys.Nodes.Bookmark,
-        onToggleBookmark,
-    )
-    var showMenu by remember { mutableStateOf(false) }
-    var menuOffset by remember { mutableStateOf(IntOffset.Zero) }
-    var jsonDialog by remember { mutableStateOf<String?>(null) }
-    jsonDialog?.let { json ->
-        JsonViewerDialog(
-            json = json,
-            fontFamily = jsonFontFamily,
-            fontSize = jsonFontSize,
-            onDismiss = { jsonDialog = null },
-        )
-    }
-    Box(
-        modifier = modifier.onPointerEvent(PointerEventType.Press) { event ->
-            if (event.buttons.isSecondaryPressed) {
-                val pos = event.changes.first().position
-                menuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
-                showMenu = true
-            }
-        }
-    ) {
-        content()
-        if (showMenu) {
-            PopupMenu(
-                onDismissRequest = { showMenu = false; true },
-                popupPositionProvider = CursorPositionProvider(menuOffset),
-            ) {
-                selectableItem(
-                    selected = false,
-                    iconKey = bookmarkItem.icon,
-                    onClick = { bookmarkItem.action(); showMenu = false },
-                ) {
-                    Text(bookmarkItem.label)
-                }
-                passiveItem {
-                    Divider(
-                        orientation = Orientation.Horizontal,
-                        thickness = 1.dp,
-                        color = JewelTheme.globalColors.borders.normal,
-                        modifier = Modifier.padding(vertical = 4.dp),
-                    )
-                }
-                copyItems.forEach { item ->
-                    selectableItem(
-                        selected = false,
-                        iconKey = item.icon,
-                        onClick = { item.action(); showMenu = false },
-                    ) {
-                        Text(item.label)
-                    }
-                }
-                val formattedJson = formatJson(jsonCandidate())
-                if (formattedJson != null) {
-                    selectableItem(
-                        selected = false,
-                        iconKey = AllIconsKeys.Actions.PrettyPrint,
-                        onClick = { jsonDialog = formattedJson; showMenu = false },
-                    ) {
-                        Text("Format JSON")
-                    }
-                }
-                if (copyItems.isNotEmpty() && filterBuilder != null) {
-                    passiveItem {
-                        Divider(
-                            orientation = Orientation.Horizontal,
-                            thickness = 1.dp,
-                            color = JewelTheme.globalColors.borders.normal,
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        )
-                    }
-                }
-                if (filterBuilder != null) {
-                    selectableItem(
-                        selected = false,
-                        iconKey = AllIconsKeys.Actions.Show,
-                        onClick = { onAddFilter(filterBuilder(FilterMode.SHOW)); showMenu = false },
-                    ) {
-                        Text("Show only $filterLabel")
-                    }
-                    selectableItem(
-                        selected = false,
-                        iconKey = AllIconsKeys.Actions.Cancel,
-                        onClick = { onAddFilter(filterBuilder(FilterMode.HIDE)); showMenu = false },
-                    ) {
-                        Text("Hide $filterLabel")
-                    }
-                    passiveItem {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Icon(
-                                key = AllIconsKeys.Actions.Highlighting,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Text("Highlight", modifier = Modifier.padding(start = 4.dp, end = 4.dp))
-                            HIGHLIGHT_COLORS.forEach { (color, _) ->
-                                Box(
-                                    Modifier
-                                        .size(16.dp)
-                                        .background(Color(color.toInt()), CircleShape)
-                                        .border(1.dp, Color.Gray, CircleShape)
-                                        .clickable {
-                                            onAddFilter(
-                                                filterBuilder(FilterMode.HIGHLIGHT).copy(highlightColor = color)
-                                            )
-                                            showMenu = false
-                                        }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private data class FilterMenuItem(val label: String, val icon: IconKey, val action: () -> Unit)
-
-private val prettyJson = Json { prettyPrint = true }
-
-/** Pretty-prints [raw] if it is a JSON object or array, otherwise returns null. */
-private fun formatJson(raw: String): String? {
-    val trimmed = raw.trim()
-    if (trimmed.length < 2 || (trimmed[0] != '{' && trimmed[0] != '[')) return null
-    return try {
-        prettyJson.encodeToString(JsonElement.serializer(), Json.parseToJsonElement(trimmed))
-    } catch (_: Exception) {
-        null
-    }
-}
-
-/** Lexes already-valid pretty JSON and colors keys, strings, numbers and keywords. */
-private fun highlightJson(json: String, isDark: Boolean): AnnotatedString {
-    val keyColor = if (isDark) Color(0xFF9CDCFE) else Color(0xFF0451A5)
-    val stringColor = if (isDark) Color(0xFFCE9178) else Color(0xFFA31515)
-    val numberColor = if (isDark) Color(0xFFB5CEA8) else Color(0xFF098658)
-    val keywordColor = if (isDark) Color(0xFF569CD6) else Color(0xFF0000FF)
-    return buildAnnotatedString {
-        var i = 0
-        while (i < json.length) {
-            val c = json[i]
-            when {
-                c == '"' -> {
-                    val start = i
-                    i++
-                    while (i < json.length) {
-                        when (json[i]) {
-                            '\\' -> i += 2
-                            '"' -> {
-                                i++; break
-                            }
-
-                            else -> i++
-                        }
-                    }
-                    var j = i
-                    while (j < json.length && json[j].isWhitespace()) j++
-                    val isKey = j < json.length && json[j] == ':'
-                    withStyle(SpanStyle(color = if (isKey) keyColor else stringColor)) {
-                        append(json.substring(start, i))
-                    }
-                }
-
-                c.isDigit() || (c == '-' && i + 1 < json.length && json[i + 1].isDigit()) -> {
-                    val start = i
-                    i++
-                    while (i < json.length && (json[i].isDigit() || json[i] in ".eE+-")) i++
-                    withStyle(SpanStyle(color = numberColor)) { append(json.substring(start, i)) }
-                }
-
-                c.isLetter() -> {
-                    val start = i
-                    while (i < json.length && json[i].isLetter()) i++
-                    val word = json.substring(start, i)
-                    if (word == "true" || word == "false" || word == "null") {
-                        withStyle(SpanStyle(color = keywordColor)) { append(word) }
-                    } else {
-                        append(word)
-                    }
-                }
-
-                else -> {
-                    append(c)
-                    i++
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun JsonViewerDialog(
-    json: String,
-    fontFamily: FontFamily,
-    fontSize: TextUnit,
-    onDismiss: () -> Unit,
-) {
-    val isDark = JewelTheme.isDark
-    val dialogState = rememberDialogState(size = DpSize(720.dp, 600.dp))
-    DialogWindow(
-        onCloseRequest = onDismiss,
-        state = dialogState,
-        title = "Formatted JSON",
-        onKeyEvent = {
-            if (it.type == KeyEventType.KeyDown && it.key == Key.Escape) {
-                onDismiss()
-                true
-            } else {
-                false
-            }
-        },
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(islandsPanel(JewelTheme.isDark))
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            val vScroll = rememberScrollState()
-            val hScroll = rememberScrollState()
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(islandsEditor(JewelTheme.isDark)),
-            ) {
-                val highlighted = remember(json, isDark) { highlightJson(json, isDark) }
-                SelectionContainer(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(vScroll)
-                        .horizontalScroll(hScroll)
-                        .padding(8.dp),
-                ) {
-                    Text(highlighted, fontFamily = fontFamily, fontSize = fontSize)
-                }
-                VerticalScrollbar(
-                    adapter = rememberScrollbarAdapter(vScroll),
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                        .padding(vertical = 8.dp, horizontal = 4.dp)
-                        .fillMaxHeight(),
-                )
-                HorizontalScrollbar(
-                    adapter = rememberScrollbarAdapter(hScroll),
-                    modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            ) {
-                DefaultButton(onClick = { copyToClipboard(json) }) { Text("Copy") }
-                OutlinedButton(onClick = onDismiss) { Text("Close") }
-            }
-        }
-    }
-}
-
-private fun ruleBuilder(column: LogColumn, value: String): ((FilterMode) -> FilterRule)? {
-    val shortValue = if (value.length > 20) value.take(20) + "..." else value
-    val name = "${shortLabel(column)} $shortValue"
-    return when (column) {
-        LogColumn.MESSAGE -> { mode -> FilterRule(name = name, mode = mode, message = FieldPattern(value)) }
-        LogColumn.TAG -> { mode ->
-            FilterRule(name = name, mode = mode, tag = FieldPattern(value, caseSensitive = true))
-        }
-
-        LogColumn.PROCESS -> { mode ->
-            FilterRule(name = name, mode = mode, app = FieldPattern(value, caseSensitive = true))
-        }
-
-        LogColumn.PID -> { mode ->
-            FilterRule(name = name, mode = mode, pid = FieldPattern(value, caseSensitive = true))
-        }
-
-        LogColumn.LEVEL -> { mode -> FilterRule(name = name, mode = mode, levels = setOf(value)) }
-        LogColumn.DATE, LogColumn.TIME, LogColumn.TID -> null
-    }
-}
-
-private fun columnLabel(column: LogColumn): String = when (column) {
-    LogColumn.MESSAGE -> "Message"
-    LogColumn.TAG -> "Tag"
-    LogColumn.PROCESS -> "App"
-    LogColumn.PID -> "PID"
-    LogColumn.LEVEL -> "Level"
-    else -> column.displayName
-}
-
-/** Short prefix used for auto-generated filter names. */
-private fun shortLabel(column: LogColumn): String = when (column) {
-    LogColumn.MESSAGE -> "msg"
-    LogColumn.TAG -> "tag"
-    LogColumn.PROCESS -> "app"
-    LogColumn.PID -> "pid"
-    LogColumn.LEVEL -> "lvl"
-    else -> column.displayName
-}
-
-private fun labelFor(column: LogColumn, value: String): String {
-    val short = if (value.length > 30) value.take(30) + "..." else value
-    return "${columnLabel(column)}=\"$short\""
 }
 
 @Composable
