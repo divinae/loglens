@@ -48,7 +48,7 @@ import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.service.SystemFonts
-import com.dv.logexp.ui.BottomBar
+import com.dv.logexp.ui.QuickFilterBar
 import com.dv.logexp.ui.FilterChipsBar
 import com.dv.logexp.ui.FiltersDialog
 import com.dv.logexp.ui.FindBar
@@ -84,7 +84,6 @@ import java.io.File
 fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val themeMode by viewModel.themeMode.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val appFilter by viewModel.appFilter.collectAsState()
     val visibleColumns by viewModel.visibleColumns.collectAsState()
     val columnWidths by viewModel.columnWidths.collectAsState()
     val autoFollow by viewModel.autoFollow.collectAsState()
@@ -171,7 +170,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     IntUiTheme(theme = islandsTheme, styling = ComponentStyling) {
         val listState = rememberLazyListState()
 
-        val filteredLogs = remember(logs.size, searchQuery, appFilter, filters) {
+        val filteredLogs = remember(logs.size, searchQuery, filters) {
             val activeFilters = filters.filter { it.enabled }
             val showFilters = activeFilters.filter {
                 it.mode == FilterMode.SHOW || it.mode == FilterMode.SHOW_AND_HIGHLIGHT
@@ -180,10 +179,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             logs.filter { log ->
                 val matchesQuery = searchQuery.isBlank()
                         || log.content.contains(searchQuery, ignoreCase = true)
-                val matchesApp = appFilter.isBlank()
-                        || log.appName.contains(appFilter, ignoreCase = true)
-                        || log.pid == appFilter
-                if (!matchesQuery || !matchesApp) return@filter false
+                if (!matchesQuery) return@filter false
                 if (hideFilters.any { it.matches(log) }) return@filter false
                 if (showFilters.isNotEmpty() && showFilters.none { it.matches(log) }) return@filter false
                 true
@@ -335,6 +331,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         runCatching { findFocusRequester.requestFocus() }
                     }
                 },
+                logCount = filteredLogs.size,
+                totalLogCount = logs.size,
             )
 
             Box(modifier = Modifier.weight(1f)) {
@@ -483,7 +481,12 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
 
             Divider(Orientation.Horizontal)
 
+            QuickFilterBar(
+                onSearchChange = viewModel::updateSearchQuery,
+            )
+
             if (filters.isNotEmpty()) {
+                Divider(Orientation.Horizontal)
                 FilterChipsBar(
                     filters = filters,
                     onToggleEnabled = viewModel::setFilterEnabled,
@@ -500,16 +503,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     },
                     onMove = viewModel::reorderFilters,
                 )
-                Divider(Orientation.Horizontal)
             }
-
-            BottomBar(
-                initialAppFilter = appFilter,
-                logCount = filteredLogs.size,
-                totalLogCount = logs.size,
-                onSearchChange = viewModel::updateSearchQuery,
-                onAppFilterChange = viewModel::updateAppFilter,
-            )
         }
 
         if (showFiltersDialog) {

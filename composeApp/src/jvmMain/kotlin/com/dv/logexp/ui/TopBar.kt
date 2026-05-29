@@ -1,15 +1,19 @@
 package com.dv.logexp.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.dv.logexp.model.Device
 import com.dv.logexp.model.ThemeMode
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -42,6 +46,8 @@ fun TopBar(
     softWrap: Boolean,
     onSetSoftWrap: (Boolean) -> Unit,
     onOpenFind: () -> Unit,
+    logCount: Int,
+    totalLogCount: Int,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -72,6 +78,19 @@ fun TopBar(
             focusable = false,
             colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.7f)),
         )
+
+        Spacer(Modifier.weight(1f))
+
+        Box(modifier = Modifier.width(160.dp), contentAlignment = Alignment.Center) {
+            Text(
+                text = if (logCount < totalLogCount) "logs: $logCount/$totalLogCount" else "logs: $logCount",
+                fontSize = 12.sp,
+                color = JewelTheme.globalColors.text.normal.copy(alpha = 0.7f),
+                maxLines = 1,
+                textAlign = TextAlign.Start,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         Spacer(Modifier.weight(1f))
 

@@ -390,10 +390,16 @@ private fun FilterEditor(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Min level", modifier = Modifier.width(80.dp))
             // levels is stored as the suffix set { selected .. F } so membership matching == level >= selected.
-            // Empty set (no level constraint) is equivalent to Verbose, which already catches everything.
-            val minIndex = LOG_LEVELS.indexOfFirst { it in rule.levels }.coerceAtLeast(0)
+            // Empty set = "Any" (no level constraint).
+            val minIndex = LOG_LEVELS.indexOfFirst { it in rule.levels }
             Dropdown(
                 menuContent = {
+                    selectableItem(
+                        selected = minIndex < 0,
+                        onClick = { onChange(rule.copy(levels = emptySet())) },
+                    ) {
+                        Text("Any")
+                    }
                     LOG_LEVELS.forEachIndexed { i, lvl ->
                         selectableItem(
                             selected = i == minIndex,
@@ -404,7 +410,7 @@ private fun FilterEditor(
                     }
                 },
             ) {
-                Text(levelLabel(LOG_LEVELS[minIndex]))
+                Text(if (minIndex < 0) "Any" else levelLabel(LOG_LEVELS[minIndex]))
             }
         }
     }

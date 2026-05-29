@@ -54,9 +54,6 @@ class MainViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
-    private val _appFilter = MutableStateFlow("")
-    val appFilter = _appFilter.asStateFlow()
-
     private val _autoFollow = MutableStateFlow(true)
     val autoFollow = _autoFollow.asStateFlow()
 
@@ -146,7 +143,6 @@ class MainViewModel(
     private fun applyConfig(config: UserConfig) {
         _visibleColumns.value = config.visibleColumns
         _columnWidths.value = config.columnWidths
-        _appFilter.value = config.appFilter
         _themeMode.value = config.themeMode
         _fontSize.value = config.fontSize.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
         _fontFamily.value = config.fontFamily
@@ -161,7 +157,6 @@ class MainViewModel(
                 UserConfig(
                     visibleColumns = _visibleColumns.value,
                     columnWidths = _columnWidths.value,
-                    appFilter = _appFilter.value,
                     themeMode = _themeMode.value,
                     fontSize = _fontSize.value,
                     fontFamily = _fontFamily.value,
@@ -224,11 +219,6 @@ class MainViewModel(
 
     fun toggleAutoFollow() {
         _autoFollow.value = !_autoFollow.value
-    }
-
-    fun updateAppFilter(filter: String) {
-        _appFilter.value = filter
-        persistConfig()
     }
 
     fun refreshPackages() {

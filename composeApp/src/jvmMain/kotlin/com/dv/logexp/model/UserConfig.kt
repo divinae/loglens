@@ -6,7 +6,6 @@ import kotlinx.serialization.Serializable
 data class UserConfig(
     val visibleColumns: Set<LogColumn> = DEFAULT_VISIBLE_COLUMNS,
     val columnWidths: Map<LogColumn, Float> = DEFAULT_COLUMN_WIDTHS,
-    val appFilter: String = "",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fontSize: Float = DEFAULT_FONT_SIZE,
     val fontFamily: String = DEFAULT_FONT_FAMILY,

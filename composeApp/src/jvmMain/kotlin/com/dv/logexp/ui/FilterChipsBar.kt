@@ -40,9 +40,9 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import kotlinx.coroutines.launch
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
+import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 
@@ -78,8 +78,7 @@ fun FilterChipsBar(
                 val dy = event.changes.first().scrollDelta.y
                 if (dy != 0f) scope.launch { scrollState.scrollBy(dy * 60f) }
             }
-            .padding(horizontal = 8.dp)
-            .padding(top = 8.dp),
+            .padding(all = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -87,63 +86,63 @@ fun FilterChipsBar(
             // Stable identity across reorder so the running drag gesture isn't cancelled when the
             // chip changes position (a positional forEach would restart pointerInput on every move).
             key(rule.id) {
-            val state = remember(rule.id) { ContextMenuState() }
-            val isDragging = rule.id == draggingId
-            // Outer Box: measures the untransformed layout slot. Inner Box: visual drag + gesture.
-            Box(
-                modifier = Modifier
-                    .zIndex(if (isDragging) 1f else 0f)
-                    .onGloballyPositioned { coords ->
-                        val left = coords.positionInParent().x
-                        slotBounds[rule.id] = left to (left + coords.size.width)
-                    },
-            ) {
+                val state = remember(rule.id) { ContextMenuState() }
+                val isDragging = rule.id == draggingId
+                // Outer Box: measures the untransformed layout slot. Inner Box: visual drag + gesture.
                 Box(
                     modifier = Modifier
-                        .graphicsLayer {
-                            translationX = if (rule.id == draggingId) {
-                                val b = slotBounds[rule.id]
-                                if (b != null) draggedInitialCenter + dragDelta - (b.first + b.second) / 2f
-                                else 0f
-                            } else 0f
-                        }
-                        .pointerInput(rule.id) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    val b = slotBounds[rule.id]
-                                    draggingId = rule.id
-                                    dragDelta = 0f
-                                    draggedInitialCenter = if (b != null) (b.first + b.second) / 2f else 0f
-                                    startCenters = slotBounds.entries
-                                        .map { (id, r) -> id to (r.first + r.second) / 2f }
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    dragDelta += amount.x
-                                    val from = currentFilters.indexOfFirst { it.id == draggingId }
-                                    if (from < 0) return@detectDragGesturesAfterLongPress
-                                    val center = draggedInitialCenter + dragDelta
-                                    val target = startCenters.count { (id, c) -> id != draggingId && c < center }
-                                    if (target != from) onMove(from, target)
-                                },
-                                onDragEnd = { draggingId = null; dragDelta = 0f },
-                                onDragCancel = { draggingId = null; dragDelta = 0f },
-                            )
+                        .zIndex(if (isDragging) 1f else 0f)
+                        .onGloballyPositioned { coords ->
+                            val left = coords.positionInParent().x
+                            slotBounds[rule.id] = left to (left + coords.size.width)
                         },
                 ) {
-                    ContextMenuArea(
-                        items = {
-                            listOf(
-                                ContextMenuItem("Edit filter") { onEdit(rule.id) },
-                                ContextMenuItem("Delete filter") { onRemove(rule.id) },
-                            )
-                        },
-                        state = state,
+                    Box(
+                        modifier = Modifier
+                            .graphicsLayer {
+                                translationX = if (rule.id == draggingId) {
+                                    val b = slotBounds[rule.id]
+                                    if (b != null) draggedInitialCenter + dragDelta - (b.first + b.second) / 2f
+                                    else 0f
+                                } else 0f
+                            }
+                            .pointerInput(rule.id) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        val b = slotBounds[rule.id]
+                                        draggingId = rule.id
+                                        dragDelta = 0f
+                                        draggedInitialCenter = if (b != null) (b.first + b.second) / 2f else 0f
+                                        startCenters = slotBounds.entries
+                                            .map { (id, r) -> id to (r.first + r.second) / 2f }
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragDelta += amount.x
+                                        val from = currentFilters.indexOfFirst { it.id == draggingId }
+                                        if (from < 0) return@detectDragGesturesAfterLongPress
+                                        val center = draggedInitialCenter + dragDelta
+                                        val target = startCenters.count { (id, c) -> id != draggingId && c < center }
+                                        if (target != from) onMove(from, target)
+                                    },
+                                    onDragEnd = { draggingId = null; dragDelta = 0f },
+                                    onDragCancel = { draggingId = null; dragDelta = 0f },
+                                )
+                            },
                     ) {
-                        FilterChip(rule = rule, onClick = { onToggleEnabled(rule.id, !rule.enabled) })
+                        ContextMenuArea(
+                            items = {
+                                listOf(
+                                    ContextMenuItem("Edit filter") { onEdit(rule.id) },
+                                    ContextMenuItem("Delete filter") { onRemove(rule.id) },
+                                )
+                            },
+                            state = state,
+                        ) {
+                            FilterChip(rule = rule, onClick = { onToggleEnabled(rule.id, !rule.enabled) })
+                        }
                     }
                 }
-            }
             }
         }
         AddFilterChip(onClick = onAddNew)
