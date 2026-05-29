@@ -3,6 +3,7 @@ package com.dv.logexp.ui
 import androidx.compose.foundation.ContextMenuArea
 import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.ContextMenuState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,9 +43,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
+import com.dv.logexp.ui.theme.islandsPopup
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.Tooltip
+import org.jetbrains.jewel.ui.component.styling.TooltipColors
+import org.jetbrains.jewel.ui.component.styling.TooltipMetrics
+import org.jetbrains.jewel.ui.component.styling.TooltipStyle
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -149,17 +156,37 @@ fun FilterChipsBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AddFilterChip(onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
-    Row(
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .border(1.dp, Color.Gray.copy(alpha = 0.5f), shape)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("+", fontSize = 14.sp, color = JewelTheme.globalColors.text.normal)
+    val popupBg = islandsPopup(JewelTheme.isDark)
+    val borderColor = JewelTheme.globalColors.borders.normal
+    val textColor = JewelTheme.globalColors.text.normal
+    val tooltipStyle = remember(popupBg, borderColor, textColor) {
+        TooltipStyle(
+            colors = TooltipColors(
+                background = popupBg,
+                content = textColor,
+                border = borderColor,
+                shadow = Color(0x33000000),
+            ),
+            metrics = TooltipMetrics.defaults(
+                showDelay = 150.milliseconds,
+                regularDisappearDelay = 10_000.milliseconds,
+            ),
+        )
+    }
+    Tooltip(tooltip = { Text("Add filter") }, style = tooltipStyle) {
+        Row(
+            modifier = Modifier
+                .clickable(onClick = onClick)
+                .border(1.dp, Color.Gray.copy(alpha = 0.5f), shape)
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("+", fontSize = 14.sp, color = JewelTheme.globalColors.text.normal)
+        }
     }
 }
 

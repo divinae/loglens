@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
 import com.dv.logexp.model.FontWeightPreset
-import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.MAX_FONT_SIZE
 import com.dv.logexp.model.MIN_FONT_SIZE
 import com.dv.logexp.model.ThemeMode
@@ -56,7 +55,6 @@ fun SettingsMenu(
             key = AllIconsKeys.General.Gear,
             contentDescription = null,
             onClick = { expanded = true },
-            focusable = false,
             colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)),
         )
 

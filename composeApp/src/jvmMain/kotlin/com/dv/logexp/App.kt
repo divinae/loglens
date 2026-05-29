@@ -331,6 +331,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         runCatching { findFocusRequester.requestFocus() }
                     }
                 },
+                findActive = findVisible,
                 logCount = filteredLogs.size,
                 totalLogCount = logs.size,
             )
@@ -375,6 +376,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             .pointerInput(Unit) {
                                 detectDragGestures(
                                     onDragStart = { pos ->
+                                        runCatching { focusRequester.requestFocus() }
                                         dragAnchorIdx = indexAtY(listState, pos.y)
                                     },
                                     onDragEnd = { dragAnchorIdx = null },
@@ -409,6 +411,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 fontWeight = fontWeight,
                                 softWrap = softWrap,
                                 onSelect = { multi, range ->
+                                    runCatching { focusRequester.requestFocus() }
                                     if (range) {
                                         val anchor = viewModel.selectionAnchor
                                         val ids = filteredLogs.map { it.id }

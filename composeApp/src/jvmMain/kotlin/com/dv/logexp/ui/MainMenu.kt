@@ -27,7 +27,6 @@ fun MainMenu(onSaveLogs: () -> Unit, onOpenFilters: () -> Unit) {
             key = AllIconsKeys.General.WindowsMenu_20x20,
             contentDescription = "Menu",
             onClick = { expanded = true },
-            focusable = false,
             colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)),
         )
         if (expanded) {

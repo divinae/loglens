@@ -1,5 +1,8 @@
 package com.dv.logexp.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -7,21 +10,31 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dv.logexp.model.Device
 import com.dv.logexp.model.ThemeMode
+import com.dv.logexp.ui.theme.islandsPopup
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Checkbox
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.ToggleableIconActionButton
+import org.jetbrains.jewel.ui.component.Tooltip
+import org.jetbrains.jewel.ui.component.styling.TooltipColors
+import org.jetbrains.jewel.ui.component.styling.TooltipMetrics
+import org.jetbrains.jewel.ui.component.styling.TooltipStyle
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import kotlin.time.Duration.Companion.milliseconds
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TopBar(
     autoFollow: Boolean,
@@ -46,38 +59,76 @@ fun TopBar(
     softWrap: Boolean,
     onSetSoftWrap: (Boolean) -> Unit,
     onOpenFind: () -> Unit,
+    findActive: Boolean,
     logCount: Int,
     totalLogCount: Int,
 ) {
+    val activeAccent = Color(0xFF3592FF)
+    val inactiveTint = JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)
+    fun activeBorder(active: Boolean): Modifier =
+        if (active) Modifier.border(1.dp, activeAccent, RoundedCornerShape(4.dp)) else Modifier
+    fun iconTint(active: Boolean): ColorFilter =
+        ColorFilter.tint(if (active) activeAccent else inactiveTint)
+
+    val isDark = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+    }
+    val popupBg = islandsPopup(isDark)
+    val borderColor = JewelTheme.globalColors.borders.normal
+    val textColor = JewelTheme.globalColors.text.normal
+    val tooltipStyle = remember(popupBg, borderColor, textColor) {
+        TooltipStyle(
+            colors = TooltipColors(
+                background = popupBg,
+                content = textColor,
+                border = borderColor,
+                shadow = Color(0x33000000),
+            ),
+            metrics = TooltipMetrics.defaults(
+                showDelay = 150.milliseconds,
+                regularDisappearDelay = 10_000.milliseconds,
+            ),
+        )
+    }
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MainMenu(onSaveLogs = onSaveLogs, onOpenFilters = onOpenFilters)
+        Tooltip(tooltip = { Text("Menu") }, style = tooltipStyle) {
+            MainMenu(onSaveLogs = onSaveLogs, onOpenFilters = onOpenFilters)
+        }
 
-        DeviceMenu(
-            devices = devices,
-            selectedSerial = selectedDevice,
-            onSelect = onSelectDevice,
-            onRefresh = onRefreshDevices,
-        )
+        Tooltip(tooltip = { Text("Select device") }, style = tooltipStyle) {
+            DeviceMenu(
+                devices = devices,
+                selectedSerial = selectedDevice,
+                onSelect = onSelectDevice,
+                onRefresh = onRefreshDevices,
+            )
+        }
 
         IconActionButton(
             key = if (isCapturing) AllIconsKeys.Actions.Pause else AllIconsKeys.Toolwindows.ToolWindowRun,
             contentDescription = if (isCapturing) "Pause log capture" else "Resume log capture",
             onClick = onToggleCapture,
-            focusable = false,
-            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.7f)),
-        )
+            colorFilter = iconTint(false),
+            tooltipStyle = tooltipStyle,
+        ) {
+            Text(if (isCapturing) "Pause capture" else "Resume capture")
+        }
 
         IconActionButton(
             key = AllIconsKeys.General.Delete,
             contentDescription = "Clear logs",
             onClick = onClear,
-            focusable = false,
-            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.7f)),
-        )
+            colorFilter = iconTint(false),
+            tooltipStyle = tooltipStyle,
+        ) {
+            Text("Clear logs")
+        }
 
         Spacer(Modifier.weight(1f))
 
@@ -94,30 +145,42 @@ fun TopBar(
 
         Spacer(Modifier.weight(1f))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = autoFollow, onCheckedChange = { onToggleAutoFollow() })
-            Text("Auto-Follow", modifier = Modifier.padding(start = 4.dp))
+        ToggleableIconActionButton(
+            key = AllIconsKeys.RunConfigurations.Scroll_down,
+            contentDescription = if (autoFollow) "Auto-follow on" else "Auto-follow off",
+            value = autoFollow,
+            onValueChange = { onToggleAutoFollow() },
+            modifier = activeBorder(autoFollow),
+            colorFilter = iconTint(autoFollow),
+            tooltipStyle = tooltipStyle,
+        ) {
+            Text(if (autoFollow) "Auto-follow on" else "Auto-follow off")
         }
 
         IconActionButton(
             key = AllIconsKeys.Actions.Find,
             contentDescription = "Find",
             onClick = onOpenFind,
-            focusable = false,
-            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)),
-        )
+            modifier = activeBorder(findActive),
+            colorFilter = iconTint(findActive),
+            tooltipStyle = tooltipStyle,
+        ) {
+            Text("Find")
+        }
 
-        SettingsMenu(
-            themeMode = themeMode,
-            onSetTheme = onSetTheme,
-            fontSize = fontSize,
-            onSetFontSize = onSetFontSize,
-            fontFamily = fontFamily,
-            onSetFontFamily = onSetFontFamily,
-            fontWeight = fontWeight,
-            onSetFontWeight = onSetFontWeight,
-            softWrap = softWrap,
-            onSetSoftWrap = onSetSoftWrap,
-        )
+        Tooltip(tooltip = { Text("Settings") }, style = tooltipStyle) {
+            SettingsMenu(
+                themeMode = themeMode,
+                onSetTheme = onSetTheme,
+                fontSize = fontSize,
+                onSetFontSize = onSetFontSize,
+                fontFamily = fontFamily,
+                onSetFontFamily = onSetFontFamily,
+                fontWeight = fontWeight,
+                onSetFontWeight = onSetFontWeight,
+                softWrap = softWrap,
+                onSetSoftWrap = onSetSoftWrap,
+            )
+        }
     }
 }

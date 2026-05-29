@@ -30,6 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
@@ -126,6 +130,14 @@ fun FiltersDialog(
         onCloseRequest = onDismiss,
         state = state,
         title = if (dirty) "Saved Filters *" else "Saved Filters",
+        onKeyEvent = {
+            if (it.type == KeyEventType.KeyDown && it.key == Key.Escape) {
+                onDismiss()
+                true
+            } else {
+                false
+            }
+        },
     ) {
         Column(modifier = Modifier.fillMaxSize().background(islandsPanel(JewelTheme.isDark))) {
             Row(
