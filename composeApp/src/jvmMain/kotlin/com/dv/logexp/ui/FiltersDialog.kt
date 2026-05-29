@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -237,16 +240,20 @@ private fun FilterList(
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
             itemsIndexed(filters, key = { _, rule -> rule.id }) { index, rule ->
                 val isSelected = rule.id == selectedId
+                val rowInteraction = remember { MutableInteractionSource() }
+                val rowHovered by rowInteraction.collectIsHoveredAsState()
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            if (isSelected) {
-                                if (JewelTheme.isDark) IslandsDark.rowSelected else IslandsLight.rowSelected
-                            } else {
-                                Color.Transparent
+                            when {
+                                isSelected ->
+                                    if (JewelTheme.isDark) IslandsDark.rowSelected else IslandsLight.rowSelected
+                                rowHovered -> JewelTheme.globalColors.text.normal.copy(alpha = 0.06f)
+                                else -> Color.Transparent
                             }
                         )
+                        .hoverable(rowInteraction)
                         .clickable { onSelect(rule.id) }
                         .padding(start = 8.dp, top = 6.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -278,12 +285,19 @@ private fun FilterList(
                 }
             }
             item {
+                val addInteraction = remember { MutableInteractionSource() }
+                val addHovered by addInteraction.collectIsHoveredAsState()
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .background(
+                            if (addHovered) JewelTheme.globalColors.text.normal.copy(alpha = 0.06f)
+                            else Color.Transparent
+                        )
+                        .hoverable(addInteraction)
                         .clickable(onClick = onAdd)
-                        .padding(start= 14.dp)
-                        .padding( vertical = 8.dp),
+                        .padding(start = 14.dp)
+                        .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -301,12 +315,24 @@ private fun FilterList(
 }
 
 @Composable
+private fun Modifier.hoverHighlight(): Modifier {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    return this
+        .clip(RoundedCornerShape(4.dp))
+        .background(
+            if (hovered) JewelTheme.globalColors.text.normal.copy(alpha = 0.10f) else Color.Transparent
+        )
+        .hoverable(interaction)
+}
+
+@Composable
 private fun ReorderButton(key: IconKey, enabled: Boolean, onClick: () -> Unit) {
     val gray = JewelTheme.globalColors.text.normal.copy(alpha = if (enabled) 0.8f else 0.18f)
     Box(
         modifier = Modifier
             .size(24.dp)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(if (enabled) Modifier.hoverHighlight().clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Icon(key = key, contentDescription = null, modifier = Modifier.size(14.dp), tint = gray)
@@ -316,7 +342,7 @@ private fun ReorderButton(key: IconKey, enabled: Boolean, onClick: () -> Unit) {
 @Composable
 private fun DeleteButton(onClick: () -> Unit) {
     Box(
-        modifier = Modifier.size(24.dp).clickable(onClick = onClick),
+        modifier = Modifier.size(24.dp).hoverHighlight().clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -370,15 +396,22 @@ private fun FilterEditor(
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     HIGHLIGHT_COLORS.forEach { (c, _) ->
                         val selected = c == rule.highlightColor
+                        val swatchInteraction = remember { MutableInteractionSource() }
+                        val swatchHovered by swatchInteraction.collectIsHoveredAsState()
                         Box(
                             Modifier
                                 .size(24.dp)
                                 .background(Color(c.toInt()), RoundedCornerShape(4.dp))
                                 .border(
-                                    if (selected) 2.dp else 1.dp,
-                                    if (selected) JewelTheme.globalColors.text.info else Color.Gray,
+                                    if (selected || swatchHovered) 2.dp else 1.dp,
+                                    when {
+                                        selected -> JewelTheme.globalColors.text.info
+                                        swatchHovered -> JewelTheme.globalColors.text.info.copy(alpha = 0.6f)
+                                        else -> Color.Gray
+                                    },
                                     RoundedCornerShape(4.dp),
                                 )
+                                .hoverable(swatchInteraction)
                                 .clickable { onChange(rule.copy(highlightColor = c)) }
                         )
                     }

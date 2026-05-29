@@ -10,6 +10,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -31,7 +34,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -156,6 +161,22 @@ fun FilterChipsBar(
     }
 }
 
+/** Draws a translucent hover overlay on top of the existing background, clipped to [shape]. */
+@Composable
+private fun Modifier.hoverOverlay(shape: Shape): Modifier {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    return this
+        .hoverable(interaction)
+        .then(
+            if (hovered) {
+                Modifier.background(JewelTheme.globalColors.text.normal.copy(alpha = 0.08f), shape)
+            } else {
+                Modifier
+            }
+        )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AddFilterChip(onClick: () -> Unit) {
@@ -180,7 +201,9 @@ private fun AddFilterChip(onClick: () -> Unit) {
     Tooltip(tooltip = { Text("Add filter") }, style = tooltipStyle) {
         Row(
             modifier = Modifier
+                .clip(shape)
                 .clickable(onClick = onClick)
+                .hoverOverlay(shape)
                 .border(1.dp, Color.Gray.copy(alpha = 0.5f), shape)
                 .padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -202,8 +225,10 @@ private fun FilterChip(rule: FilterRule, onClick: () -> Unit) {
 
     Row(
         modifier = Modifier
+            .clip(shape)
             .clickable(onClick = onClick)
             .background(background, shape)
+            .hoverOverlay(shape)
             .border(1.dp, borderColor, shape)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
