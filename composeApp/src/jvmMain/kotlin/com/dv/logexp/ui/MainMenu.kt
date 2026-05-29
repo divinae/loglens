@@ -19,7 +19,7 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 @Composable
-fun MainMenu(onSaveLogs: () -> Unit, onOpenFilters: () -> Unit) {
+fun MainMenu(onSaveLogs: (filtered: Boolean) -> Unit, onOpenFilters: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.padding(horizontal = 4.dp)) {
         IconActionButton(
@@ -49,10 +49,20 @@ fun MainMenu(onSaveLogs: () -> Unit, onOpenFilters: () -> Unit) {
                     iconKey = AllIconsKeys.Actions.MenuSaveall,
                     onClick = {
                         expanded = false
-                        onSaveLogs()
+                        onSaveLogs(true)
                     },
                 ) {
-                    Text("Save logs to file...")
+                    Text("Save filtered logs to file...")
+                }
+                selectableItem(
+                    selected = false,
+                    iconKey = AllIconsKeys.Actions.MenuSaveall,
+                    onClick = {
+                        expanded = false
+                        onSaveLogs(false)
+                    },
+                ) {
+                    Text("Save all logs to file...")
                 }
             }
         }

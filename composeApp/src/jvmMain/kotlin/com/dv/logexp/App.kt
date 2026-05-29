@@ -251,14 +251,20 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     filtersDialogAddOnOpen = false
                     showFiltersDialog = true
                 },
-                onSaveLogs = {
-                    val dialog = FileDialog(null as Frame?, "Save logs", FileDialog.SAVE)
-                    dialog.file = "logs.txt"
+                onSaveLogs = { filtered ->
+                    val source = if (filtered) filteredLogs else logs
+                    val dialog = FileDialog(
+                        null as Frame?,
+                        if (filtered) "Save filtered logs" else "Save all logs",
+                        FileDialog.SAVE,
+                    )
+                    dialog.file = if (filtered) "logs-filtered.txt" else "logs.txt"
                     dialog.isVisible = true
                     val dir = dialog.directory
                     val name = dialog.file
                     if (dir != null && name != null) {
-                        val payload = filteredLogs.joinToString("\n") { it.content }
+                        // Snapshot now: the lists keep growing during capture while the IO write runs.
+                        val payload = source.joinToString("\n") { it.content }
                         scope.launch(Dispatchers.IO) {
                             File(dir, name).writeText(payload)
                         }

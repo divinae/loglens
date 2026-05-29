@@ -46,7 +46,7 @@ fun TopBar(
     onClear: () -> Unit,
     isCapturing: Boolean,
     onToggleCapture: () -> Unit,
-    onSaveLogs: () -> Unit,
+    onSaveLogs: (filtered: Boolean) -> Unit,
     onOpenFilters: () -> Unit,
     onToggleAutoFollow: () -> Unit,
     onSetTheme: (ThemeMode) -> Unit,
