@@ -27,12 +27,16 @@ import com.dv.logexp.service.LogcatService
 import com.dv.logexp.service.PackageService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicInteger
+
+private const val FLUSH_INTERVAL_MS = 40L
 
 class MainViewModel(
     private val configManager: ConfigManager = ConfigManager(),
@@ -96,6 +100,13 @@ class MainViewModel(
 
     private var captureJob: Job? = null
     private var captureGen: Long = 0
+
+    /** Monotonic, thread-safe id source (parsing runs off the main thread; restarts may briefly overlap). */
+    private val nextLogId = AtomicInteger(0)
+
+    /** Plain snapshot of [pidToPackage] for the background parser, which must not read Compose state. */
+    @Volatile
+    private var pidSnapshot: Map<String, String> = emptyMap()
 
     init {
         applyConfig(configManager.load())
@@ -247,6 +258,7 @@ class MainViewModel(
             withContext(Dispatchers.Main) {
                 pidToPackage.clear()
                 pidToPackage.putAll(newMap)
+                pidSnapshot = newMap
                 // Backfill app names for logs captured before this pid→package mapping was known,
                 // otherwise process-name filters silently miss those early logs.
                 var changed = false
@@ -311,15 +323,35 @@ class MainViewModel(
         if (_isCapturing.value) return
         _isCapturing.value = true
         val gen = ++captureGen
+        val channel = Channel<LogEntry>(Channel.UNLIMITED)
 
-        captureJob = viewModelScope.launch {
+        // Producer: read and parse lines off the main thread.
+        val producer = viewModelScope.launch(Dispatchers.Default) {
             try {
                 logcatService.stream(_selectedDevice.value).collect { line ->
-                    withContext(Dispatchers.Main) {
-                        logs.add(LogParser.parse(logs.size, line, pidToPackage))
-                    }
+                    channel.send(LogParser.parse(nextLogId.getAndIncrement(), line, pidSnapshot))
                 }
             } finally {
+                channel.close()
+            }
+        }
+
+        // Consumer: batch-flush parsed entries to the observable list on the main thread, so a large
+        // backlog collapses into a few list updates per second instead of one recomposition per line.
+        captureJob = viewModelScope.launch {
+            try {
+                while (isActive) {
+                    val first = channel.receiveCatching().getOrNull() ?: break
+                    val batch = ArrayList<LogEntry>()
+                    batch.add(first)
+                    while (true) {
+                        batch.add(channel.tryReceive().getOrNull() ?: break)
+                    }
+                    if (gen == captureGen) logs.addAll(batch)
+                    delay(FLUSH_INTERVAL_MS)
+                }
+            } finally {
+                producer.cancel()
                 if (gen == captureGen) _isCapturing.value = false
             }
         }
