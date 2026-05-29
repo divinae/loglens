@@ -78,6 +78,9 @@ class MainViewModel(
     private val _filtersListWidth = MutableStateFlow(DEFAULT_FILTERS_LIST_WIDTH)
     val filtersListWidth = _filtersListWidth.asStateFlow()
 
+    private val _alwaysShowBookmarks = MutableStateFlow(true)
+    val alwaysShowBookmarks = _alwaysShowBookmarks.asStateFlow()
+
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
 
@@ -149,6 +152,7 @@ class MainViewModel(
         _fontWeight.value = config.fontWeight
         _softWrap.value = config.softWrap
         _filtersListWidth.value = config.filtersListWidth
+        _alwaysShowBookmarks.value = config.alwaysShowBookmarks
     }
 
     private fun persistConfig() {
@@ -163,6 +167,7 @@ class MainViewModel(
                     fontWeight = _fontWeight.value,
                     softWrap = _softWrap.value,
                     filtersListWidth = _filtersListWidth.value,
+                    alwaysShowBookmarks = _alwaysShowBookmarks.value,
                 )
             )
         }
@@ -171,6 +176,12 @@ class MainViewModel(
     fun setFiltersListWidth(width: Float) {
         if (_filtersListWidth.value == width) return
         _filtersListWidth.value = width
+        persistConfig()
+    }
+
+    fun setAlwaysShowBookmarks(value: Boolean) {
+        if (_alwaysShowBookmarks.value == value) return
+        _alwaysShowBookmarks.value = value
         persistConfig()
     }
 

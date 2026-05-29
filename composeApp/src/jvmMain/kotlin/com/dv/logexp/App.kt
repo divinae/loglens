@@ -102,6 +102,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val fontWeight by viewModel.fontWeight.collectAsState()
     val softWrap by viewModel.softWrap.collectAsState()
     val filtersListWidth by viewModel.filtersListWidth.collectAsState()
+    val alwaysShowBookmarks by viewModel.alwaysShowBookmarks.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
     }
@@ -196,13 +197,14 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     IntUiTheme(theme = islandsTheme, styling = styling) {
         val listState = rememberLazyListState()
 
-        val filteredLogs = remember(logs.size, searchQuery, filters) {
+        val filteredLogs = remember(logs.size, searchQuery, filters, alwaysShowBookmarks, bookmarkedIds.size) {
             val activeFilters = filters.filter { it.enabled }
             val showFilters = activeFilters.filter {
                 it.mode == FilterMode.SHOW || it.mode == FilterMode.SHOW_AND_HIGHLIGHT
             }
             val hideFilters = activeFilters.filter { it.mode == FilterMode.HIDE }
             logs.filter { log ->
+                if (alwaysShowBookmarks && log.id in bookmarkedIds) return@filter true
                 val matchesQuery = searchQuery.isBlank()
                         || log.content.contains(searchQuery, ignoreCase = true)
                 if (!matchesQuery) return@filter false
@@ -348,6 +350,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onSetFontWeight = viewModel::setFontWeight,
                 softWrap = softWrap,
                 onSetSoftWrap = viewModel::setSoftWrap,
+                alwaysShowBookmarks = alwaysShowBookmarks,
+                onSetAlwaysShowBookmarks = viewModel::setAlwaysShowBookmarks,
                 onOpenFind = {
                     if (findVisible) {
                         findVisible = false

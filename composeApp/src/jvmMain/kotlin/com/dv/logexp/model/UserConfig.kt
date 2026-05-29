@@ -12,6 +12,7 @@ data class UserConfig(
     val fontWeight: String = DEFAULT_FONT_WEIGHT,
     val softWrap: Boolean = true,
     val filtersListWidth: Float = DEFAULT_FILTERS_LIST_WIDTH,
+    val alwaysShowBookmarks: Boolean = true,
 )
 
 const val DEFAULT_FILTERS_LIST_WIDTH: Float = 280f

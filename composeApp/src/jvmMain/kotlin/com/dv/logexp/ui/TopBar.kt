@@ -58,6 +58,8 @@ fun TopBar(
     onSetFontWeight: (String) -> Unit,
     softWrap: Boolean,
     onSetSoftWrap: (Boolean) -> Unit,
+    alwaysShowBookmarks: Boolean,
+    onSetAlwaysShowBookmarks: (Boolean) -> Unit,
     onOpenFind: () -> Unit,
     findActive: Boolean,
     logCount: Int,
@@ -180,6 +182,8 @@ fun TopBar(
                 onSetFontWeight = onSetFontWeight,
                 softWrap = softWrap,
                 onSetSoftWrap = onSetSoftWrap,
+                alwaysShowBookmarks = alwaysShowBookmarks,
+                onSetAlwaysShowBookmarks = onSetAlwaysShowBookmarks,
             )
         }
     }
