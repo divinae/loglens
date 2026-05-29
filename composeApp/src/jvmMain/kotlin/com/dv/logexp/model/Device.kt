@@ -1,15 +1,22 @@
 package com.dv.logexp.model
 
+enum class ConnectionType(val label: String) { USB("USB"), WIFI("Wi-Fi") }
+
 data class Device(
     val serial: String,
     val state: String,
     val model: String? = null,
     val product: String? = null,
+    val connection: ConnectionType? = null,
 ) {
     val displayName: String
         get() {
             val label = model ?: product ?: serial
-            return if (state == "device") label else "$label ($state)"
+            val suffix = buildList {
+                connection?.let { add(it.label) }
+                if (state != "device") add(state)
+            }
+            return if (suffix.isEmpty()) label else "$label (${suffix.joinToString(", ")})"
         }
 
     val isOnline: Boolean get() = state == "device"
