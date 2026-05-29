@@ -48,6 +48,7 @@ import com.dv.logexp.model.DEFAULT_FILTERS_LIST_WIDTH
 import com.dv.logexp.model.FieldPattern
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
+import com.dv.logexp.ui.theme.HIGHLIGHT_COLORS
 import com.dv.logexp.ui.theme.IslandsDark
 import com.dv.logexp.ui.theme.IslandsLight
 import com.dv.logexp.ui.theme.islandsEditor
@@ -68,12 +69,6 @@ import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private val LOG_LEVELS = listOf("V", "D", "I", "W", "E", "F")
-
-private val PRESET_COLORS = listOf(
-    0x33FFEB3BL, 0x33FF9800L, 0x33F44336L, 0x33E040FBL,
-    0x337C4DFFL, 0x33448AFFL, 0x3300B0FFL, 0x331DE9B6L,
-    0x3376FF03L, 0x3390A4AEL,
-)
 
 @Composable
 fun FiltersDialog(
@@ -373,7 +368,7 @@ private fun FilterEditor(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Color", modifier = Modifier.width(80.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    PRESET_COLORS.forEach { c ->
+                    HIGHLIGHT_COLORS.forEach { (c, _) ->
                         val selected = c == rule.highlightColor
                         Box(
                             Modifier

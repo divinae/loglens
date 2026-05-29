@@ -2,6 +2,7 @@ package com.dv.logexp.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +47,7 @@ import com.dv.logexp.model.FilterRule
 import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
+import com.dv.logexp.ui.theme.HIGHLIGHT_COLORS
 import com.dv.logexp.ui.theme.ROW_SELECTED_DARK
 import com.dv.logexp.ui.theme.ROW_SELECTED_LIGHT
 import com.dv.logexp.ui.theme.islandsPopup
@@ -230,7 +233,8 @@ private fun FilterableCell(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val filterItems = filterMenuItems(column, value, onAddFilter)
+    val filterBuilder = if (value.isNotBlank()) ruleBuilder(column, value) else null
+    val filterLabel = labelFor(column, value)
     val copyItems = buildList {
         if (value.isNotEmpty()) {
             add(FilterMenuItem("Copy ${columnLabel(column)}", AllIconsKeys.Actions.Copy, onCopyCell))
@@ -283,7 +287,7 @@ private fun FilterableCell(
                         Text(item.label)
                     }
                 }
-                if (copyItems.isNotEmpty() && filterItems.isNotEmpty()) {
+                if (copyItems.isNotEmpty() && filterBuilder != null) {
                     passiveItem {
                         Divider(
                             orientation = Orientation.Horizontal,
@@ -293,13 +297,48 @@ private fun FilterableCell(
                         )
                     }
                 }
-                filterItems.forEach { item ->
+                if (filterBuilder != null) {
                     selectableItem(
                         selected = false,
-                        iconKey = item.icon,
-                        onClick = { item.action(); showMenu = false },
+                        iconKey = AllIconsKeys.Actions.Show,
+                        onClick = { onAddFilter(filterBuilder(FilterMode.SHOW)); showMenu = false },
                     ) {
-                        Text(item.label)
+                        Text("Show only $filterLabel")
+                    }
+                    selectableItem(
+                        selected = false,
+                        iconKey = AllIconsKeys.Actions.Cancel,
+                        onClick = { onAddFilter(filterBuilder(FilterMode.HIDE)); showMenu = false },
+                    ) {
+                        Text("Hide $filterLabel")
+                    }
+                    submenu(
+                        iconKey = AllIconsKeys.Actions.Highlighting,
+                        submenu = {
+                            HIGHLIGHT_COLORS.forEach { (color, colorName) ->
+                                selectableItem(
+                                    selected = false,
+                                    onClick = {
+                                        onAddFilter(
+                                            filterBuilder(FilterMode.HIGHLIGHT).copy(highlightColor = color)
+                                        )
+                                        showMenu = false
+                                    },
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            Modifier
+                                                .size(12.dp)
+                                                .background(Color(color.toInt()), CircleShape)
+                                                .border(1.dp, Color.Gray, CircleShape)
+                                        )
+                                        Text(colorName, modifier = Modifier.padding(start = 8.dp))
+                                    }
+                                }
+                            }
+                        },
+                    ) {
+                        Text("Highlight $filterLabel")
                     }
                 }
             }
@@ -308,23 +347,6 @@ private fun FilterableCell(
 }
 
 private data class FilterMenuItem(val label: String, val icon: IconKey, val action: () -> Unit)
-
-private fun filterMenuItems(
-    column: LogColumn,
-    value: String,
-    onAddFilter: (FilterRule) -> Unit,
-): List<FilterMenuItem> {
-    if (value.isBlank()) return emptyList()
-    val builder = ruleBuilder(column, value) ?: return emptyList()
-    val label = labelFor(column, value)
-    return listOf(
-        FilterMenuItem("Show only $label", AllIconsKeys.Actions.Show) { onAddFilter(builder(FilterMode.SHOW)) },
-        FilterMenuItem("Hide $label", AllIconsKeys.Actions.Cancel) { onAddFilter(builder(FilterMode.HIDE)) },
-        FilterMenuItem("Highlight $label", AllIconsKeys.Actions.Highlighting) {
-            onAddFilter(builder(FilterMode.HIGHLIGHT))
-        },
-    )
-}
 
 private fun ruleBuilder(column: LogColumn, value: String): ((FilterMode) -> FilterRule)? {
     val name = "${columnLabel(column)}: ${value.take(40)}"
