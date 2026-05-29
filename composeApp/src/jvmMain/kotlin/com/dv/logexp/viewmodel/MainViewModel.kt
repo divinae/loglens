@@ -324,6 +324,13 @@ class MainViewModel(
         persistFilters()
     }
 
+    fun reorderFilters(from: Int, to: Int) {
+        val current = _filters.value
+        if (from == to || from !in current.indices || to !in current.indices) return
+        _filters.value = current.toMutableList().apply { add(to, removeAt(from)) }
+        persistFilters()
+    }
+
     fun setFilterEnabled(id: String, enabled: Boolean) {
         val current = _filters.value
         if (current.none { it.id == id && it.enabled != enabled }) return

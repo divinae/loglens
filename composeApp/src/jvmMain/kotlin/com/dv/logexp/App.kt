@@ -497,6 +497,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         filtersDialogAddOnOpen = true
                         showFiltersDialog = true
                     },
+                    onMove = viewModel::reorderFilters,
                 )
                 Divider(Orientation.Horizontal)
             }

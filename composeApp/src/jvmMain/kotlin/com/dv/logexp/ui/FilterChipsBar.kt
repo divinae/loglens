@@ -6,6 +6,7 @@ import androidx.compose.foundation.ContextMenuState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -18,16 +19,27 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
@@ -42,10 +54,22 @@ fun FilterChipsBar(
     onRemove: (String) -> Unit,
     onEdit: (String) -> Unit,
     onAddNew: () -> Unit,
+    onMove: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
+    // Long-press drag-to-reorder state. Slot bounds (left, right) are measured on an untransformed
+    // outer Box so the drag translation never pollutes them.
+    val slotBounds = remember { mutableStateMapOf<String, Pair<Float, Float>>() }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragDelta by remember { mutableStateOf(0f) }
+    var draggedInitialCenter by remember { mutableStateOf(0f) }
+    // Snapshot of every chip's center at drag start; target index is derived from this fixed
+    // arrangement so reordering can't oscillate or stall after a single hop.
+    var startCenters by remember { mutableStateOf<List<Pair<String, Float>>>(emptyList()) }
+    // Live list ref so the long-lived gesture closure sees reordered indices, not the stale capture.
+    val currentFilters by rememberUpdatedState(filters)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -60,17 +84,66 @@ fun FilterChipsBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         filters.forEach { rule ->
+            // Stable identity across reorder so the running drag gesture isn't cancelled when the
+            // chip changes position (a positional forEach would restart pointerInput on every move).
+            key(rule.id) {
             val state = remember(rule.id) { ContextMenuState() }
-            ContextMenuArea(
-                items = {
-                    listOf(
-                        ContextMenuItem("Edit filter") { onEdit(rule.id) },
-                        ContextMenuItem("Delete filter") { onRemove(rule.id) },
-                    )
-                },
-                state = state,
+            val isDragging = rule.id == draggingId
+            // Outer Box: measures the untransformed layout slot. Inner Box: visual drag + gesture.
+            Box(
+                modifier = Modifier
+                    .zIndex(if (isDragging) 1f else 0f)
+                    .onGloballyPositioned { coords ->
+                        val left = coords.positionInParent().x
+                        slotBounds[rule.id] = left to (left + coords.size.width)
+                    },
             ) {
-                FilterChip(rule = rule, onClick = { onToggleEnabled(rule.id, !rule.enabled) })
+                Box(
+                    modifier = Modifier
+                        .graphicsLayer {
+                            translationX = if (rule.id == draggingId) {
+                                val b = slotBounds[rule.id]
+                                if (b != null) draggedInitialCenter + dragDelta - (b.first + b.second) / 2f
+                                else 0f
+                            } else 0f
+                        }
+                        .pointerInput(rule.id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    val b = slotBounds[rule.id]
+                                    draggingId = rule.id
+                                    dragDelta = 0f
+                                    draggedInitialCenter = if (b != null) (b.first + b.second) / 2f else 0f
+                                    startCenters = slotBounds.entries
+                                        .map { (id, r) -> id to (r.first + r.second) / 2f }
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragDelta += amount.x
+                                    val from = currentFilters.indexOfFirst { it.id == draggingId }
+                                    if (from < 0) return@detectDragGesturesAfterLongPress
+                                    val center = draggedInitialCenter + dragDelta
+                                    val target = startCenters.count { (id, c) -> id != draggingId && c < center }
+                                    if (target != from) onMove(from, target)
+                                },
+                                onDragEnd = { draggingId = null; dragDelta = 0f },
+                                onDragCancel = { draggingId = null; dragDelta = 0f },
+                            )
+                        },
+                ) {
+                    ContextMenuArea(
+                        items = {
+                            listOf(
+                                ContextMenuItem("Edit filter") { onEdit(rule.id) },
+                                ContextMenuItem("Delete filter") { onRemove(rule.id) },
+                            )
+                        },
+                        state = state,
+                    ) {
+                        FilterChip(rule = rule, onClick = { onToggleEnabled(rule.id, !rule.enabled) })
+                    }
+                }
+            }
             }
         }
         AddFilterChip(onClick = onAddNew)

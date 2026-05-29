@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -40,12 +40,15 @@ import com.dv.logexp.model.FilterRule
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Checkbox
+import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.OutlinedButton
 import org.jetbrains.jewel.ui.component.RadioButtonRow
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.TextField
+import org.jetbrains.jewel.ui.icon.IconKey
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private val LOG_LEVELS = listOf("V", "D", "I", "W", "E", "F")
 
@@ -96,6 +99,11 @@ fun FiltersDialog(
         draft = draft.map { if (it.id == id) it.copy(enabled = !it.enabled) else it }
     }
 
+    fun move(from: Int, to: Int) {
+        if (from == to || from !in draft.indices || to !in draft.indices) return
+        draft = draft.toMutableList().apply { add(to, removeAt(from)) }
+    }
+
     DialogWindow(
         onCloseRequest = onDismiss,
         state = state,
@@ -109,6 +117,7 @@ fun FiltersDialog(
                     onSelect = { selectedId = it },
                     onAdd = ::add,
                     onToggle = ::toggle,
+                    onMove = ::move,
                     modifier = Modifier.width(280.dp).fillMaxHeight(),
                 )
 
@@ -155,6 +164,7 @@ private fun FilterList(
     onSelect: (String) -> Unit,
     onAdd: () -> Unit,
     onToggle: (String) -> Unit,
+    onMove: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -168,7 +178,7 @@ private fun FilterList(
         }
         Divider(Orientation.Horizontal)
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(filters, key = { it.id }) { rule ->
+            itemsIndexed(filters, key = { _, rule -> rule.id }) { index, rule ->
                 val isSelected = rule.id == selectedId
                 Row(
                     modifier = Modifier
@@ -200,9 +210,26 @@ private fun FilterList(
                     }
                     if (label.isNotEmpty()) Text(label, fontSize = 10.sp)
                     Text(rule.name, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    ReorderButton(AllIconsKeys.General.ArrowUp, enabled = index > 0) { onMove(index, index - 1) }
+                    ReorderButton(AllIconsKeys.General.ArrowDown, enabled = index < filters.lastIndex) {
+                        onMove(index, index + 1)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReorderButton(key: IconKey, enabled: Boolean, onClick: () -> Unit) {
+    val gray = JewelTheme.globalColors.text.normal.copy(alpha = if (enabled) 0.8f else 0.18f)
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(key = key, contentDescription = null, modifier = Modifier.size(14.dp), tint = gray)
     }
 }
 
