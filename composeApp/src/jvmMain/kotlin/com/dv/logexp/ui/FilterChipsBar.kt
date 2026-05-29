@@ -169,7 +169,7 @@ private fun FilterChip(rule: FilterRule, onClick: () -> Unit) {
     val hasColor = rule.mode == FilterMode.HIGHLIGHT || rule.mode == FilterMode.SHOW_AND_HIGHLIGHT
     val shape = RoundedCornerShape(12.dp)
     val enabledAccent = JewelTheme.globalColors.text.info
-    val background = if (rule.enabled) enabledAccent.copy(alpha = 0.18f) else Color.Transparent
+    val background = if (rule.enabled) enabledAccent.copy(alpha = 0.05f) else Color.Transparent
     val borderColor = if (rule.enabled) enabledAccent else Color.Gray.copy(alpha = 0.5f)
     val textColor = if (rule.enabled) JewelTheme.globalColors.text.normal
     else JewelTheme.globalColors.text.disabled

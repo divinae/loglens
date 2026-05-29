@@ -12,7 +12,10 @@ data class UserConfig(
     val fontFamily: String = DEFAULT_FONT_FAMILY,
     val fontWeight: String = DEFAULT_FONT_WEIGHT,
     val softWrap: Boolean = true,
+    val filtersListWidth: Float = DEFAULT_FILTERS_LIST_WIDTH,
 )
+
+const val DEFAULT_FILTERS_LIST_WIDTH: Float = 280f
 
 val DEFAULT_VISIBLE_COLUMNS: Set<LogColumn> = setOf(
     LogColumn.DATE,

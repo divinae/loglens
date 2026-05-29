@@ -96,6 +96,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val fontFamily by viewModel.fontFamily.collectAsState()
     val fontWeight by viewModel.fontWeight.collectAsState()
     val softWrap by viewModel.softWrap.collectAsState()
+    val filtersListWidth by viewModel.filtersListWidth.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
     }
@@ -518,6 +519,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onSave = viewModel::replaceFilters,
                 initialSelectedId = filtersDialogInitialId,
                 addOnOpen = filtersDialogAddOnOpen,
+                listWidth = filtersListWidth,
+                onListWidthChange = viewModel::setFiltersListWidth,
             )
         }
     }

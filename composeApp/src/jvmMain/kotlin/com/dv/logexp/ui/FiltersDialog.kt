@@ -3,11 +3,11 @@ package com.dv.logexp.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,21 +28,34 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
+import com.dv.logexp.model.DEFAULT_FILTERS_LIST_WIDTH
 import com.dv.logexp.model.FieldPattern
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
+import com.dv.logexp.ui.theme.IslandsDark
+import com.dv.logexp.ui.theme.IslandsLight
+import com.dv.logexp.ui.theme.islandsEditor
+import com.dv.logexp.ui.theme.islandsPanel
+import java.awt.Cursor
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Checkbox
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Divider
+import org.jetbrains.jewel.ui.component.Dropdown
 import org.jetbrains.jewel.ui.component.OutlinedButton
 import org.jetbrains.jewel.ui.component.RadioButtonRow
 import org.jetbrains.jewel.ui.component.Text
@@ -65,6 +78,8 @@ fun FiltersDialog(
     onSave: (List<FilterRule>) -> Unit,
     initialSelectedId: String? = null,
     addOnOpen: Boolean = false,
+    listWidth: Float = DEFAULT_FILTERS_LIST_WIDTH,
+    onListWidthChange: (Float) -> Unit = {},
 ) {
     val state = rememberDialogState(size = DpSize(900.dp, 600.dp))
     var draft by remember { mutableStateOf(filters) }
@@ -104,13 +119,18 @@ fun FiltersDialog(
         draft = draft.toMutableList().apply { add(to, removeAt(from)) }
     }
 
+    val islandShape = RoundedCornerShape(8.dp)
+    var width by remember { mutableStateOf(listWidth.dp) }
+    val density = LocalDensity.current
     DialogWindow(
         onCloseRequest = onDismiss,
         state = state,
         title = if (dirty) "Saved Filters *" else "Saved Filters",
     ) {
-        Column(modifier = Modifier.fillMaxSize().background(JewelTheme.globalColors.panelBackground)) {
-            Row(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.fillMaxSize().background(islandsPanel(JewelTheme.isDark))) {
+            Row(
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            ) {
                 FilterList(
                     filters = draft,
                     selectedId = selectedId,
@@ -118,17 +138,50 @@ fun FiltersDialog(
                     onAdd = ::add,
                     onToggle = ::toggle,
                     onMove = ::move,
-                    modifier = Modifier.width(280.dp).fillMaxHeight(),
+                    onRemove = ::remove,
+                    modifier = Modifier
+                        .width(width)
+                        .fillMaxHeight()
+                        .clip(islandShape)
+                        .background(islandsEditor(JewelTheme.isDark)),
                 )
 
-                Divider(Orientation.Vertical, modifier = Modifier.fillMaxHeight())
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(8.dp)
+                        .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR)))
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragEnd = { onListWidthChange(width.value) },
+                            ) { change, dragAmount ->
+                                change.consume()
+                                val delta = with(density) { dragAmount.x.toDp() }
+                                width = (width + delta).coerceIn(180.dp, 560.dp)
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .width(2.dp)
+                            .fillMaxHeight(0.3f)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(JewelTheme.globalColors.borders.normal.copy(alpha = 0.6f))
+                    )
+                }
 
-                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(islandShape)
+                        .background(islandsEditor(JewelTheme.isDark)),
+                ) {
                     if (selected != null) {
                         FilterEditor(
                             rule = selected,
                             onChange = ::update,
-                            onRemove = { remove(selected.id) },
                             modifier = Modifier.fillMaxSize().padding(16.dp),
                         )
                     } else {
@@ -139,10 +192,8 @@ fun FiltersDialog(
                 }
             }
 
-            Divider(Orientation.Horizontal)
-
             Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -165,30 +216,32 @@ private fun FilterList(
     onAdd: () -> Unit,
     onToggle: (String) -> Unit,
     onMove: (Int, Int) -> Unit,
+    onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Filters", modifier = Modifier.weight(1f))
-            DefaultButton(onClick = onAdd) { Text("+ Add") }
+            Text("Filters", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
         Divider(Orientation.Horizontal)
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
             itemsIndexed(filters, key = { _, rule -> rule.id }) { index, rule ->
                 val isSelected = rule.id == selectedId
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            if (isSelected) JewelTheme.globalColors.panelBackground.copy(alpha = 0.6f)
-                            else Color.Transparent
+                            if (isSelected) {
+                                if (JewelTheme.isDark) IslandsDark.rowSelected else IslandsLight.rowSelected
+                            } else {
+                                Color.Transparent
+                            }
                         )
                         .clickable { onSelect(rule.id) }
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                        .padding(start = 8.dp, top = 6.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -214,6 +267,26 @@ private fun FilterList(
                     ReorderButton(AllIconsKeys.General.ArrowDown, enabled = index < filters.lastIndex) {
                         onMove(index, index + 1)
                     }
+                    DeleteButton { onRemove(rule.id) }
+                }
+            }
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onAdd)
+                        .padding(start= 14.dp)
+                        .padding( vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        key = AllIconsKeys.General.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = JewelTheme.globalColors.text.info,
+                    )
+                    Text("Add filter", fontSize = 13.sp, color = JewelTheme.globalColors.text.info)
                 }
             }
         }
@@ -234,10 +307,24 @@ private fun ReorderButton(key: IconKey, enabled: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
+private fun DeleteButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.size(24.dp).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            key = AllIconsKeys.General.Delete,
+            contentDescription = "Delete filter",
+            modifier = Modifier.size(14.dp),
+            tint = Color(0xFFE05252),
+        )
+    }
+}
+
+@Composable
 private fun FilterEditor(
     rule: FilterRule,
     onChange: (FilterRule) -> Unit,
-    onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -301,29 +388,36 @@ private fun FilterEditor(
         FieldRow("PID", rule.pid) { onChange(rule.copy(pid = it)) }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Levels", modifier = Modifier.width(80.dp))
-            LOG_LEVELS.forEach { lvl ->
-                val checked = lvl in rule.levels
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = checked,
-                        onCheckedChange = {
-                            val newSet = if (checked) rule.levels - lvl else rule.levels + lvl
-                            onChange(rule.copy(levels = newSet))
-                        },
-                    )
-                    Text(lvl, modifier = Modifier.padding(start = 2.dp), fontSize = 12.sp)
-                    Spacer(Modifier.width(6.dp))
-                }
+            Text("Min level", modifier = Modifier.width(80.dp))
+            // levels is stored as the suffix set { selected .. F } so membership matching == level >= selected.
+            // Empty set (no level constraint) is equivalent to Verbose, which already catches everything.
+            val minIndex = LOG_LEVELS.indexOfFirst { it in rule.levels }.coerceAtLeast(0)
+            Dropdown(
+                menuContent = {
+                    LOG_LEVELS.forEachIndexed { i, lvl ->
+                        selectableItem(
+                            selected = i == minIndex,
+                            onClick = { onChange(rule.copy(levels = LOG_LEVELS.drop(i).toSet())) },
+                        ) {
+                            Text(levelLabel(lvl))
+                        }
+                    }
+                },
+            ) {
+                Text(levelLabel(LOG_LEVELS[minIndex]))
             }
         }
-
-        Spacer(Modifier.weight(1f))
-        Divider(Orientation.Horizontal)
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            OutlinedButton(onClick = onRemove) { Text("Delete") }
-        }
     }
+}
+
+private fun levelLabel(level: String): String = when (level) {
+    "V" -> "Verbose"
+    "D" -> "Debug"
+    "I" -> "Info"
+    "W" -> "Warn"
+    "E" -> "Error"
+    "F" -> "Fatal"
+    else -> level
 }
 
 @Composable

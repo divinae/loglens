@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.dv.logexp.config.ConfigManager
 import com.dv.logexp.config.FilterStore
 import com.dv.logexp.model.DEFAULT_COLUMN_WIDTHS
+import com.dv.logexp.model.DEFAULT_FILTERS_LIST_WIDTH
 import com.dv.logexp.model.DEFAULT_FONT_FAMILY
 import com.dv.logexp.model.DEFAULT_FONT_SIZE
 import com.dv.logexp.model.DEFAULT_FONT_WEIGHT
@@ -76,6 +77,9 @@ class MainViewModel(
 
     private val _softWrap = MutableStateFlow(true)
     val softWrap = _softWrap.asStateFlow()
+
+    private val _filtersListWidth = MutableStateFlow(DEFAULT_FILTERS_LIST_WIDTH)
+    val filtersListWidth = _filtersListWidth.asStateFlow()
 
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
@@ -148,6 +152,7 @@ class MainViewModel(
         _fontFamily.value = config.fontFamily
         _fontWeight.value = config.fontWeight
         _softWrap.value = config.softWrap
+        _filtersListWidth.value = config.filtersListWidth
     }
 
     private fun persistConfig() {
@@ -162,9 +167,16 @@ class MainViewModel(
                     fontFamily = _fontFamily.value,
                     fontWeight = _fontWeight.value,
                     softWrap = _softWrap.value,
+                    filtersListWidth = _filtersListWidth.value,
                 )
             )
         }
+    }
+
+    fun setFiltersListWidth(width: Float) {
+        if (_filtersListWidth.value == width) return
+        _filtersListWidth.value = width
+        persistConfig()
     }
 
     fun setFontSize(size: Float) {
