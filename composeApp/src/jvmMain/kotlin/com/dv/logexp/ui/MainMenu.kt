@@ -23,7 +23,7 @@ fun MainMenu(onSaveLogs: () -> Unit, onOpenFilters: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.padding(horizontal = 4.dp)) {
         IconActionButton(
-            modifier = Modifier.size(18.dp),
+            iconModifier = Modifier.size(18.dp),
             key = AllIconsKeys.General.WindowsMenu_20x20,
             contentDescription = "Menu",
             onClick = { expanded = true },
