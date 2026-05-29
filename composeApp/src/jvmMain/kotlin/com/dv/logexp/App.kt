@@ -46,7 +46,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FontWeightPreset
+import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.ThemeMode
+import com.dv.logexp.model.cell
 import com.dv.logexp.service.SystemFonts
 import com.dv.logexp.ui.QuickFilterBar
 import com.dv.logexp.ui.FilterChipsBar
@@ -121,6 +123,11 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val copySelected: () -> Unit = {
         val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
             .joinToString("\n") { it.content }
+        clipboardManager.setText(AnnotatedString(text))
+    }
+    val copyColumnSelected: (LogColumn) -> Unit = { column ->
+        val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
+            .joinToString("\n") { it.cell(column) }
         clipboardManager.setText(AnnotatedString(text))
     }
     val scope = rememberCoroutineScope()
@@ -461,6 +468,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 onToggleBookmark = { viewModel.toggleBookmark(log.id) },
                                 selectedCount = selectedIds.size,
                                 onCopySelected = copySelected,
+                                onCopyColumnSelected = copyColumnSelected,
                             )
                         }
                     }

@@ -13,3 +13,15 @@ enum class LogColumn(val displayName: String) {
     TAG("Tag"),
     MESSAGE("Message")
 }
+
+/** The value of [column] for this log entry. */
+fun LogEntry.cell(column: LogColumn): String = when (column) {
+    LogColumn.DATE -> date
+    LogColumn.TIME -> time
+    LogColumn.PID -> pid
+    LogColumn.TID -> tid
+    LogColumn.PROCESS -> appName
+    LogColumn.LEVEL -> level
+    LogColumn.TAG -> tag
+    LogColumn.MESSAGE -> message
+}

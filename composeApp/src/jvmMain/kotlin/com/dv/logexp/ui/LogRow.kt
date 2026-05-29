@@ -3,6 +3,8 @@ package com.dv.logexp.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,6 +49,7 @@ import com.dv.logexp.model.FilterRule
 import com.dv.logexp.model.FontWeightPreset
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
+import com.dv.logexp.model.cell
 import com.dv.logexp.ui.theme.HIGHLIGHT_COLORS
 import com.dv.logexp.ui.theme.ROW_SELECTED_DARK
 import com.dv.logexp.ui.theme.ROW_SELECTED_LIGHT
@@ -86,6 +89,7 @@ fun LogRow(
     onToggleBookmark: () -> Unit = {},
     selectedCount: Int = 0,
     onCopySelected: () -> Unit = {},
+    onCopyColumnSelected: (LogColumn) -> Unit = {},
 ) {
     val clipboard = LocalClipboardManager.current
     val color = logLevelColor(log.level, isDarkMode)
@@ -112,7 +116,7 @@ fun LogRow(
                 shadow = Color(0x33000000),
             ),
             metrics = TooltipMetrics.defaults(
-                showDelay = 150.milliseconds,
+                showDelay = 250.milliseconds,
                 regularDisappearDelay = 10_000.milliseconds,
             ),
         )
@@ -165,16 +169,7 @@ fun LogRow(
 
             LogColumn.entries.forEach { column ->
                 if (column !in visibleColumns) return@forEach
-                val text = when (column) {
-                    LogColumn.DATE -> log.date
-                    LogColumn.TIME -> log.time
-                    LogColumn.PID -> log.pid
-                    LogColumn.TID -> log.tid
-                    LogColumn.PROCESS -> log.appName
-                    LogColumn.LEVEL -> log.level
-                    LogColumn.TAG -> log.tag
-                    LogColumn.MESSAGE -> log.message
-                }
+                val text = log.cell(column)
 
                 val cellModifier = if (column == LogColumn.MESSAGE) {
 
@@ -189,7 +184,15 @@ fun LogRow(
                     column = column,
                     value = text,
                     onAddFilter = onAddFilter,
-                    onCopyCell = { clipboard.setText(AnnotatedString(text)) },
+                    onCopyCell = {
+                        if (copyMulti) onCopyColumnSelected(column)
+                        else clipboard.setText(AnnotatedString(text))
+                    },
+                    copyCellLabel = if (copyMulti) {
+                        "Copy ${columnLabel(column)} ($selectedCount rows)"
+                    } else {
+                        "Copy ${columnLabel(column)}"
+                    },
                     onCopyRow = {
                         if (copyMulti) onCopySelected()
                         else clipboard.setText(AnnotatedString(log.content))
@@ -226,6 +229,7 @@ private fun FilterableCell(
     value: String,
     onAddFilter: (FilterRule) -> Unit,
     onCopyCell: () -> Unit,
+    copyCellLabel: String,
     onCopyRow: () -> Unit,
     copyRowLabel: String,
     isBookmarked: Boolean,
@@ -237,7 +241,7 @@ private fun FilterableCell(
     val filterLabel = labelFor(column, value)
     val copyItems = buildList {
         if (value.isNotEmpty()) {
-            add(FilterMenuItem("Copy ${columnLabel(column)}", AllIconsKeys.Actions.Copy, onCopyCell))
+            add(FilterMenuItem(copyCellLabel, AllIconsKeys.Actions.Copy, onCopyCell))
         }
         add(FilterMenuItem(copyRowLabel, AllIconsKeys.Actions.Copy, onCopyRow))
     }
@@ -312,33 +316,33 @@ private fun FilterableCell(
                     ) {
                         Text("Hide $filterLabel")
                     }
-                    submenu(
-                        iconKey = AllIconsKeys.Actions.Highlighting,
-                        submenu = {
-                            HIGHLIGHT_COLORS.forEach { (color, colorName) ->
-                                selectableItem(
-                                    selected = false,
-                                    onClick = {
-                                        onAddFilter(
-                                            filterBuilder(FilterMode.HIGHLIGHT).copy(highlightColor = color)
-                                        )
-                                        showMenu = false
-                                    },
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            Modifier
-                                                .size(12.dp)
-                                                .background(Color(color.toInt()), CircleShape)
-                                                .border(1.dp, Color.Gray, CircleShape)
-                                        )
-                                        Text(colorName, modifier = Modifier.padding(start = 8.dp))
-                                    }
-                                }
+                    passiveItem {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                key = AllIconsKeys.Actions.Highlighting,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text("Highlight", modifier = Modifier.padding(start = 4.dp, end = 4.dp))
+                            HIGHLIGHT_COLORS.forEach { (color, _) ->
+                                Box(
+                                    Modifier
+                                        .size(16.dp)
+                                        .background(Color(color.toInt()), CircleShape)
+                                        .border(1.dp, Color.Gray, CircleShape)
+                                        .clickable {
+                                            onAddFilter(
+                                                filterBuilder(FilterMode.HIGHLIGHT).copy(highlightColor = color)
+                                            )
+                                            showMenu = false
+                                        }
+                                )
                             }
-                        },
-                    ) {
-                        Text("Highlight $filterLabel")
+                        }
                     }
                 }
             }
@@ -349,7 +353,8 @@ private fun FilterableCell(
 private data class FilterMenuItem(val label: String, val icon: IconKey, val action: () -> Unit)
 
 private fun ruleBuilder(column: LogColumn, value: String): ((FilterMode) -> FilterRule)? {
-    val name = "${columnLabel(column)}: ${value.take(40)}"
+    val shortValue = if (value.length > 20) value.take(20) + "..." else value
+    val name = "${shortLabel(column)} $shortValue"
     return when (column) {
         LogColumn.MESSAGE -> { mode -> FilterRule(name = name, mode = mode, message = FieldPattern(value)) }
         LogColumn.TAG -> { mode ->
@@ -375,6 +380,16 @@ private fun columnLabel(column: LogColumn): String = when (column) {
     LogColumn.PROCESS -> "App"
     LogColumn.PID -> "PID"
     LogColumn.LEVEL -> "Level"
+    else -> column.displayName
+}
+
+/** Short prefix used for auto-generated filter names. */
+private fun shortLabel(column: LogColumn): String = when (column) {
+    LogColumn.MESSAGE -> "msg"
+    LogColumn.TAG -> "tag"
+    LogColumn.PROCESS -> "app"
+    LogColumn.PID -> "pid"
+    LogColumn.LEVEL -> "lvl"
     else -> column.displayName
 }
 
