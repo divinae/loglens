@@ -8,7 +8,7 @@ enum class LogColumn(val displayName: String) {
     TIME("Time"),
     PID("PID"),
     TID("TID"),
-    PROCESS("Process"),
+    PROCESS("App"),
     LEVEL("Level"),
     TAG("Tag"),
     MESSAGE("Message")

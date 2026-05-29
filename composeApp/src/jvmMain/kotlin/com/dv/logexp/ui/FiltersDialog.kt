@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -43,9 +47,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindow
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.rememberDialogState
 import com.dv.logexp.model.DEFAULT_FILTERS_LIST_WIDTH
 import com.dv.logexp.model.FieldPattern
@@ -82,6 +93,7 @@ fun FiltersDialog(
     addOnOpen: Boolean = false,
     listWidth: Float = DEFAULT_FILTERS_LIST_WIDTH,
     onListWidthChange: (Float) -> Unit = {},
+    appOptions: List<String> = emptyList(),
 ) {
     val state = rememberDialogState(size = DpSize(900.dp, 600.dp))
     var draft by remember { mutableStateOf(filters) }
@@ -192,6 +204,7 @@ fun FiltersDialog(
                         FilterEditor(
                             rule = selected,
                             onChange = ::update,
+                            appOptions = appOptions,
                             modifier = Modifier.fillMaxSize().padding(16.dp),
                         )
                     } else {
@@ -358,6 +371,7 @@ private fun DeleteButton(onClick: () -> Unit) {
 private fun FilterEditor(
     rule: FilterRule,
     onChange: (FilterRule) -> Unit,
+    appOptions: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -424,7 +438,7 @@ private fun FilterEditor(
 
         FieldRow("Message", rule.message) { onChange(rule.copy(message = it)) }
         FieldRow("Tag", rule.tag) { onChange(rule.copy(tag = it)) }
-        FieldRow("App", rule.app) { onChange(rule.copy(app = it)) }
+        FieldRow("App", rule.app, options = appOptions) { onChange(rule.copy(app = it)) }
         FieldRow("PID", rule.pid) { onChange(rule.copy(pid = it)) }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -456,6 +470,96 @@ private fun FilterEditor(
     }
 }
 
+/**
+ * "Pick" button that opens a searchable list of process names. Picking one fills the field via
+ * [onPick]; the search box is local to the popup so browsing never touches the filter pattern until
+ * a choice is made.
+ */
+@Composable
+private fun ProcessPicker(
+    options: List<String>,
+    current: String,
+    onPick: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { expanded = true }) { Text("Pick", fontSize = 11.sp) }
+        if (expanded) {
+            val positionProvider = remember {
+                object : PopupPositionProvider {
+                    override fun calculatePosition(
+                        anchorBounds: IntRect,
+                        windowSize: IntSize,
+                        layoutDirection: LayoutDirection,
+                        popupContentSize: IntSize,
+                    ): IntOffset {
+                        val x = (anchorBounds.right - popupContentSize.width).coerceAtLeast(0)
+                        val y = anchorBounds.bottom
+                        return IntOffset(x, y)
+                    }
+                }
+            }
+            Popup(
+                popupPositionProvider = positionProvider,
+                onDismissRequest = { expanded = false },
+                properties = PopupProperties(focusable = true),
+            ) {
+                val searchState = rememberTextFieldState()
+                val searchFocus = remember { FocusRequester() }
+                LaunchedEffect(Unit) { runCatching { searchFocus.requestFocus() } }
+                Column(
+                    modifier = Modifier
+                        .width(300.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(islandsEditor(JewelTheme.isDark))
+                        .border(1.dp, JewelTheme.globalColors.borders.normal, RoundedCornerShape(6.dp))
+                        .padding(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    TextField(
+                        state = searchState,
+                        placeholder = { Text("Search process…", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth().focusRequester(searchFocus),
+                    )
+                    val query = searchState.text.toString()
+                    val shown = if (query.isBlank()) options
+                    else options.filter { it.contains(query, ignoreCase = true) }
+                    if (shown.isEmpty()) {
+                        Text(
+                            "No matching process",
+                            fontSize = 11.sp,
+                            color = JewelTheme.globalColors.text.info,
+                            modifier = Modifier.padding(4.dp),
+                        )
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp)) {
+                            items(shown, key = { it }) { option ->
+                                val itemInteraction = remember { MutableInteractionSource() }
+                                val itemHovered by itemInteraction.collectIsHoveredAsState()
+                                Text(
+                                    option,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (option == current) FontWeight.SemiBold else FontWeight.Normal,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(
+                                            if (itemHovered) JewelTheme.globalColors.text.normal.copy(alpha = 0.10f)
+                                            else Color.Transparent
+                                        )
+                                        .hoverable(itemInteraction)
+                                        .clickable { onPick(option); expanded = false }
+                                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun levelLabel(level: String): String = when (level) {
     "V" -> "Verbose"
     "D" -> "Debug"
@@ -467,7 +571,12 @@ private fun levelLabel(level: String): String = when (level) {
 }
 
 @Composable
-private fun FieldRow(label: String, value: FieldPattern, onChange: (FieldPattern) -> Unit) {
+private fun FieldRow(
+    label: String,
+    value: FieldPattern,
+    options: List<String> = emptyList(),
+    onChange: (FieldPattern) -> Unit,
+) {
     val state = rememberTextFieldState(value.pattern)
     LaunchedEffect(value.pattern) {
         if (state.text.toString() != value.pattern) state.setTextAndPlaceCursorAtEnd(value.pattern)
@@ -479,6 +588,15 @@ private fun FieldRow(label: String, value: FieldPattern, onChange: (FieldPattern
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, modifier = Modifier.width(80.dp))
         TextField(state = state, modifier = Modifier.weight(1f))
+        if (options.isNotEmpty()) {
+            // Pick an existing process without losing free-text entry: selecting an item just fills
+            // the text field, which the user can still edit by hand.
+            ProcessPicker(
+                options = options,
+                current = value.pattern,
+                onPick = { state.setTextAndPlaceCursorAtEnd(it) },
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = value.isRegex, onCheckedChange = { onChange(value.copy(isRegex = it)) })
             Text("regex", modifier = Modifier.padding(start = 2.dp), fontSize = 11.sp)

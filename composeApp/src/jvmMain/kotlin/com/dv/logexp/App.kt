@@ -95,6 +95,9 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val selectedIds = viewModel.selectedIds
     val bookmarkedIds = viewModel.bookmarkedIds
     val logs = viewModel.logs
+    val pidToPackage = viewModel.pidToPackage
+    // Distinct running process/app names, offered as pick-list options in the filter dialog.
+    val appOptions = remember(pidToPackage.size) { pidToPackage.values.distinct().sorted() }
 
     var showFiltersDialog by remember { mutableStateOf(false) }
     var filtersDialogInitialId by remember { mutableStateOf<String?>(null) }
@@ -474,6 +477,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 addOnOpen = filtersDialogAddOnOpen,
                 listWidth = filtersListWidth,
                 onListWidthChange = viewModel::setFiltersListWidth,
+                appOptions = appOptions,
             )
         }
     }
