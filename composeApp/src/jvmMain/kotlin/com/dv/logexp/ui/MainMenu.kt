@@ -19,7 +19,7 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 @Composable
-fun MainMenu(onSaveLogs: (filtered: Boolean) -> Unit, onOpenFilters: () -> Unit) {
+fun MainMenu(onSaveLogs: (filtered: Boolean) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.padding(horizontal = 4.dp)) {
         IconActionButton(
@@ -34,16 +34,6 @@ fun MainMenu(onSaveLogs: (filtered: Boolean) -> Unit, onOpenFilters: () -> Unit)
                 onDismissRequest = { expanded = false; true },
                 horizontalAlignment = Alignment.Start,
             ) {
-                selectableItem(
-                    selected = false,
-                    iconKey = AllIconsKeys.General.Filter,
-                    onClick = {
-                        expanded = false
-                        onOpenFilters()
-                    },
-                ) {
-                    Text("Filters...")
-                }
                 selectableItem(
                     selected = false,
                     iconKey = AllIconsKeys.Actions.MenuSaveall,

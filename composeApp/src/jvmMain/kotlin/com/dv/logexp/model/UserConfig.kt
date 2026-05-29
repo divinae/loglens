@@ -13,6 +13,7 @@ data class UserConfig(
     val softWrap: Boolean = true,
     val filtersListWidth: Float = DEFAULT_FILTERS_LIST_WIDTH,
     val alwaysShowBookmarks: Boolean = true,
+    val quickFilterVisible: Boolean = true,
 )
 
 const val DEFAULT_FILTERS_LIST_WIDTH: Float = 280f

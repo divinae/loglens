@@ -50,7 +50,7 @@ import com.dv.logexp.model.cell
 import com.dv.logexp.service.SystemFonts
 import com.dv.logexp.util.copyToClipboard
 import com.dv.logexp.ui.QuickFilterBar
-import com.dv.logexp.ui.FilterChipsBar
+import com.dv.logexp.ui.FilterBar
 import com.dv.logexp.ui.FiltersDialog
 import com.dv.logexp.ui.FindBar
 import com.dv.logexp.ui.LogHeaders
@@ -89,6 +89,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val softWrap by viewModel.softWrap.collectAsState()
     val filtersListWidth by viewModel.filtersListWidth.collectAsState()
     val alwaysShowBookmarks by viewModel.alwaysShowBookmarks.collectAsState()
+    val quickFilterVisible by viewModel.quickFilterVisible.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
     }
@@ -246,11 +247,6 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onClear = viewModel::clearLogs,
                 isCapturing = isCapturing,
                 onToggleCapture = viewModel::toggleCapture,
-                onOpenFilters = {
-                    filtersDialogInitialId = null
-                    filtersDialogAddOnOpen = false
-                    showFiltersDialog = true
-                },
                 onSaveLogs = { filtered ->
                     val source = if (filtered) filteredLogs else logs
                     val dialog = FileDialog(
@@ -449,29 +445,41 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
 
             Divider(Orientation.Horizontal)
 
-            QuickFilterBar(
-                onSearchChange = viewModel::updateSearchQuery,
-            )
-
-            if (filters.isNotEmpty()) {
-                Divider(Orientation.Horizontal)
-                FilterChipsBar(
-                    filters = filters,
-                    onToggleEnabled = viewModel::setFilterEnabled,
-                    onRemove = viewModel::removeFilter,
-                    onEdit = { id ->
-                        filtersDialogInitialId = id
-                        filtersDialogAddOnOpen = false
-                        showFiltersDialog = true
-                    },
-                    onAddNew = {
-                        filtersDialogInitialId = null
-                        filtersDialogAddOnOpen = true
-                        showFiltersDialog = true
-                    },
-                    onMove = viewModel::reorderFilters,
+            if (quickFilterVisible) {
+                QuickFilterBar(
+                    onSearchChange = viewModel::updateSearchQuery,
                 )
+                Divider(Orientation.Horizontal)
             }
+
+            FilterBar(
+                filters = filters,
+                quickFilterVisible = quickFilterVisible,
+                onToggleQuickFilter = {
+                    val next = !quickFilterVisible
+                    // Hiding the bar drops its search so a hidden quick filter never silently filters.
+                    if (!next) viewModel.updateSearchQuery("")
+                    viewModel.setQuickFilterVisible(next)
+                },
+                onOpenFilters = {
+                    filtersDialogInitialId = null
+                    filtersDialogAddOnOpen = false
+                    showFiltersDialog = true
+                },
+                onToggleEnabled = viewModel::setFilterEnabled,
+                onRemove = viewModel::removeFilter,
+                onEdit = { id ->
+                    filtersDialogInitialId = id
+                    filtersDialogAddOnOpen = false
+                    showFiltersDialog = true
+                },
+                onAddNew = {
+                    filtersDialogInitialId = null
+                    filtersDialogAddOnOpen = true
+                    showFiltersDialog = true
+                },
+                onMove = viewModel::reorderFilters,
+            )
         }
 
         if (showFiltersDialog) {

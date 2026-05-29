@@ -102,6 +102,9 @@ class MainViewModel(
     private val _alwaysShowBookmarks = MutableStateFlow(true)
     val alwaysShowBookmarks = _alwaysShowBookmarks.asStateFlow()
 
+    private val _quickFilterVisible = MutableStateFlow(true)
+    val quickFilterVisible = _quickFilterVisible.asStateFlow()
+
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
 
@@ -187,6 +190,7 @@ class MainViewModel(
         _softWrap.value = config.softWrap
         _filtersListWidth.value = config.filtersListWidth
         _alwaysShowBookmarks.value = config.alwaysShowBookmarks
+        _quickFilterVisible.value = config.quickFilterVisible
     }
 
     private fun persistConfig() {
@@ -202,6 +206,7 @@ class MainViewModel(
                     softWrap = _softWrap.value,
                     filtersListWidth = _filtersListWidth.value,
                     alwaysShowBookmarks = _alwaysShowBookmarks.value,
+                    quickFilterVisible = _quickFilterVisible.value,
                 )
             )
         }
@@ -217,6 +222,12 @@ class MainViewModel(
         if (_alwaysShowBookmarks.value == value) return
         _alwaysShowBookmarks.value = value
         recomputeFiltered()
+        persistConfig()
+    }
+
+    fun setQuickFilterVisible(value: Boolean) {
+        if (_quickFilterVisible.value == value) return
+        _quickFilterVisible.value = value
         persistConfig()
     }
 

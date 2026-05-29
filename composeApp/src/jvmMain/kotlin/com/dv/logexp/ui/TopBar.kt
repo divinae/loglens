@@ -1,6 +1,7 @@
 package com.dv.logexp.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipPlacement
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dv.logexp.model.Device
@@ -34,6 +36,14 @@ import org.jetbrains.jewel.ui.component.styling.TooltipStyle
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import kotlin.time.Duration.Companion.milliseconds
 
+// Tooltips anchored below the trigger so they don't cover the button being hovered.
+@OptIn(ExperimentalFoundationApi::class)
+private val belowPlacement = TooltipPlacement.ComponentRect(
+    anchor = Alignment.BottomCenter,
+    alignment = Alignment.BottomCenter,
+    offset = DpOffset(0.dp, 4.dp),
+)
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TopBar(
@@ -47,7 +57,6 @@ fun TopBar(
     isCapturing: Boolean,
     onToggleCapture: () -> Unit,
     onSaveLogs: (filtered: Boolean) -> Unit,
-    onOpenFilters: () -> Unit,
     onToggleAutoFollow: () -> Unit,
     onSetTheme: (ThemeMode) -> Unit,
     fontSize: Float,
@@ -91,6 +100,7 @@ fun TopBar(
             metrics = TooltipMetrics.defaults(
                 showDelay = 150.milliseconds,
                 regularDisappearDelay = 10_000.milliseconds,
+                placement = belowPlacement,
             ),
         )
     }
@@ -100,7 +110,7 @@ fun TopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Tooltip(tooltip = { Text("Menu") }, style = tooltipStyle) {
-            MainMenu(onSaveLogs = onSaveLogs, onOpenFilters = onOpenFilters)
+            MainMenu(onSaveLogs = onSaveLogs)
         }
 
         Tooltip(tooltip = { Text("Select device") }, style = tooltipStyle) {
@@ -118,6 +128,7 @@ fun TopBar(
             onClick = onToggleCapture,
             colorFilter = iconTint(false),
             tooltipStyle = tooltipStyle,
+            tooltipPlacement = belowPlacement,
         ) {
             Text(if (isCapturing) "Pause capture" else "Resume capture")
         }
@@ -128,6 +139,7 @@ fun TopBar(
             onClick = onClear,
             colorFilter = iconTint(false),
             tooltipStyle = tooltipStyle,
+            tooltipPlacement = belowPlacement,
         ) {
             Text("Clear logs")
         }
@@ -155,6 +167,7 @@ fun TopBar(
             modifier = activeBorder(autoFollow),
             colorFilter = iconTint(autoFollow),
             tooltipStyle = tooltipStyle,
+            tooltipPlacement = belowPlacement,
         ) {
             Text(if (autoFollow) "Auto-follow on" else "Auto-follow off")
         }
@@ -166,6 +179,7 @@ fun TopBar(
             modifier = activeBorder(findActive),
             colorFilter = iconTint(findActive),
             tooltipStyle = tooltipStyle,
+            tooltipPlacement = belowPlacement,
         ) {
             Text("Find")
         }

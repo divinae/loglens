@@ -4,6 +4,7 @@ import androidx.compose.foundation.ContextMenuArea
 import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.ContextMenuState
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipPlacement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +37,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -43,6 +45,7 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -51,17 +54,32 @@ import com.dv.logexp.model.FilterRule
 import com.dv.logexp.ui.theme.islandsPopup
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.ToggleableIconActionButton
 import org.jetbrains.jewel.ui.component.Tooltip
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.component.styling.TooltipColors
 import org.jetbrains.jewel.ui.component.styling.TooltipMetrics
 import org.jetbrains.jewel.ui.component.styling.TooltipStyle
 import kotlin.time.Duration.Companion.milliseconds
 
+// FilterBar sits at the bottom, so anchor tooltips above the trigger to avoid covering it
+// and to keep them on-screen.
+@OptIn(ExperimentalFoundationApi::class)
+private val abovePlacement = TooltipPlacement.ComponentRect(
+    anchor = Alignment.TopCenter,
+    alignment = Alignment.TopCenter,
+    offset = DpOffset(0.dp, (-4).dp),
+)
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun FilterChipsBar(
+fun FilterBar(
     filters: List<FilterRule>,
+    quickFilterVisible: Boolean,
+    onToggleQuickFilter: () -> Unit,
+    onOpenFilters: () -> Unit,
     onToggleEnabled: (String, Boolean) -> Unit,
     onRemove: (String) -> Unit,
     onEdit: (String) -> Unit,
@@ -83,17 +101,22 @@ fun FilterChipsBar(
     // Live list ref so the long-lived gesture closure sees reordered indices, not the stale capture.
     val currentFilters by rememberUpdatedState(filters)
     Row(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = modifier.fillMaxWidth().padding(all = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      OpenFiltersButton(onClick = onOpenFilters)
+      Row(
+        modifier = Modifier
+            .weight(1f)
             .horizontalScroll(scrollState)
             .onPointerEvent(PointerEventType.Scroll) { event ->
                 val dy = event.changes.first().scrollDelta.y
                 if (dy != 0f) scope.launch { scrollState.scrollBy(dy * 60f) }
-            }
-            .padding(all = 8.dp),
+            },
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
-    ) {
+      ) {
         filters.forEach { rule ->
             // Stable identity across reorder so the running drag gesture isn't cancelled when the
             // chip changes position (a positional forEach would restart pointerInput on every move).
@@ -158,6 +181,8 @@ fun FilterChipsBar(
             }
         }
         AddFilterChip(onClick = onAddNew)
+      }
+      QuickFilterToggleButton(visible = quickFilterVisible, onClick = onToggleQuickFilter)
     }
 }
 
@@ -179,6 +204,78 @@ private fun Modifier.hoverOverlay(shape: Shape): Modifier {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+private fun OpenFiltersButton(onClick: () -> Unit) {
+    val inactiveTint = JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)
+    val popupBg = islandsPopup(JewelTheme.isDark)
+    val borderColor = JewelTheme.globalColors.borders.normal
+    val textColor = JewelTheme.globalColors.text.normal
+    val tooltipStyle = remember(popupBg, borderColor, textColor) {
+        TooltipStyle(
+            colors = TooltipColors(
+                background = popupBg,
+                content = textColor,
+                border = borderColor,
+                shadow = Color(0x33000000),
+            ),
+            metrics = TooltipMetrics.defaults(
+                showDelay = 150.milliseconds,
+                regularDisappearDelay = 10_000.milliseconds,
+                placement = abovePlacement,
+            ),
+        )
+    }
+    IconActionButton(
+        key = AllIconsKeys.General.Filter,
+        contentDescription = "Filters",
+        onClick = onClick,
+        colorFilter = ColorFilter.tint(inactiveTint),
+        tooltipStyle = tooltipStyle,
+        tooltipPlacement = abovePlacement,
+    ) {
+        Text("Filters")
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun QuickFilterToggleButton(visible: Boolean, onClick: () -> Unit) {
+    // Same styling as the TopBar icons: accent border + tint when active, muted otherwise.
+    val accent = Color(0xFF3592FF)
+    val inactiveTint = JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)
+    val popupBg = islandsPopup(JewelTheme.isDark)
+    val borderColor = JewelTheme.globalColors.borders.normal
+    val textColor = JewelTheme.globalColors.text.normal
+    val tooltipStyle = remember(popupBg, borderColor, textColor) {
+        TooltipStyle(
+            colors = TooltipColors(
+                background = popupBg,
+                content = textColor,
+                border = borderColor,
+                shadow = Color(0x33000000),
+            ),
+            metrics = TooltipMetrics.defaults(
+                showDelay = 150.milliseconds,
+                regularDisappearDelay = 10_000.milliseconds,
+                placement = abovePlacement,
+            ),
+        )
+    }
+    ToggleableIconActionButton(
+        key = if (visible) AllIconsKeys.General.ArrowDown else AllIconsKeys.General.ArrowUp,
+        contentDescription = if (visible) "Hide search bar" else "Show search bar",
+        value = visible,
+        onValueChange = { onClick() },
+        modifier = if (visible) Modifier.border(1.dp, accent, RoundedCornerShape(4.dp)) else Modifier,
+        colorFilter = ColorFilter.tint(if (visible) accent else inactiveTint),
+        tooltipStyle = tooltipStyle,
+        tooltipPlacement = abovePlacement,
+    ) {
+        Text(if (visible) "Hide search bar" else "Show search bar")
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
 private fun AddFilterChip(onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     val popupBg = islandsPopup(JewelTheme.isDark)
@@ -195,6 +292,7 @@ private fun AddFilterChip(onClick: () -> Unit) {
             metrics = TooltipMetrics.defaults(
                 showDelay = 150.milliseconds,
                 regularDisappearDelay = 10_000.milliseconds,
+                placement = abovePlacement,
             ),
         )
     }
