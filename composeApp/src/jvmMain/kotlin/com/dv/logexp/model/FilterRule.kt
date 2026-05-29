@@ -11,7 +11,25 @@ data class FieldPattern(
     val pattern: String = "",
     val isRegex: Boolean = false,
     val caseSensitive: Boolean = false,
-)
+) {
+    // Body property → not part of the primary constructor, so kotlinx.serialization ignores it.
+    // Compiled once per FieldPattern instead of on every matches() call (was O(filters × rows)).
+    private val compiledRegex: Regex? by lazy {
+        if (!isRegex || pattern.isBlank()) null
+        else runCatching {
+            Regex(pattern, if (caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE))
+        }.getOrNull()
+    }
+
+    fun matches(value: String): Boolean {
+        if (pattern.isBlank()) return true
+        return if (isRegex) {
+            compiledRegex?.containsMatchIn(value) ?: false
+        } else {
+            value.contains(pattern, ignoreCase = !caseSensitive)
+        }
+    }
+}
 
 @Serializable
 data class FilterRule(
@@ -33,17 +51,5 @@ data class FilterRule(
         if (!pid.matches(log.pid)) return false
         if (levels.isNotEmpty() && log.level !in levels) return false
         return true
-    }
-}
-
-private fun FieldPattern.matches(value: String): Boolean {
-    if (pattern.isBlank()) return true
-    return if (isRegex) {
-        runCatching {
-            val opts = if (caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
-            Regex(pattern, opts).containsMatchIn(value)
-        }.getOrElse { false }
-    } else {
-        value.contains(pattern, ignoreCase = !caseSensitive)
     }
 }

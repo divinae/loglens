@@ -14,6 +14,7 @@ import com.dv.logexp.model.DEFAULT_FONT_SIZE
 import com.dv.logexp.model.DEFAULT_FONT_WEIGHT
 import com.dv.logexp.model.DEFAULT_VISIBLE_COLUMNS
 import com.dv.logexp.model.Device
+import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
@@ -45,9 +46,25 @@ class MainViewModel(
 ) : ViewModel() {
 
     val logs = mutableStateListOf<LogEntry>()
+
+    /**
+     * The filtered view the UI renders. Maintained incrementally: a full rebuild only runs when the
+     * filter criteria change ([recomputeFiltered]); during capture each new batch is filtered alone and
+     * appended, so we never re-scan the (unbounded) [logs] list on every flush.
+     */
+    val filteredLogs = mutableStateListOf<LogEntry>()
+
     val selectedIds = mutableStateSetOf<Int>()
     val bookmarkedIds = mutableStateSetOf<Int>()
     val pidToPackage = mutableStateMapOf<String, String>()
+
+    // Cached partition of the active filters, refreshed whenever the filter set changes so per-log
+    // matching doesn't re-scan/re-categorise the rule list.
+    private var showFilters: List<FilterRule> = emptyList()
+    private var hideFilters: List<FilterRule> = emptyList()
+
+    // Bookmarks kept pre-sorted so next/prev navigation doesn't sort the whole set on each keypress.
+    private var sortedBookmarks: List<Int> = emptyList()
 
     private val _isCapturing = MutableStateFlow(false)
     val isCapturing = _isCapturing.asStateFlow()
@@ -85,10 +102,6 @@ class MainViewModel(
     private val _alwaysShowBookmarks = MutableStateFlow(true)
     val alwaysShowBookmarks = _alwaysShowBookmarks.asStateFlow()
 
-    /** Bumped when existing log entries are mutated in place (e.g. app-name backfill). */
-    private val _logRevision = MutableStateFlow(0)
-    val logRevision = _logRevision.asStateFlow()
-
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
 
@@ -111,6 +124,7 @@ class MainViewModel(
     init {
         applyConfig(configManager.load())
         _filters.value = filterStore.load()
+        recomputeFiltered()
 
         viewModelScope.launch {
             while (isActive) {
@@ -157,6 +171,7 @@ class MainViewModel(
         _isCapturing.value = false
         if (clearLogs) {
             logs.clear()
+            filteredLogs.clear()
             selectedIds.clear()
         }
         startCapture()
@@ -201,6 +216,7 @@ class MainViewModel(
     fun setAlwaysShowBookmarks(value: Boolean) {
         if (_alwaysShowBookmarks.value == value) return
         _alwaysShowBookmarks.value = value
+        recomputeFiltered()
         persistConfig()
     }
 
@@ -229,18 +245,17 @@ class MainViewModel(
         persistConfig()
     }
 
-    fun findNextBookmark(currentId: Int): Int? {
-        val sorted = bookmarkedIds.sorted()
-        return sorted.firstOrNull { it > currentId } ?: sorted.firstOrNull()
-    }
+    fun findNextBookmark(currentId: Int): Int? =
+        sortedBookmarks.firstOrNull { it > currentId } ?: sortedBookmarks.firstOrNull()
 
-    fun findPreviousBookmark(currentId: Int): Int? {
-        val sorted = bookmarkedIds.sortedDescending()
-        return sorted.firstOrNull { it < currentId } ?: sorted.firstOrNull()
-    }
+    fun findPreviousBookmark(currentId: Int): Int? =
+        sortedBookmarks.lastOrNull { it < currentId } ?: sortedBookmarks.lastOrNull()
 
     fun toggleBookmark(id: Int) {
         if (!bookmarkedIds.add(id)) bookmarkedIds.remove(id)
+        sortedBookmarks = bookmarkedIds.sorted()
+        // When bookmarks are pinned past the filters, toggling changes which rows are shown.
+        if (_alwaysShowBookmarks.value) recomputeFiltered()
     }
 
     fun setAutoFollow(enabled: Boolean) {
@@ -272,7 +287,8 @@ class MainViewModel(
                         }
                     }
                 }
-                if (changed) _logRevision.value++
+                // Backfilled app names can change filter matches, so rebuild the filtered view.
+                if (changed) recomputeFiltered()
             }
         }
     }
@@ -316,7 +332,36 @@ class MainViewModel(
     }
 
     fun updateSearchQuery(query: String) {
+        if (_searchQuery.value == query) return
         _searchQuery.value = query
+        recomputeFiltered()
+    }
+
+    /** True if [log] should appear in [filteredLogs] under the current criteria. */
+    private fun matches(log: LogEntry): Boolean {
+        if (_alwaysShowBookmarks.value && log.id in bookmarkedIds) return true
+        val query = _searchQuery.value
+        if (query.isNotBlank() && !log.content.contains(query, ignoreCase = true)) return false
+        if (hideFilters.any { it.matches(log) }) return false
+        if (showFilters.isNotEmpty() && showFilters.none { it.matches(log) }) return false
+        return true
+    }
+
+    /** Refresh the cached active-filter partition; call before any (re)filtering pass. */
+    private fun refreshFilterPartition() {
+        val active = _filters.value.filter { it.enabled }
+        showFilters = active.filter {
+            it.mode == FilterMode.SHOW || it.mode == FilterMode.SHOW_AND_HIGHLIGHT
+        }
+        hideFilters = active.filter { it.mode == FilterMode.HIDE }
+    }
+
+    /** Full rebuild of [filteredLogs] from [logs]. Use only when criteria change, not per batch. */
+    private fun recomputeFiltered() {
+        refreshFilterPartition()
+        val rebuilt = logs.filter { matches(it) }
+        filteredLogs.clear()
+        filteredLogs.addAll(rebuilt)
     }
 
     fun startCapture() {
@@ -347,7 +392,12 @@ class MainViewModel(
                     while (true) {
                         batch.add(channel.tryReceive().getOrNull() ?: break)
                     }
-                    if (gen == captureGen) logs.addAll(batch)
+                    if (gen == captureGen) {
+                        logs.addAll(batch)
+                        // Filter only the new batch and append — no full re-scan of the growing list.
+                        val matched = batch.filter { matches(it) }
+                        if (matched.isNotEmpty()) filteredLogs.addAll(matched)
+                    }
                     delay(FLUSH_INTERVAL_MS)
                 }
             } finally {
@@ -371,16 +421,19 @@ class MainViewModel(
 
     fun clearLogs() {
         logs.clear()
+        filteredLogs.clear()
         selectedIds.clear()
     }
 
     fun replaceFilters(newFilters: List<FilterRule>) {
         _filters.value = newFilters
+        recomputeFiltered()
         persistFilters()
     }
 
     fun addFilter(rule: FilterRule) {
         _filters.value = _filters.value + rule
+        recomputeFiltered()
         persistFilters()
     }
 
@@ -388,6 +441,7 @@ class MainViewModel(
         val current = _filters.value
         if (current.none { it.id == id }) return
         _filters.value = current.filterNot { it.id == id }
+        recomputeFiltered()
         persistFilters()
     }
 
@@ -395,6 +449,8 @@ class MainViewModel(
         val current = _filters.value
         if (from == to || from !in current.indices || to !in current.indices) return
         _filters.value = current.toMutableList().apply { add(to, removeAt(from)) }
+        // Order can change which SHOW/HIDE rule wins, so the visible set may shift.
+        recomputeFiltered()
         persistFilters()
     }
 
@@ -402,6 +458,7 @@ class MainViewModel(
         val current = _filters.value
         if (current.none { it.id == id && it.enabled != enabled }) return
         _filters.value = current.map { if (it.id == id) it.copy(enabled = enabled) else it }
+        recomputeFiltered()
         persistFilters()
     }
 

@@ -247,15 +247,15 @@ private fun LogCell(
 
 private fun highlightMatches(text: String, query: String, color: Color): AnnotatedString {
     if (query.isBlank()) return AnnotatedString(text)
-    val lower = text.lowercase()
-    val q = query.lowercase()
-    var i = lower.indexOf(q)
+    // indexOf(ignoreCase) compares via regionMatches — no lowercased copies of text/query allocated.
+    var i = text.indexOf(query, ignoreCase = true)
     if (i < 0) return AnnotatedString(text)
+    val len = query.length
     return buildAnnotatedString {
         append(text)
         while (i >= 0) {
-            addStyle(SpanStyle(background = color), i, i + q.length)
-            i = lower.indexOf(q, i + q.length)
+            addStyle(SpanStyle(background = color), i, i + len)
+            i = text.indexOf(query, i + len, ignoreCase = true)
         }
     }
 }

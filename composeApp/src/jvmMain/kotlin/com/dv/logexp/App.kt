@@ -76,7 +76,6 @@ import java.io.File
 @Composable
 fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val themeMode by viewModel.themeMode.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
     val visibleColumns by viewModel.visibleColumns.collectAsState()
     val columnWidths by viewModel.columnWidths.collectAsState()
     val autoFollow by viewModel.autoFollow.collectAsState()
@@ -90,7 +89,6 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val softWrap by viewModel.softWrap.collectAsState()
     val filtersListWidth by viewModel.filtersListWidth.collectAsState()
     val alwaysShowBookmarks by viewModel.alwaysShowBookmarks.collectAsState()
-    val logRevision by viewModel.logRevision.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
     }
@@ -105,15 +103,19 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     var findQuery by remember { mutableStateOf("") }
     var currentMatchIdx by remember { mutableStateOf(0) }
 
-    val copySelected: () -> Unit = {
-        val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
-            .joinToString("\n") { it.content }
-        copyToClipboard(text)
+    val copySelected: () -> Unit = remember {
+        {
+            val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
+                .joinToString("\n") { it.content }
+            copyToClipboard(text)
+        }
     }
-    val copyColumnSelected: (LogColumn) -> Unit = { column ->
-        val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
-            .joinToString("\n") { it.cell(column) }
-        copyToClipboard(text)
+    val copyColumnSelected: (LogColumn) -> Unit = remember {
+        { column ->
+            val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
+                .joinToString("\n") { it.cell(column) }
+            copyToClipboard(text)
+        }
     }
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
@@ -129,22 +131,9 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     IntUiTheme(theme = islandsTheme, styling = islandsComponentStyling(isDark)) {
         val listState = rememberLazyListState()
 
-        val filteredLogs = remember(logs.size, searchQuery, filters, alwaysShowBookmarks, bookmarkedIds.size, logRevision) {
-            val activeFilters = filters.filter { it.enabled }
-            val showFilters = activeFilters.filter {
-                it.mode == FilterMode.SHOW || it.mode == FilterMode.SHOW_AND_HIGHLIGHT
-            }
-            val hideFilters = activeFilters.filter { it.mode == FilterMode.HIDE }
-            logs.filter { log ->
-                if (alwaysShowBookmarks && log.id in bookmarkedIds) return@filter true
-                val matchesQuery = searchQuery.isBlank()
-                        || log.content.contains(searchQuery, ignoreCase = true)
-                if (!matchesQuery) return@filter false
-                if (hideFilters.any { it.matches(log) }) return@filter false
-                if (showFilters.isNotEmpty() && showFilters.none { it.matches(log) }) return@filter false
-                true
-            }
-        }
+        // Maintained incrementally in the ViewModel (filtered per-batch during capture) instead of
+        // re-scanning the whole log list on every recomposition.
+        val filteredLogs = viewModel.filteredLogs
 
         val highlightFilters = remember(filters) {
             filters.filter {
