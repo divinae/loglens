@@ -81,6 +81,10 @@ class MainViewModel(
     private val _alwaysShowBookmarks = MutableStateFlow(true)
     val alwaysShowBookmarks = _alwaysShowBookmarks.asStateFlow()
 
+    /** Bumped when existing log entries are mutated in place (e.g. app-name backfill). */
+    private val _logRevision = MutableStateFlow(0)
+    val logRevision = _logRevision.asStateFlow()
+
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
 
@@ -101,7 +105,9 @@ class MainViewModel(
             while (isActive) {
                 refreshDevices()
                 refreshPackages()
-                delay(5000)
+                // Poll quickly until the pid→package map is known, then back off — otherwise
+                // process-name filters stay empty for up to a full interval after start.
+                delay(if (pidToPackage.isEmpty()) 1000 else 5000)
             }
         }
 
@@ -120,6 +126,7 @@ class MainViewModel(
                 } else if (current == null && list.size == 1 && list[0].isOnline) {
                     _selectedDevice.value = list[0].serial
                     restartCapture(clearLogs = true)
+                    refreshPackages()
                 }
             }
         }
@@ -129,6 +136,7 @@ class MainViewModel(
         if (_selectedDevice.value == serial) return
         _selectedDevice.value = serial
         restartCapture(clearLogs = true)
+        if (serial != null) refreshPackages()
     }
 
     private fun restartCapture(clearLogs: Boolean) {
@@ -235,10 +243,24 @@ class MainViewModel(
     fun refreshPackages() {
         viewModelScope.launch {
             val newMap = PackageService.fetchPidMap(_selectedDevice.value)
-            if (newMap.isEmpty()) return@launch
+            if (newMap.isEmpty() || newMap == pidToPackage) return@launch
             withContext(Dispatchers.Main) {
                 pidToPackage.clear()
                 pidToPackage.putAll(newMap)
+                // Backfill app names for logs captured before this pid→package mapping was known,
+                // otherwise process-name filters silently miss those early logs.
+                var changed = false
+                for (i in logs.indices) {
+                    val entry = logs[i]
+                    if (entry.appName.isEmpty()) {
+                        val name = newMap[entry.pid]
+                        if (!name.isNullOrEmpty()) {
+                            logs[i] = entry.copy(appName = name)
+                            changed = true
+                        }
+                    }
+                }
+                if (changed) _logRevision.value++
             }
         }
     }

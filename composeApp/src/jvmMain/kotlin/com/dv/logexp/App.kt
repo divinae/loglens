@@ -39,8 +39,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -50,6 +48,7 @@ import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.model.cell
 import com.dv.logexp.service.SystemFonts
+import com.dv.logexp.util.copyToClipboard
 import com.dv.logexp.ui.QuickFilterBar
 import com.dv.logexp.ui.FilterChipsBar
 import com.dv.logexp.ui.FiltersDialog
@@ -105,6 +104,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val softWrap by viewModel.softWrap.collectAsState()
     val filtersListWidth by viewModel.filtersListWidth.collectAsState()
     val alwaysShowBookmarks by viewModel.alwaysShowBookmarks.collectAsState()
+    val logRevision by viewModel.logRevision.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
     }
@@ -119,16 +119,15 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     var findQuery by remember { mutableStateOf("") }
     var currentMatchIdx by remember { mutableStateOf(0) }
 
-    val clipboardManager = LocalClipboardManager.current
     val copySelected: () -> Unit = {
         val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
             .joinToString("\n") { it.content }
-        clipboardManager.setText(AnnotatedString(text))
+        copyToClipboard(text)
     }
     val copyColumnSelected: (LogColumn) -> Unit = { column ->
         val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
             .joinToString("\n") { it.cell(column) }
-        clipboardManager.setText(AnnotatedString(text))
+        copyToClipboard(text)
     }
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
@@ -204,7 +203,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     IntUiTheme(theme = islandsTheme, styling = styling) {
         val listState = rememberLazyListState()
 
-        val filteredLogs = remember(logs.size, searchQuery, filters, alwaysShowBookmarks, bookmarkedIds.size) {
+        val filteredLogs = remember(logs.size, searchQuery, filters, alwaysShowBookmarks, bookmarkedIds.size, logRevision) {
             val activeFilters = filters.filter { it.enabled }
             val showFilters = activeFilters.filter {
                 it.mode == FilterMode.SHOW || it.mode == FilterMode.SHOW_AND_HIGHLIGHT
@@ -469,6 +468,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 selectedCount = selectedIds.size,
                                 onCopySelected = copySelected,
                                 onCopyColumnSelected = copyColumnSelected,
+                                selectedMessages = {
+                                    viewModel.logs.filter { it.id in viewModel.selectedIds }
+                                        .joinToString("") { it.message }
+                                },
                             )
                         }
                     }

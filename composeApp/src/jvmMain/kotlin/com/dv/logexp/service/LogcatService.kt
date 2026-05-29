@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.flowOn
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+private const val INITIAL_TAIL_LINES = 2000
+
 class LogcatService {
     @Volatile
     private var process: Process? = null
@@ -17,6 +19,9 @@ class LogcatService {
                 add("adb")
                 if (deviceSerial != null) { add("-s"); add(deviceSerial) }
                 add("logcat"); add("-v"); add("threadtime")
+                // Only tail the recent buffer instead of dumping the entire ring buffer at start,
+                // which otherwise floods ingestion (and surfaces old PIDs that no longer resolve).
+                add("-T"); add(INITIAL_TAIL_LINES.toString())
             }
             val proc = ProcessBuilder(cmd)
                 .redirectErrorStream(true)
