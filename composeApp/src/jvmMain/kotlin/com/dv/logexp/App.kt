@@ -204,7 +204,11 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
             snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
                 .collect { (idx, off) ->
                     val scrolledUp = idx < prevIndex || (idx == prevIndex && off < prevOffset)
-                    if (scrolledUp && viewModel.autoFollow.value && !isAutoScrolling) {
+                    // Only a real user gesture (isScrollInProgress) cancels auto-follow. A filter
+                    // recompute shrinks the list and drops the index too, but that is not a scroll.
+                    if (scrolledUp && viewModel.autoFollow.value && !isAutoScrolling &&
+                        listState.isScrollInProgress
+                    ) {
                         viewModel.setAutoFollow(false)
                     }
                     prevIndex = idx
