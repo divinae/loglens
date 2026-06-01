@@ -130,26 +130,29 @@ fun TopBar(
             )
         }
 
-        IconActionButton(
-            key = if (isCapturing) AllIconsKeys.Actions.Pause else AllIconsKeys.Toolwindows.ToolWindowRun,
-            contentDescription = if (isCapturing) "Pause log capture" else "Resume log capture",
-            onClick = onToggleCapture,
-            colorFilter = iconTint(false),
-            tooltipStyle = tooltipStyle,
-            tooltipPlacement = belowPlacement,
-        ) {
-            Text(if (isCapturing) "Pause capture" else "Resume capture")
-        }
+        // Live controls only make sense with a device source selected, not for a file or no source.
+        if (loadedFile == null && selectedDevice != null) {
+            IconActionButton(
+                key = if (isCapturing) AllIconsKeys.Actions.Pause else AllIconsKeys.Toolwindows.ToolWindowRun,
+                contentDescription = if (isCapturing) "Pause log capture" else "Resume log capture",
+                onClick = onToggleCapture,
+                colorFilter = iconTint(false),
+                tooltipStyle = tooltipStyle,
+                tooltipPlacement = belowPlacement,
+            ) {
+                Text(if (isCapturing) "Pause capture" else "Resume capture")
+            }
 
-        IconActionButton(
-            key = AllIconsKeys.General.Delete,
-            contentDescription = "Clear logs",
-            onClick = onClear,
-            colorFilter = iconTint(false),
-            tooltipStyle = tooltipStyle,
-            tooltipPlacement = belowPlacement,
-        ) {
-            Text("Clear logs")
+            IconActionButton(
+                key = AllIconsKeys.General.Delete,
+                contentDescription = "Clear logs",
+                onClick = onClear,
+                colorFilter = iconTint(false),
+                tooltipStyle = tooltipStyle,
+                tooltipPlacement = belowPlacement,
+            ) {
+                Text("Clear logs")
+            }
         }
 
         Spacer(Modifier.weight(1f))
