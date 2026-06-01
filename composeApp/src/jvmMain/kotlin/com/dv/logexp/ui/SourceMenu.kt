@@ -32,20 +32,25 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.separator
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 @Composable
-fun DeviceMenu(
+fun SourceMenu(
     devices: List<Device>,
     selectedSerial: String?,
+    loadedFile: String?,
     onSelect: (String?) -> Unit,
     onRefresh: () -> Unit,
+    onOpenFile: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selected = devices.firstOrNull { it.serial == selectedSerial }
-    val label = selected?.displayName ?: when {
+    val label = when {
+        loadedFile != null -> loadedFile
+        selected != null -> selected.displayName
         devices.isEmpty() -> "No devices"
-        else -> "Select device"
+        else -> "Select source"
     }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -68,7 +73,21 @@ fun DeviceMenu(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            DeviceIcon(connected = selected != null, tint = iconTint)
+            when {
+                loadedFile != null -> Icon(
+                    key = AllIconsKeys.FileTypes.Text,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = iconTint,
+                )
+                selected != null -> DeviceIcon(connected = true, tint = iconTint)
+                else -> Icon(
+                    key = AllIconsKeys.General.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = iconTint,
+                )
+            }
             Text(label)
             Icon(
                 key = AllIconsKeys.General.ChevronDown,
@@ -92,7 +111,7 @@ fun DeviceMenu(
                 } else {
                     devices.forEach { device ->
                         selectableItem(
-                            selected = device.serial == selectedSerial,
+                            selected = loadedFile == null && device.serial == selectedSerial,
                             onClick = {
                                 onSelect(device.serial)
                                 expanded = false
@@ -101,14 +120,41 @@ fun DeviceMenu(
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Text(device.displayName, modifier = Modifier.padding(end = 8.dp))
-                                Text(
-                                    device.serial,
-                                    modifier = Modifier.padding(start = 8.dp),
-                                )
+                                Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                                    DeviceIcon(connected = device.isOnline, tint = iconTint)
+                                }
+                                Text(device.displayName)
+                                Text(device.serial, color = iconTint.copy(alpha = 0.6f))
                             }
                         }
+                    }
+                }
+
+                separator()
+
+                selectableItem(
+                    selected = loadedFile != null,
+                    onClick = {
+                        onOpenFile()
+                        expanded = false
+                    },
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                            Icon(
+                                key = AllIconsKeys.Actions.MenuOpen,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = iconTint,
+                            )
+                        }
+                        Text("Open file...")
                     }
                 }
             }

@@ -84,6 +84,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val filters by viewModel.filters.collectAsState()
     val devices by viewModel.devices.collectAsState()
     val selectedDevice by viewModel.selectedDevice.collectAsState()
+    val loadedFile by viewModel.loadedFile.collectAsState()
     val fontSize by viewModel.fontSize.collectAsState()
     val fontFamily by viewModel.fontFamily.collectAsState()
     val fontWeight by viewModel.fontWeight.collectAsState()
@@ -275,6 +276,16 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         }
                     }
                 },
+                onOpenLogs = {
+                    val dialog = FileDialog(null as Frame?, "Open logs", FileDialog.LOAD)
+                    dialog.isVisible = true
+                    val dir = dialog.directory
+                    val name = dialog.file
+                    if (dir != null && name != null) {
+                        viewModel.loadLogsFromFile(File(dir, name))
+                    }
+                },
+                loadedFile = loadedFile,
                 onToggleAutoFollow = viewModel::toggleAutoFollow,
                 onSetTheme = viewModel::setTheme,
                 fontSize = fontSize,

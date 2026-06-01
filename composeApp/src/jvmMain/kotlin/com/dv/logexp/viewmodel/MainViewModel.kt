@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val FLUSH_INTERVAL_MS = 40L
@@ -118,6 +119,10 @@ class MainViewModel(
 
     private val _selectedDevice = MutableStateFlow<String?>(null)
     val selectedDevice = _selectedDevice.asStateFlow()
+
+    /** Name of the file currently loaded as the log source, or null when reading a live device. */
+    private val _loadedFile = MutableStateFlow<String?>(null)
+    val loadedFile = _loadedFile.asStateFlow()
 
     private var captureJob: Job? = null
     private var captureGen: Long = 0
@@ -398,6 +403,8 @@ class MainViewModel(
 
     fun startCapture() {
         if (_isCapturing.value) return
+        // Going live: we are no longer reading from a file.
+        _loadedFile.value = null
         _isCapturing.value = true
         val gen = ++captureGen
         val channel = Channel<LogEntry>(Channel.UNLIMITED)
@@ -457,6 +464,29 @@ class MainViewModel(
         selectedIds.clear()
         // Restart the Index column from 0; new entries get fresh ids.
         nextLogId.set(0)
+    }
+
+    /** Stop live capture and load logs from a saved file, parsing each line as logcat output. */
+    fun loadLogsFromFile(file: File) {
+        stopCapture()
+        viewModelScope.launch {
+            val parsed = withContext(Dispatchers.IO) {
+                val counter = AtomicInteger(0)
+                file.useLines { lines ->
+                    lines.filter { it.isNotBlank() }
+                        .map { LogParser.parse(counter.getAndIncrement(), it, emptyMap()) }
+                        .toList()
+                }
+            }
+            logs.clear()
+            filteredLogs.clear()
+            selectedIds.clear()
+            logs.addAll(parsed)
+            nextLogId.set(parsed.size)
+            _autoFollow.value = false
+            _loadedFile.value = file.name
+            recomputeFiltered()
+        }
     }
 
     fun replaceFilters(newFilters: List<FilterRule>) {

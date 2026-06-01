@@ -58,6 +58,8 @@ fun TopBar(
     isCapturing: Boolean,
     onToggleCapture: () -> Unit,
     onSaveLogs: (filtered: Boolean) -> Unit,
+    onOpenLogs: () -> Unit,
+    loadedFile: String?,
     onToggleAutoFollow: () -> Unit,
     onSetTheme: (ThemeMode) -> Unit,
     fontSize: Float,
@@ -117,12 +119,14 @@ fun TopBar(
             MainMenu(onSaveLogs = onSaveLogs)
         }
 
-        Tooltip(tooltip = { Text("Select device") }, style = tooltipStyle) {
-            DeviceMenu(
+        Tooltip(tooltip = { Text("Select source") }, style = tooltipStyle) {
+            SourceMenu(
                 devices = devices,
                 selectedSerial = selectedDevice,
+                loadedFile = loadedFile,
                 onSelect = onSelectDevice,
                 onRefresh = onRefreshDevices,
+                onOpenFile = onOpenLogs,
             )
         }
 
