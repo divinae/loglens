@@ -1,5 +1,6 @@
 package com.dv.logexp.service
 
+import com.dv.logexp.model.LogBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -11,12 +12,14 @@ class LogcatService {
     @Volatile
     private var process: Process? = null
 
-    fun stream(deviceSerial: String? = null): Flow<String> = flow {
+    fun stream(deviceSerial: String? = null, buffers: Set<LogBuffer> = emptySet()): Flow<String> = flow {
         try {
             val cmd = buildList {
                 add("adb")
                 if (deviceSerial != null) { add("-s"); add(deviceSerial) }
                 add("logcat"); add("-v"); add("threadtime")
+                // One -b per selected buffer; empty set leaves adb on its own default selection.
+                buffers.forEach { add("-b"); add(it.adbName) }
             }
             val proc = ProcessBuilder(cmd)
                 .redirectErrorStream(true)

@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
 import com.dv.logexp.model.FontWeightPreset
+import com.dv.logexp.model.LogBuffer
 import com.dv.logexp.model.MAX_FONT_SIZE
 import com.dv.logexp.model.MIN_FONT_SIZE
 import com.dv.logexp.model.ThemeMode
@@ -45,9 +46,12 @@ fun SettingsMenu(
     onSetSoftWrap: (Boolean) -> Unit,
     alwaysShowBookmarks: Boolean,
     onSetAlwaysShowBookmarks: (Boolean) -> Unit,
+    logBuffers: Set<LogBuffer>,
+    onToggleLogBuffer: (LogBuffer) -> Unit,
     onShowShortcuts: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var showBuffers by remember { mutableStateOf(false) }
     val fontOptions = remember {
         (LOGICAL_FONTS + SystemFonts.list()).distinct()
     }
@@ -174,6 +178,23 @@ fun SettingsMenu(
                         OutlinedButton(
                             onClick = {
                                 expanded = false
+                                showBuffers = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Log buffers...") }
+                    }
+                }
+
+                separator()
+
+                passiveItem {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                expanded = false
                                 onShowShortcuts()
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -183,5 +204,13 @@ fun SettingsMenu(
 
             }
         }
+    }
+
+    if (showBuffers) {
+        BuffersDialog(
+            logBuffers = logBuffers,
+            onToggleLogBuffer = onToggleLogBuffer,
+            onDismiss = { showBuffers = false },
+        )
     }
 }

@@ -91,6 +91,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val filtersListWidth by viewModel.filtersListWidth.collectAsState()
     val alwaysShowBookmarks by viewModel.alwaysShowBookmarks.collectAsState()
     val quickFilterVisible by viewModel.quickFilterVisible.collectAsState()
+    val logBuffers by viewModel.logBuffers.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
     }
@@ -294,6 +295,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 findActive = findVisible,
                 logCount = filteredLogs.size,
                 totalLogCount = logs.size,
+                logBuffers = logBuffers,
+                onToggleLogBuffer = viewModel::toggleLogBuffer,
                 onShowShortcuts = { showShortcutsDialog = true },
             )
 

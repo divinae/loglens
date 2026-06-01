@@ -12,10 +12,12 @@ import com.dv.logexp.model.DEFAULT_FILTERS_LIST_WIDTH
 import com.dv.logexp.model.DEFAULT_FONT_FAMILY
 import com.dv.logexp.model.DEFAULT_FONT_SIZE
 import com.dv.logexp.model.DEFAULT_FONT_WEIGHT
+import com.dv.logexp.model.DEFAULT_LOG_BUFFERS
 import com.dv.logexp.model.DEFAULT_VISIBLE_COLUMNS
 import com.dv.logexp.model.Device
 import com.dv.logexp.model.FilterMode
 import com.dv.logexp.model.FilterRule
+import com.dv.logexp.model.LogBuffer
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
 import com.dv.logexp.model.MAX_FONT_SIZE
@@ -105,6 +107,9 @@ class MainViewModel(
     private val _quickFilterVisible = MutableStateFlow(true)
     val quickFilterVisible = _quickFilterVisible.asStateFlow()
 
+    private val _logBuffers = MutableStateFlow(DEFAULT_LOG_BUFFERS)
+    val logBuffers = _logBuffers.asStateFlow()
+
     private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
     val filters = _filters.asStateFlow()
 
@@ -179,6 +184,7 @@ class MainViewModel(
             logs.clear()
             filteredLogs.clear()
             selectedIds.clear()
+            nextLogId.set(0)
         }
         startCapture()
     }
@@ -194,6 +200,7 @@ class MainViewModel(
         _filtersListWidth.value = config.filtersListWidth
         _alwaysShowBookmarks.value = config.alwaysShowBookmarks
         _quickFilterVisible.value = config.quickFilterVisible
+        _logBuffers.value = config.logBuffers
     }
 
     private fun persistConfig() {
@@ -210,6 +217,7 @@ class MainViewModel(
                     filtersListWidth = _filtersListWidth.value,
                     alwaysShowBookmarks = _alwaysShowBookmarks.value,
                     quickFilterVisible = _quickFilterVisible.value,
+                    logBuffers = _logBuffers.value,
                 )
             )
         }
@@ -232,6 +240,16 @@ class MainViewModel(
         if (_quickFilterVisible.value == value) return
         _quickFilterVisible.value = value
         persistConfig()
+    }
+
+    /** Toggle one adb buffer. Refuses to clear the last one, then restarts capture from the new source. */
+    fun toggleLogBuffer(buffer: LogBuffer) {
+        val current = _logBuffers.value
+        val next = if (buffer in current) current - buffer else current + buffer
+        if (next.isEmpty() || next == current) return
+        _logBuffers.value = next
+        persistConfig()
+        restartCapture(clearLogs = true)
     }
 
     fun setFontSize(size: Float) {
@@ -387,7 +405,7 @@ class MainViewModel(
         // Producer: read and parse lines off the main thread.
         val producer = viewModelScope.launch(Dispatchers.Default) {
             try {
-                logcatService.stream(_selectedDevice.value).collect { line ->
+                logcatService.stream(_selectedDevice.value, _logBuffers.value).collect { line ->
                     channel.send(LogParser.parse(nextLogId.getAndIncrement(), line, pidSnapshot))
                 }
             } finally {
@@ -437,6 +455,8 @@ class MainViewModel(
         logs.clear()
         filteredLogs.clear()
         selectedIds.clear()
+        // Restart the Index column from 0; new entries get fresh ids.
+        nextLogId.set(0)
     }
 
     fun replaceFilters(newFilters: List<FilterRule>) {

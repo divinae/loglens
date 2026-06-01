@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dv.logexp.model.Device
+import com.dv.logexp.model.LogBuffer
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.ui.theme.islandsPopup
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -73,6 +74,8 @@ fun TopBar(
     findActive: Boolean,
     logCount: Int,
     totalLogCount: Int,
+    logBuffers: Set<LogBuffer>,
+    onToggleLogBuffer: (LogBuffer) -> Unit,
     onShowShortcuts: () -> Unit,
 ) {
     val activeAccent = Color(0xFF3592FF)
@@ -199,6 +202,8 @@ fun TopBar(
                 onSetSoftWrap = onSetSoftWrap,
                 alwaysShowBookmarks = alwaysShowBookmarks,
                 onSetAlwaysShowBookmarks = onSetAlwaysShowBookmarks,
+                logBuffers = logBuffers,
+                onToggleLogBuffer = onToggleLogBuffer,
                 onShowShortcuts = onShowShortcuts,
             )
         }

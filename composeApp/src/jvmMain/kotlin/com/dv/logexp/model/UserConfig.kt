@@ -14,6 +14,7 @@ data class UserConfig(
     val filtersListWidth: Float = DEFAULT_FILTERS_LIST_WIDTH,
     val alwaysShowBookmarks: Boolean = true,
     val quickFilterVisible: Boolean = true,
+    val logBuffers: Set<LogBuffer> = DEFAULT_LOG_BUFFERS,
 )
 
 const val DEFAULT_FILTERS_LIST_WIDTH: Float = 280f
