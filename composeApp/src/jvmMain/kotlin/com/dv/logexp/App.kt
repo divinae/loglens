@@ -48,6 +48,7 @@ import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.model.cell
 import com.dv.logexp.service.SystemFonts
+import com.dv.logexp.util.FilePicker
 import com.dv.logexp.util.copyToClipboard
 import com.dv.logexp.ui.QuickFilterBar
 import com.dv.logexp.ui.FilterBar
@@ -69,9 +70,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
-import java.awt.FileDialog
-import java.awt.Frame
-import java.io.File
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -259,30 +257,19 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onToggleCapture = viewModel::toggleCapture,
                 onSaveLogs = { filtered ->
                     val source = if (filtered) filteredLogs else logs
-                    val dialog = FileDialog(
-                        null as Frame?,
-                        if (filtered) "Save filtered logs" else "Save all logs",
-                        FileDialog.SAVE,
-                    )
-                    dialog.file = if (filtered) "logs-filtered.txt" else "logs.txt"
-                    dialog.isVisible = true
-                    val dir = dialog.directory
-                    val name = dialog.file
-                    if (dir != null && name != null) {
-                        // Snapshot now: the lists keep growing during capture while the IO write runs.
-                        val payload = source.joinToString("\n") { it.content }
-                        scope.launch(Dispatchers.IO) {
-                            File(dir, name).writeText(payload)
+                    scope.launch(Dispatchers.IO) {
+                        val target = FilePicker.saveFile(
+                            if (filtered) "Save filtered logs" else "Save all logs",
+                            if (filtered) "logs-filtered.txt" else "logs.txt",
+                        )
+                        if (target != null) {
+                            target.writeText(source.joinToString("\n") { it.content })
                         }
                     }
                 },
                 onOpenLogs = {
-                    val dialog = FileDialog(null as Frame?, "Open logs", FileDialog.LOAD)
-                    dialog.isVisible = true
-                    val dir = dialog.directory
-                    val name = dialog.file
-                    if (dir != null && name != null) {
-                        viewModel.loadLogsFromFile(File(dir, name))
+                    scope.launch(Dispatchers.IO) {
+                        FilePicker.openFile("Open logs")?.let(viewModel::loadLogsFromFile)
                     }
                 },
                 loadedFile = loadedFile,
