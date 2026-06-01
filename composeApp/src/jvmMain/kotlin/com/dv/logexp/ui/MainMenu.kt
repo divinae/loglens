@@ -21,6 +21,7 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 @Composable
 fun MainMenu(onSaveLogs: (filtered: Boolean) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
     Box(modifier = Modifier.padding(horizontal = 4.dp)) {
         IconActionButton(
             iconModifier = Modifier.size(18.dp),
@@ -54,7 +55,20 @@ fun MainMenu(onSaveLogs: (filtered: Boolean) -> Unit) {
                 ) {
                     Text("Save all logs to file...")
                 }
+                selectableItem(
+                    selected = false,
+                    iconKey = AllIconsKeys.General.Information,
+                    onClick = {
+                        expanded = false
+                        showAbout = true
+                    },
+                ) {
+                    Text("About")
+                }
             }
         }
+    }
+    if (showAbout) {
+        AboutDialog(onDismiss = { showAbout = false })
     }
 }
