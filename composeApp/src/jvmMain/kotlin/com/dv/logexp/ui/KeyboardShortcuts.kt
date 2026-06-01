@@ -15,6 +15,21 @@ import com.dv.logexp.model.LogEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
+/** One keyboard shortcut: the key combo to show, and what it does. Single source of truth for the help dialog. */
+data class ShortcutSpec(val keys: String, val description: String)
+
+/** All shortcuts the app handles, shown verbatim in the shortcuts help dialog. Keep in sync with the handler below. */
+val SHORTCUTS: List<ShortcutSpec> = listOf(
+    ShortcutSpec("Ctrl/Cmd + F", "Open find bar / focus search"),
+    ShortcutSpec("Ctrl/Cmd + C", "Copy selected lines"),
+    ShortcutSpec("Ctrl/Cmd + K", "Clear logs"),
+    ShortcutSpec("Ctrl/Cmd + R", "Restart capture (clear + resume)"),
+    ShortcutSpec("Esc", "Close find bar"),
+    ShortcutSpec("↑ / ↓", "Move selection up / down"),
+    ShortcutSpec("B", "Toggle bookmark on selection"),
+    ShortcutSpec("F3 / Shift + F3", "Next / previous match (find) or bookmark"),
+)
+
 @OptIn(ExperimentalComposeUiApi::class)
 fun Modifier.logKeyboardShortcuts(
     filteredLogs: List<LogEntry>,
@@ -32,6 +47,8 @@ fun Modifier.logKeyboardShortcuts(
     onFindPrev: () -> Unit,
     onCloseFind: () -> Unit,
     onCopySelected: () -> Unit,
+    onClearLogs: () -> Unit,
+    onRestartCapture: () -> Unit,
 ): Modifier = this.onKeyEvent { event ->
     when (event.type) {
         KeyEventType.KeyDown -> when {
@@ -44,6 +61,14 @@ fun Modifier.logKeyboardShortcuts(
                     onCopySelected()
                     true
                 } else false
+            }
+            event.key == Key.K && (event.isCtrlPressed || event.isMetaPressed) -> {
+                onClearLogs()
+                true
+            }
+            event.key == Key.R && (event.isCtrlPressed || event.isMetaPressed) -> {
+                onRestartCapture()
+                true
             }
             event.key == Key.Escape && findActive -> {
                 onCloseFind()

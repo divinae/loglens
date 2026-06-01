@@ -45,6 +45,7 @@ fun SettingsMenu(
     onSetSoftWrap: (Boolean) -> Unit,
     alwaysShowBookmarks: Boolean,
     onSetAlwaysShowBookmarks: (Boolean) -> Unit,
+    onShowShortcuts: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val fontOptions = remember {
@@ -160,6 +161,23 @@ fun SettingsMenu(
                     ) {
                         Checkbox(checked = alwaysShowBookmarks, onCheckedChange = onSetAlwaysShowBookmarks)
                         Text("Always show bookmarks", modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
+
+                separator()
+
+                passiveItem {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                expanded = false
+                                onShowShortcuts()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Keyboard shortcuts") }
                     }
                 }
 

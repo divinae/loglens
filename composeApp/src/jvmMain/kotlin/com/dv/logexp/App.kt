@@ -54,6 +54,7 @@ import com.dv.logexp.ui.FilterBar
 import com.dv.logexp.ui.FiltersDialog
 import com.dv.logexp.ui.FindBar
 import com.dv.logexp.ui.LogHeaders
+import com.dv.logexp.ui.ShortcutsDialog
 import com.dv.logexp.ui.LogRow
 import com.dv.logexp.ui.TopBar
 import com.dv.logexp.ui.logKeyboardShortcuts
@@ -106,6 +107,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     var findVisible by remember { mutableStateOf(false) }
     var findQuery by remember { mutableStateOf("") }
     var currentMatchIdx by remember { mutableStateOf(0) }
+    var showShortcutsDialog by remember { mutableStateOf(false) }
 
     val copySelected: () -> Unit = remember {
         {
@@ -235,6 +237,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     onFindPrev = { jumpToMatch(currentMatchIdx - 1) },
                     onCloseFind = { findVisible = false; findQuery = "" },
                     onCopySelected = copySelected,
+                    onClearLogs = viewModel::clearLogs,
+                    onRestartCapture = viewModel::restartCapture,
                 )
         ) {
             TopBar(
@@ -290,6 +294,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 findActive = findVisible,
                 logCount = filteredLogs.size,
                 totalLogCount = logs.size,
+                onShowShortcuts = { showShortcutsDialog = true },
             )
 
             Box(modifier = Modifier.weight(1f)) {
@@ -493,6 +498,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onListWidthChange = viewModel::setFiltersListWidth,
                 appOptions = appOptions,
             )
+        }
+
+        if (showShortcutsDialog) {
+            ShortcutsDialog(onDismiss = { showShortcutsDialog = false })
         }
     }
 }

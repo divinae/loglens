@@ -73,6 +73,7 @@ fun TopBar(
     findActive: Boolean,
     logCount: Int,
     totalLogCount: Int,
+    onShowShortcuts: () -> Unit,
 ) {
     val activeAccent = Color(0xFF3592FF)
     val inactiveTint = JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)
@@ -198,6 +199,7 @@ fun TopBar(
                 onSetSoftWrap = onSetSoftWrap,
                 alwaysShowBookmarks = alwaysShowBookmarks,
                 onSetAlwaysShowBookmarks = onSetAlwaysShowBookmarks,
+                onShowShortcuts = onShowShortcuts,
             )
         }
     }

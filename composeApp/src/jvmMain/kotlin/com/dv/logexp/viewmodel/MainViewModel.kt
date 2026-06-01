@@ -167,6 +167,9 @@ class MainViewModel(
         if (serial != null) refreshPackages()
     }
 
+    /** Public entry for the Ctrl+R shortcut: clear logs and resume capturing. */
+    fun restartCapture() = restartCapture(clearLogs = true)
+
     private fun restartCapture(clearLogs: Boolean) {
         captureJob?.cancel()
         captureJob = null
