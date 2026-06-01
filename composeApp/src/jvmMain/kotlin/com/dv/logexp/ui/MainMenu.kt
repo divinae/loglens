@@ -19,9 +19,10 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 @Composable
-fun MainMenu(onSaveLogs: (filtered: Boolean) -> Unit) {
+fun MainMenu(onSaveLogs: (filtered: Boolean, asLogcat: Boolean) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showSave by remember { mutableStateOf(false) }
     Box(modifier = Modifier.padding(horizontal = 4.dp)) {
         IconActionButton(
             iconModifier = Modifier.size(18.dp),
@@ -40,20 +41,10 @@ fun MainMenu(onSaveLogs: (filtered: Boolean) -> Unit) {
                     iconKey = AllIconsKeys.Actions.MenuSaveall,
                     onClick = {
                         expanded = false
-                        onSaveLogs(true)
+                        showSave = true
                     },
                 ) {
-                    Text("Save filtered logs to file...")
-                }
-                selectableItem(
-                    selected = false,
-                    iconKey = AllIconsKeys.Actions.MenuSaveall,
-                    onClick = {
-                        expanded = false
-                        onSaveLogs(false)
-                    },
-                ) {
-                    Text("Save all logs to file...")
+                    Text("Save to file...")
                 }
                 selectableItem(
                     selected = false,
@@ -70,5 +61,11 @@ fun MainMenu(onSaveLogs: (filtered: Boolean) -> Unit) {
     }
     if (showAbout) {
         AboutDialog(onDismiss = { showAbout = false })
+    }
+    if (showSave) {
+        SaveOptionsDialog(
+            onSave = onSaveLogs,
+            onDismiss = { showSave = false },
+        )
     }
 }

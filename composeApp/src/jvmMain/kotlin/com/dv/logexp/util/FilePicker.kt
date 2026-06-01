@@ -14,7 +14,8 @@ object FilePicker {
     private val zenity by lazy { which("zenity") }
 
     // kdialog filters are "patterns|label", multiple separated by newlines.
-    private const val KDIALOG_FILTER = "*.txt *.log|Log files (*.txt, *.log)\n*|All files (*)"
+    private const val KDIALOG_FILTER =
+        "*.txt *.log *.logcat|Log files (*.txt, *.log, *.logcat)\n*|All files (*)"
 
     fun openFile(title: String): File? = when {
         kdialog != null -> runPicker(listOf(kdialog!!, "--title", title, "--getopenfilename", startDir(), KDIALOG_FILTER))

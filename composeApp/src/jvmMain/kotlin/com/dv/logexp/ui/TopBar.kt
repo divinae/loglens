@@ -57,7 +57,7 @@ fun TopBar(
     onClear: () -> Unit,
     isCapturing: Boolean,
     onToggleCapture: () -> Unit,
-    onSaveLogs: (filtered: Boolean) -> Unit,
+    onSaveLogs: (filtered: Boolean, asLogcat: Boolean) -> Unit,
     onOpenLogs: () -> Unit,
     loadedFile: String?,
     onToggleAutoFollow: () -> Unit,

@@ -24,6 +24,7 @@ import com.dv.logexp.model.MAX_FONT_SIZE
 import com.dv.logexp.model.MIN_FONT_SIZE
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.model.UserConfig
+import com.dv.logexp.parser.AndroidStudioLogParser
 import com.dv.logexp.parser.LogParser
 import com.dv.logexp.service.DeviceService
 import com.dv.logexp.service.LogcatService
@@ -41,6 +42,9 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val FLUSH_INTERVAL_MS = 40L
+
+// Cap for slurping a whole file into memory to test/parse as JSON; larger files go line-by-line.
+private const val MAX_JSON_LOG_BYTES = 256L * 1024 * 1024
 
 class MainViewModel(
     private val configManager: ConfigManager = ConfigManager(),
@@ -471,11 +475,20 @@ class MainViewModel(
         stopCapture()
         viewModelScope.launch {
             val parsed = withContext(Dispatchers.IO) {
-                val counter = AtomicInteger(0)
-                file.useLines { lines ->
-                    lines.filter { it.isNotBlank() }
-                        .map { LogParser.parse(counter.getAndIncrement(), it, emptyMap()) }
-                        .toList()
+                // Android Studio .logcat exports are JSON, not line-based; try that first.
+                val asJson = if (file.length() < MAX_JSON_LOG_BYTES) {
+                    val text = file.readText()
+                    if (AndroidStudioLogParser.matches(text)) AndroidStudioLogParser.parse(text) else null
+                } else {
+                    null
+                }
+                asJson ?: run {
+                    val counter = AtomicInteger(0)
+                    file.useLines { lines ->
+                        lines.filter { it.isNotBlank() }
+                            .map { LogParser.parse(counter.getAndIncrement(), it, emptyMap()) }
+                            .toList()
+                    }
                 }
             }
             logs.clear()

@@ -48,6 +48,7 @@ import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.model.cell
 import com.dv.logexp.service.SystemFonts
+import com.dv.logexp.parser.LogcatExporter
 import com.dv.logexp.util.FilePicker
 import com.dv.logexp.util.copyToClipboard
 import com.dv.logexp.ui.QuickFilterBar
@@ -255,15 +256,23 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onClear = viewModel::clearLogs,
                 isCapturing = isCapturing,
                 onToggleCapture = viewModel::toggleCapture,
-                onSaveLogs = { filtered ->
-                    val source = if (filtered) filteredLogs else logs
+                onSaveLogs = { filtered, asLogcat ->
+                    // Snapshot now: the source list keeps growing during capture while IO runs.
+                    val snapshot = (if (filtered) filteredLogs else logs).toList()
+                    val ext = if (asLogcat) "logcat" else "txt"
+                    val base = if (filtered) "logs-filtered" else "logs"
                     scope.launch(Dispatchers.IO) {
                         val target = FilePicker.saveFile(
                             if (filtered) "Save filtered logs" else "Save all logs",
-                            if (filtered) "logs-filtered.txt" else "logs.txt",
+                            "$base.$ext",
                         )
                         if (target != null) {
-                            target.writeText(source.joinToString("\n") { it.content })
+                            val payload = if (asLogcat) {
+                                LogcatExporter.toJson(snapshot)
+                            } else {
+                                snapshot.joinToString("\n") { it.content }
+                            }
+                            target.writeText(payload)
                         }
                     }
                 },

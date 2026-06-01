@@ -52,7 +52,7 @@ object LogParser {
     }
 
     /** Map a word-style level (INFO, WARNING, ...) to the single-char codes used for colouring. */
-    private fun levelChar(level: String): String = when (level.uppercase()) {
+    internal fun levelChar(level: String): String = when (level.uppercase()) {
         "INFO" -> "I"
         "WARNING", "WARN" -> "W"
         "ERROR", "ERR" -> "E"
