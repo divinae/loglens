@@ -19,6 +19,7 @@ data class UserConfig(
 const val DEFAULT_FILTERS_LIST_WIDTH: Float = 280f
 
 val DEFAULT_VISIBLE_COLUMNS: Set<LogColumn> = setOf(
+    LogColumn.INDEX,
     LogColumn.DATE,
     LogColumn.TIME,
     LogColumn.PROCESS,
@@ -28,6 +29,7 @@ val DEFAULT_VISIBLE_COLUMNS: Set<LogColumn> = setOf(
 )
 
 val DEFAULT_COLUMN_WIDTHS: Map<LogColumn, Float> = mapOf(
+    LogColumn.INDEX to 60f,
     LogColumn.DATE to 60f,
     LogColumn.TIME to 100f,
     LogColumn.PID to 60f,

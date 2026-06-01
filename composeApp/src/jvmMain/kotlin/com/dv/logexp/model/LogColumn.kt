@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class LogColumn(val displayName: String) {
+    INDEX("Index"),
     DATE("Date"),
     TIME("Time"),
     PID("PID"),
@@ -16,6 +17,7 @@ enum class LogColumn(val displayName: String) {
 
 /** The value of [column] for this log entry. */
 fun LogEntry.cell(column: LogColumn): String = when (column) {
+    LogColumn.INDEX -> id.toString()
     LogColumn.DATE -> date
     LogColumn.TIME -> time
     LogColumn.PID -> pid
