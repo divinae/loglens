@@ -71,6 +71,7 @@ import java.awt.Cursor
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Checkbox
+import org.jetbrains.jewel.ui.component.CheckboxRow
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Divider
@@ -597,13 +598,11 @@ private fun FieldRow(
                 onPick = { state.setTextAndPlaceCursorAtEnd(it) },
             )
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = value.isRegex, onCheckedChange = { onChange(value.copy(isRegex = it)) })
-            Text("regex", modifier = Modifier.padding(start = 2.dp), fontSize = 11.sp)
+        CheckboxRow(checked = value.isRegex, onCheckedChange = { onChange(value.copy(isRegex = it)) }) {
+            Text("regex", fontSize = 11.sp)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = value.caseSensitive, onCheckedChange = { onChange(value.copy(caseSensitive = it)) })
-            Text("Aa", modifier = Modifier.padding(start = 2.dp), fontSize = 11.sp)
+        CheckboxRow(checked = value.caseSensitive, onCheckedChange = { onChange(value.copy(caseSensitive = it)) }) {
+            Text("Aa", fontSize = 11.sp)
         }
     }
 }

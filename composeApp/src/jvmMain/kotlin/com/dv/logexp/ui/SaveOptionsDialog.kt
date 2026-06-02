@@ -26,7 +26,7 @@ import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import com.dv.logexp.ui.theme.islandsPanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Checkbox
+import org.jetbrains.jewel.ui.component.CheckboxRow
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.OutlinedButton
 import org.jetbrains.jewel.ui.component.Text
@@ -36,7 +36,7 @@ fun SaveOptionsDialog(
     onSave: (filtered: Boolean, asLogcat: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val state = rememberDialogState(size = DpSize(360.dp, 240.dp))
+    val state = rememberDialogState(size = DpSize(360.dp, 220.dp))
     var filtered by remember { mutableStateOf(true) }
     var asLogcat by remember { mutableStateOf(false) }
 
@@ -59,14 +59,16 @@ fun SaveOptionsDialog(
         ) {
             Text("Save logs to file", fontWeight = FontWeight.Bold, fontSize = 14.sp)
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = filtered, onCheckedChange = { filtered = it })
-                Text("Only filtered logs", modifier = Modifier.padding(start = 6.dp))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = asLogcat, onCheckedChange = { asLogcat = it })
-                Text("Android Studio .logcat format", modifier = Modifier.padding(start = 6.dp))
-            }
+            CheckboxRow(
+                text = "Only filtered logs",
+                checked = filtered,
+                onCheckedChange = { filtered = it },
+            )
+            CheckboxRow(
+                text = "Android Studio .logcat format",
+                checked = asLogcat,
+                onCheckedChange = { asLogcat = it },
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

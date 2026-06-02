@@ -21,7 +21,7 @@ import com.dv.logexp.model.MIN_FONT_SIZE
 import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.service.SystemFonts
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Checkbox
+import org.jetbrains.jewel.ui.component.CheckboxRow
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.ListComboBox
 import org.jetbrains.jewel.ui.component.OutlinedButton
@@ -149,23 +149,21 @@ fun SettingsMenu(
                 separator()
 
                 passiveItem {
-                    Row(
+                    CheckboxRow(
+                        text = "Soft wrap",
+                        checked = softWrap,
+                        onCheckedChange = onSetSoftWrap,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = softWrap, onCheckedChange = onSetSoftWrap)
-                        Text("Soft wrap", modifier = Modifier.padding(start = 4.dp))
-                    }
+                    )
                 }
 
                 passiveItem {
-                    Row(
+                    CheckboxRow(
+                        text = "Always show bookmarks",
+                        checked = alwaysShowBookmarks,
+                        onCheckedChange = onSetAlwaysShowBookmarks,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = alwaysShowBookmarks, onCheckedChange = onSetAlwaysShowBookmarks)
-                        Text("Always show bookmarks", modifier = Modifier.padding(start = 4.dp))
-                    }
+                    )
                 }
 
                 separator()

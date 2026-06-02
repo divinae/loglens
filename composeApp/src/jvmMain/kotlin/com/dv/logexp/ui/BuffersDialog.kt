@@ -22,7 +22,7 @@ import androidx.compose.ui.window.rememberDialogState
 import com.dv.logexp.model.LogBuffer
 import com.dv.logexp.ui.theme.islandsPanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Checkbox
+import org.jetbrains.jewel.ui.component.CheckboxRow
 import org.jetbrains.jewel.ui.component.Text
 
 @Composable
@@ -53,16 +53,12 @@ fun BuffersDialog(
                 modifier = Modifier.padding(bottom = 8.dp),
             )
             LogBuffer.entries.forEach { buffer ->
-                Row(
+                CheckboxRow(
+                    text = buffer.displayName,
+                    checked = buffer in logBuffers,
+                    onCheckedChange = { onToggleLogBuffer(buffer) },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = buffer in logBuffers,
-                        onCheckedChange = { onToggleLogBuffer(buffer) },
-                    )
-                    Text(buffer.displayName, modifier = Modifier.padding(start = 6.dp))
-                }
+                )
             }
         }
     }
