@@ -672,6 +672,12 @@ class MainViewModel(
         selectedIds.clear()
         // Restart the Index column from 0; new entries get fresh ids.
         nextLogId.set(0)
+        // For a live device, also wipe the on-device logcat buffer so cleared lines never reappear.
+        if (_loadedFile.value == null && _selectedDevice.value != null) {
+            val serial = _selectedDevice.value
+            val buffers = _logBuffers.value
+            viewModelScope.launch { logcatService.clearBuffers(serial, buffers) }
+        }
     }
 
     /** Stop live capture and load logs from a saved file, parsing each line as logcat output. */
