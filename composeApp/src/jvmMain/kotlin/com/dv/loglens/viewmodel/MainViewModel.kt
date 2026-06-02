@@ -26,6 +26,7 @@ import com.dv.loglens.model.MAX_FONT_SIZE
 import com.dv.loglens.model.MIN_FONT_SIZE
 import com.dv.loglens.model.ThemeMode
 import com.dv.loglens.model.UserConfig
+import com.dv.loglens.model.WindowBounds
 import com.dv.loglens.parser.AndroidStudioLogParser
 import com.dv.loglens.parser.BugreportParser
 import com.dv.loglens.parser.LogParser
@@ -291,6 +292,7 @@ class MainViewModel(
         _recordingShowTaps.value = config.recordingShowTaps
         _recordingBitrateMbps.value = config.recordingBitrateMbps
         _recordingSize.value = config.recordingSize
+        windowBounds = WindowBounds(config.windowX, config.windowY, config.windowWidth, config.windowHeight)
     }
 
     private fun currentConfig(): UserConfig = UserConfig(
@@ -313,7 +315,22 @@ class MainViewModel(
         recordingShowTaps = _recordingShowTaps.value,
         recordingBitrateMbps = _recordingBitrateMbps.value,
         recordingSize = _recordingSize.value,
+        windowX = windowBounds.x,
+        windowY = windowBounds.y,
+        windowWidth = windowBounds.width,
+        windowHeight = windowBounds.height,
     )
+
+    /** Last-known window geometry (dp). Read once at startup; written on resize/move and close. */
+    var windowBounds: WindowBounds = WindowBounds()
+        private set
+
+    fun saveWindowBounds(x: Float, y: Float, width: Float, height: Float) {
+        val next = WindowBounds(x, y, width, height)
+        if (next == windowBounds) return
+        windowBounds = next
+        persistConfig()
+    }
 
     private fun persistConfig() {
         viewModelScope.launch(Dispatchers.IO) { configManager.save(currentConfig()) }

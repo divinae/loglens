@@ -23,6 +23,22 @@ data class UserConfig(
     val recordingShowTaps: Boolean = false,
     val recordingBitrateMbps: Int = 0,
     val recordingSize: String = "",
+    // Window bounds in dp. x/y < 0 means "unplaced" → center on first launch.
+    val windowX: Float = -1f,
+    val windowY: Float = -1f,
+    val windowWidth: Float = DEFAULT_WINDOW_WIDTH,
+    val windowHeight: Float = DEFAULT_WINDOW_HEIGHT,
+)
+
+const val DEFAULT_WINDOW_WIDTH: Float = 1200f
+const val DEFAULT_WINDOW_HEIGHT: Float = 800f
+
+/** Window geometry in dp; x/y < 0 means unplaced (center). */
+data class WindowBounds(
+    val x: Float = -1f,
+    val y: Float = -1f,
+    val width: Float = DEFAULT_WINDOW_WIDTH,
+    val height: Float = DEFAULT_WINDOW_HEIGHT,
 )
 
 const val DEFAULT_FILTERS_LIST_WIDTH: Float = 280f
