@@ -18,6 +18,7 @@ data class UserConfig(
     val searchQuery: String = "",
     val screenshotDir: String = "",
     val openScreenshotAfterCapture: Boolean = true,
+    val adbPath: String = "",
 )
 
 const val DEFAULT_FILTERS_LIST_WIDTH: Float = 280f

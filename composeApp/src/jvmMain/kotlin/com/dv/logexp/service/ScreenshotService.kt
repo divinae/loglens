@@ -16,7 +16,7 @@ object ScreenshotService {
     suspend fun capture(serial: String?, target: File): Boolean = withContext(Dispatchers.IO) {
         try {
             val cmd = buildList {
-                add("adb")
+                add(Adb.exe())
                 if (serial != null) { add("-s"); add(serial) }
                 add("exec-out"); add("screencap"); add("-p")
             }

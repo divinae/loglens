@@ -15,7 +15,7 @@ class LogcatService {
     fun stream(deviceSerial: String? = null, buffers: Set<LogBuffer> = emptySet()): Flow<String> = flow {
         try {
             val cmd = buildList {
-                add("adb")
+                add(Adb.exe())
                 if (deviceSerial != null) { add("-s"); add(deviceSerial) }
                 add("logcat"); add("-v"); add("threadtime")
                 // One -b per selected buffer; empty set leaves adb on its own default selection.

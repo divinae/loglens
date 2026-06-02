@@ -10,7 +10,7 @@ object PackageService {
         val result = mutableMapOf<String, String>()
         try {
             val cmd = buildList {
-                add("adb")
+                add(Adb.exe())
                 if (deviceSerial != null) { add("-s"); add(deviceSerial) }
                 add("shell"); add("ps"); add("-A"); add("-o"); add("PID,NAME")
             }

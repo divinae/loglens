@@ -55,6 +55,8 @@ fun SettingsMenu(
     onSetScreenshotDir: (String) -> Unit,
     openScreenshotAfterCapture: Boolean,
     onSetOpenScreenshotAfterCapture: (Boolean) -> Unit,
+    adbPath: String,
+    onSetAdbPath: (String) -> Unit,
     onShowShortcuts: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -174,6 +176,25 @@ fun SettingsMenu(
                 }
 
                 separator()
+
+                passiveItem {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("adb path", modifier = Modifier.padding(end = 8.dp))
+                        val adbState = rememberTextFieldState(adbPath)
+                        LaunchedEffect(adbState.text) {
+                            val text = adbState.text.toString()
+                            if (text != adbPath) onSetAdbPath(text)
+                        }
+                        TextField(
+                            state = adbState,
+                            placeholder = { Text("adb (from PATH)") },
+                            modifier = Modifier.width(220.dp),
+                        )
+                    }
+                }
 
                 passiveItem {
                     Row(

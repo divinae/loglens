@@ -83,6 +83,8 @@ fun TopBar(
     onSetScreenshotDir: (String) -> Unit,
     openScreenshotAfterCapture: Boolean,
     onSetOpenScreenshotAfterCapture: (Boolean) -> Unit,
+    adbPath: String,
+    onSetAdbPath: (String) -> Unit,
     onShowShortcuts: () -> Unit,
 ) {
     val activeAccent = Color(0xFF3592FF)
@@ -235,6 +237,8 @@ fun TopBar(
                 onSetScreenshotDir = onSetScreenshotDir,
                 openScreenshotAfterCapture = openScreenshotAfterCapture,
                 onSetOpenScreenshotAfterCapture = onSetOpenScreenshotAfterCapture,
+                adbPath = adbPath,
+                onSetAdbPath = onSetAdbPath,
                 onShowShortcuts = onShowShortcuts,
             )
         }

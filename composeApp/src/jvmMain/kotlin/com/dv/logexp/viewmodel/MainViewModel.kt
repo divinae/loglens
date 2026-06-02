@@ -28,6 +28,7 @@ import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.model.UserConfig
 import com.dv.logexp.parser.AndroidStudioLogParser
 import com.dv.logexp.parser.LogParser
+import com.dv.logexp.service.Adb
 import com.dv.logexp.service.DeviceService
 import com.dv.logexp.service.LogcatService
 import com.dv.logexp.service.PackageService
@@ -106,6 +107,10 @@ class MainViewModel(
     /** Whether to open the screenshot in the default image viewer after capture. */
     private val _openScreenshotAfterCapture = MutableStateFlow(true)
     val openScreenshotAfterCapture = _openScreenshotAfterCapture.asStateFlow()
+
+    /** Path to the adb executable; blank means "adb" from PATH. */
+    private val _adbPath = MutableStateFlow("")
+    val adbPath = _adbPath.asStateFlow()
 
     private val _autoFollow = MutableStateFlow(true)
     val autoFollow = _autoFollow.asStateFlow()
@@ -251,6 +256,8 @@ class MainViewModel(
         _searchQueryError.value = parsedQuery.error
         _screenshotDir.value = config.screenshotDir
         _openScreenshotAfterCapture.value = config.openScreenshotAfterCapture
+        _adbPath.value = config.adbPath
+        Adb.path = config.adbPath
     }
 
     private fun currentConfig(): UserConfig = UserConfig(
@@ -268,6 +275,7 @@ class MainViewModel(
         searchQuery = _searchQuery.value,
         screenshotDir = _screenshotDir.value,
         openScreenshotAfterCapture = _openScreenshotAfterCapture.value,
+        adbPath = _adbPath.value,
     )
 
     private fun persistConfig() {
@@ -303,6 +311,15 @@ class MainViewModel(
         if (_openScreenshotAfterCapture.value == value) return
         _openScreenshotAfterCapture.value = value
         persistConfig()
+    }
+
+    fun setAdbPath(path: String) {
+        if (_adbPath.value == path) return
+        _adbPath.value = path
+        Adb.path = path
+        persistConfig()
+        // The 5s device-poll loop picks up the new binary on its own; no forced restart here so
+        // typing the path char-by-char doesn't spawn a capture restart per keystroke.
     }
 
     /** Toggle one adb buffer. Refuses to clear the last one, then restarts capture from the new source. */

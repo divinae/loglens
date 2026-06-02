@@ -10,7 +10,7 @@ import java.io.InputStreamReader
 object DeviceService {
     suspend fun list(): List<Device> = withContext(Dispatchers.IO) {
         try {
-            val proc = ProcessBuilder("adb", "devices", "-l").start()
+            val proc = ProcessBuilder(Adb.exe(), "devices", "-l").start()
             BufferedReader(InputStreamReader(proc.inputStream)).useLines { lines ->
                 lines.drop(1)
                     .mapNotNull { parse(it) }

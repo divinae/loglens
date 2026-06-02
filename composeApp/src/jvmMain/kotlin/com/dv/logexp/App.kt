@@ -101,6 +101,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val searchHistory by viewModel.searchHistory.collectAsState()
     val screenshotDir by viewModel.screenshotDir.collectAsState()
     val openScreenshotAfterCapture by viewModel.openScreenshotAfterCapture.collectAsState()
+    val adbPath by viewModel.adbPath.collectAsState()
     val logBuffers by viewModel.logBuffers.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
@@ -336,6 +337,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onSetScreenshotDir = viewModel::setScreenshotDir,
                 openScreenshotAfterCapture = openScreenshotAfterCapture,
                 onSetOpenScreenshotAfterCapture = viewModel::setOpenScreenshotAfterCapture,
+                adbPath = adbPath,
+                onSetAdbPath = viewModel::setAdbPath,
                 onShowShortcuts = { showShortcutsDialog = true },
             )
 
