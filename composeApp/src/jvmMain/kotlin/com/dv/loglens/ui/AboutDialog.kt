@@ -33,7 +33,7 @@ private const val REPO_URL = "https://gitlab.com/divinae/logexp"
 
 @Composable
 fun AboutDialog(onDismiss: () -> Unit) {
-    val state = rememberDialogState(size = DpSize(360.dp, 280.dp))
+    val state = rememberDialogState(size = DpSize(380.dp, 380.dp))
     DialogWindow(
         onCloseRequest = onDismiss,
         state = state,
@@ -73,6 +73,32 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     .padding(top = 4.dp)
                     .clickable { openInBrowser(REPO_URL) },
             )
+
+            val dim = JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)
+            Column(
+                modifier = Modifier.padding(top = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text("Built with", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = dim)
+                Text(
+                    "Kotlin ${BuildInfo.kotlinVersion} · Compose ${BuildInfo.composeVersion}",
+                    fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = dim,
+                )
+                Text(
+                    "Jewel ${BuildInfo.jewelVersion}",
+                    fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = dim,
+                )
+                Text(
+                    "Coroutines ${BuildInfo.coroutinesVersion}",
+                    fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = dim,
+                )
+                Text(
+                    BuildInfo.runtime,
+                    fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = dim,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
         }
     }
 }

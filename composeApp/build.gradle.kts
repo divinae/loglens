@@ -127,10 +127,28 @@ val generateBuildInfo by tasks.registering {
     val outDir = layout.buildDirectory.dir("generated/buildinfo/resources")
     outputs.dir(outDir)
     val version = fullVersion
+    // Captured at configuration time so the About dialog can show what the app was built with.
+    val composeVersion = libs.versions.composeMultiplatform.get()
+    val kotlinVersion = libs.versions.kotlin.get()
+    val jewelVersion = libs.versions.jewel.get()
+    val coroutinesVersion = libs.versions.kotlinx.coroutines.get()
+    inputs.property("version", version)
+    inputs.property("compose", composeVersion)
+    inputs.property("kotlin", kotlinVersion)
+    inputs.property("jewel", jewelVersion)
+    inputs.property("coroutines", coroutinesVersion)
     doLast {
         val file = outDir.get().file("build-info.properties").asFile
         file.parentFile.mkdirs()
-        file.writeText("version=$version\n")
+        file.writeText(
+            """
+            version=$version
+            compose=$composeVersion
+            kotlin=$kotlinVersion
+            jewel=$jewelVersion
+            coroutines=$coroutinesVersion
+            """.trimIndent() + "\n",
+        )
     }
 }
 
