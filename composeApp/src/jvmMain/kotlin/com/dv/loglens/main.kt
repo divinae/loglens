@@ -13,6 +13,7 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.isSpecified
 import com.dv.loglens.viewmodel.MainViewModel
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.runtime.snapshotFlow
@@ -45,6 +46,7 @@ private fun installCrashHandler() {
     }
 }
 
+@OptIn(FlowPreview::class)
 fun main() = application {
     installCrashHandler()
     // The window/taskbar icon. A 256px source so it stays crisp on HiDPI displays, where the
