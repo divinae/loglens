@@ -2,6 +2,8 @@ package com.dv.loglens.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,7 +21,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
@@ -30,9 +41,12 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
@@ -80,6 +94,9 @@ fun LogRow(
     onCopySelected: () -> Unit = {},
     onCopyColumnSelected: (LogColumn) -> Unit = {},
     selectedMessages: () -> String = { "" },
+    activeCell: Pair<Int, LogColumn>? = null,
+    onActivateCell: (LogColumn) -> Unit = {},
+    onExitSelection: () -> Unit = {},
 ) {
     val color = logLevelColor(log.level, isDarkMode)
     val resolvedWeight = remember(fontWeight) { FontWeight(FontWeightPreset.fromName(fontWeight).weight) }
@@ -134,6 +151,8 @@ fun LogRow(
                 .fillMaxWidth()
                 .background(backgroundColor)
                 .onPointerEvent(PointerEventType.Press) {
+                    // A cell double-click consumes the press to enter selection mode; don't also toggle the row.
+                    if (it.changes.firstOrNull()?.isConsumed == true) return@onPointerEvent
                     if (it.buttons.isSecondaryPressed) {
                         if (!isSelected) onSelect(false, false)
                         return@onPointerEvent
@@ -167,6 +186,7 @@ fun LogRow(
                     Modifier.width((columnWidths[column] ?: 100f).dp)
                 }
                 val wrap = column == LogColumn.MESSAGE && softWrap
+                val cellActive = activeCell?.first == log.id && activeCell.second == column
 
                 val copyMulti = isSelected && selectedCount > 1
                 FilterableCell(
@@ -194,22 +214,35 @@ fun LogRow(
                     jsonCandidate = {
                         if (copyMulti && column == LogColumn.MESSAGE) selectedMessages() else text
                     },
+                    onActivate = { onActivateCell(column) },
                     modifier = cellModifier,
                 ) {
-                    LogCell(
-                        text,
-                        color,
-                        Modifier,
-                        wrapText = wrap,
-                        fontSize = fontSize,
-                        fontFamily = fontFamily,
-                        fontWeight = resolvedWeight,
-                        findQuery = findQuery,
-                        findColor = findHighlightColor,
-                        onTextLayout = if (column == LogColumn.MESSAGE) {
-                            { result -> messageOverflows = result.hasVisualOverflow }
-                        } else null,
-                    )
+                    if (cellActive) {
+                        SelectableLogCell(
+                            text = text,
+                            color = color,
+                            wrapText = wrap,
+                            fontSize = fontSize,
+                            fontFamily = fontFamily,
+                            fontWeight = resolvedWeight,
+                            onExit = onExitSelection,
+                        )
+                    } else {
+                        LogCell(
+                            text,
+                            color,
+                            Modifier,
+                            wrapText = wrap,
+                            fontSize = fontSize,
+                            fontFamily = fontFamily,
+                            fontWeight = resolvedWeight,
+                            findQuery = findQuery,
+                            findColor = findHighlightColor,
+                            onTextLayout = if (column == LogColumn.MESSAGE) {
+                                { result -> messageOverflows = result.hasVisualOverflow }
+                            } else null,
+                        )
+                    }
                 }
             }
         }
@@ -242,6 +275,53 @@ private fun LogCell(
         overflow = if (wrapText) TextOverflow.Clip else TextOverflow.Ellipsis,
         onTextLayout = { onTextLayout?.invoke(it) },
         modifier = modifier.padding(horizontal = 4.dp),
+    )
+}
+
+/**
+ * The cell rendered while it's the active "selection mode" cell: a read-only [BasicTextField] so the
+ * user can drag-select a substring and copy it (Ctrl+C, handled natively by the field). No
+ * SelectionContainer is involved — selection state is scoped to this one field — so the prior
+ * SelectionContainer-over-LazyColumn hierarchy crash cannot recur. Find highlighting is dropped while
+ * active and returns when the cell reverts to [LogCell].
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun SelectableLogCell(
+    text: String,
+    color: Color,
+    wrapText: Boolean,
+    fontSize: TextUnit,
+    fontFamily: FontFamily,
+    fontWeight: FontWeight,
+    onExit: () -> Unit,
+) {
+    // Start with everything selected; the user can re-drag to narrow it.
+    var tfv by remember(text) { mutableStateOf(TextFieldValue(text, selection = TextRange(0, text.length))) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
+
+    BasicTextField(
+        value = tfv,
+        // readOnly: the text never changes, so adopt only the caret/selection from edits.
+        onValueChange = { tfv = tfv.copy(selection = it.selection) },
+        readOnly = true,
+        singleLine = !wrapText,
+        maxLines = if (wrapText) Int.MAX_VALUE else 1,
+        textStyle = TextStyle(color = color, fontSize = fontSize, fontFamily = fontFamily, fontWeight = fontWeight),
+        cursorBrush = SolidColor(color),
+        modifier = Modifier
+            .padding(horizontal = 4.dp)
+            .border(1.dp, color.copy(alpha = 0.4f))
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { e ->
+                if (e.type == KeyEventType.KeyDown && e.key == Key.Escape) {
+                    onExit()
+                    true
+                } else {
+                    false
+                }
+            },
     )
 }
 

@@ -17,8 +17,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.font.FontFamily
@@ -56,6 +58,7 @@ internal fun FilterableCell(
     jsonFontFamily: FontFamily,
     jsonFontSize: TextUnit,
     jsonCandidate: () -> String,
+    onActivate: () -> Unit = {},
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -75,6 +78,9 @@ internal fun FilterableCell(
     var showMenu by remember { mutableStateOf(false) }
     var menuOffset by remember { mutableStateOf(IntOffset.Zero) }
     var jsonDialog by remember { mutableStateOf<String?>(null) }
+    // Manual double-click detection (desktop awtEvent.clickCount is unreliable across CMP versions).
+    var lastPressTime by remember { mutableStateOf(0L) }
+    var lastPressPos by remember { mutableStateOf(Offset.Zero) }
     jsonDialog?.let { json ->
         JsonViewerDialog(
             json = json,
@@ -85,10 +91,24 @@ internal fun FilterableCell(
     }
     Box(
         modifier = modifier.onPointerEvent(PointerEventType.Press) { event ->
+            val change = event.changes.firstOrNull() ?: return@onPointerEvent
             if (event.buttons.isSecondaryPressed) {
-                val pos = event.changes.first().position
+                val pos = change.position
                 menuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
                 showMenu = true
+                return@onPointerEvent
+            }
+            if (event.buttons.isPrimaryPressed) {
+                val now = change.uptimeMillis
+                val pos = change.position
+                val isDouble = (now - lastPressTime) < 300L && (pos - lastPressPos).getDistance() < 8f
+                lastPressTime = now
+                lastPressPos = pos
+                if (isDouble) {
+                    // Consume so the parent Row's Press handler skips its row-selection toggle.
+                    onActivate()
+                    change.consume()
+                }
             }
         }
     ) {

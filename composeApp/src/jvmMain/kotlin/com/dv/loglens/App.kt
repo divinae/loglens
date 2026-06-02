@@ -134,6 +134,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     var findQuery by remember { mutableStateOf("") }
     var currentMatchIdx by remember { mutableStateOf(0) }
     var showShortcutsDialog by remember { mutableStateOf(false) }
+    // The single cell currently in substring-selection mode (rendered as a read-only text field), or null.
+    var activeCell by remember { mutableStateOf<Pair<Int, LogColumn>?>(null) }
 
     val copySelected: () -> Unit = remember {
         {
@@ -406,6 +408,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             .pointerInput(Unit) {
                                 detectDragGestures(
                                     onDragStart = { pos ->
+                                        activeCell = null
                                         runCatching { focusRequester.requestFocus() }
                                         dragAnchorIdx = indexAtY(listState, pos.y)
                                     },
@@ -441,6 +444,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 fontWeight = fontWeight,
                                 softWrap = softWrap,
                                 onSelect = { multi, range ->
+                                    activeCell = null
                                     runCatching { focusRequester.requestFocus() }
                                     if (range) {
                                         val anchor = viewModel.selectionAnchor
@@ -465,6 +469,15 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 selectedMessages = {
                                     viewModel.logs.filter { it.id in viewModel.selectedIds }
                                         .joinToString("") { it.message }
+                                },
+                                activeCell = activeCell,
+                                onActivateCell = { column ->
+                                    activeCell = log.id to column
+                                    viewModel.setAutoFollow(false)
+                                },
+                                onExitSelection = {
+                                    activeCell = null
+                                    runCatching { focusRequester.requestFocus() }
                                 },
                             )
                         }
