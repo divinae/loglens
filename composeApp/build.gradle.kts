@@ -1,6 +1,9 @@
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JvmVendorSpec
+import io.gitlab.arturbosch.detekt.Detekt
+import io.gitlab.arturbosch.detekt.DetektCreateBaselineTask
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -17,6 +20,11 @@ detekt {
     source.setFrom(files("src/jvmMain/kotlin", "src/commonMain/kotlin"))
 }
 
+// The JBR 25 toolchain would feed detekt --jvm-target=25, which detekt 1.23.x rejects (max 22).
+// Our sources compile to Java 21 bytecode anyway, so pin detekt's analysis target to 21.
+tasks.withType<Detekt>().configureEach { jvmTarget = "21" }
+tasks.withType<DetektCreateBaselineTask>().configureEach { jvmTarget = "21" }
+
 val appVersion: String = (findProperty("appVersion") as? String) ?: "0.0.0"
 val gitSha: String = providers.exec {
     commandLine("git", "rev-parse", "--short", "HEAD")
@@ -25,12 +33,20 @@ val gitSha: String = providers.exec {
 val fullVersion = "$appVersion+$gitSha"
 
 kotlin {
-    jvm()
+    // Compile our own code to Java 21 bytecode (we don't need newer language-level features) even
+    // though the toolchain runs on JBR 25 — Jewel 0.37 (IntelliJ 262) ships class-file v69 and only
+    // loads on a Java 25 runtime, so the toolchain/bundled runtime must be 25.
+    jvm {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_21)
+        }
+    }
 
-    // JetBrains Runtime: used for compile, run, and the bundled jpackage runtime, so end users
-    // need no host JDK. Provisioned via the foojay resolver in settings.gradle.kts.
+    // JetBrains Runtime 25: used for compile, run, and the bundled jpackage runtime, so end users
+    // need no host JDK. Provisioned via the foojay resolver in settings.gradle.kts. (Gradle itself
+    // still bootstraps on JDK 21 — the toolchain is independent of the JVM running Gradle.)
     jvmToolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(25))
         vendor.set(JvmVendorSpec.JETBRAINS)
     }
 
@@ -61,7 +77,7 @@ kotlin {
 
 // Compose's run/package tasks don't inherit the kotlin jvmToolchain — point them at JBR explicitly.
 val jbrLauncher = javaToolchains.launcherFor {
-    languageVersion.set(JavaLanguageVersion.of(21))
+    languageVersion.set(JavaLanguageVersion.of(25))
     vendor.set(JvmVendorSpec.JETBRAINS)
 }
 

@@ -33,7 +33,7 @@ class LogcatService {
                 }
             }
         } catch (e: Exception) {
-            emit("Error: ${e.message}. Sprawdź czy ADB jest w PATH.")
+            emit("Error: ${e.message}. Check that ADB is installed and on your PATH.")
         }
     }.flowOn(Dispatchers.IO)
 

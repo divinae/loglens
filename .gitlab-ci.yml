@@ -1,0 +1,61 @@
+# CI for LogLens. gitlab.com shared runners are Linux, so .deb + portable build here;
+# macOS (.dmg) and Windows (.msi) are built on their native platforms (see RELEASE.md) —
+# jpackage only targets the current OS.
+#
+# Gradle itself must run on JDK 21 (a newer system JDK breaks the build). The image below
+# ships JDK 21; the Kotlin/Compose toolchain then auto-provisions JetBrains Runtime 21 via the
+# foojay resolver for compile/run/package.
+
+image: eclipse-temurin:21-jdk
+
+variables:
+  GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .gradle/caches
+    - .gradle/wrapper
+
+stages:
+  - verify
+  - release
+
+verify:
+  stage: verify
+  script:
+    # createDistributable also smoke-tests jlink/jpackage with the JBR 25 toolchain and produces
+    # a runnable portable app image for every Linux build, not just tagged releases.
+    - ./gradlew --no-daemon :composeApp:jvmTest detekt :composeApp:createDistributable
+    - mkdir -p dist
+    - tar -C composeApp/build/compose/binaries/main/app -czf dist/loglens-${CI_COMMIT_SHORT_SHA}-linux-x64.tar.gz loglens
+  artifacts:
+    when: always
+    reports:
+      junit: composeApp/build/test-results/jvmTest/*.xml
+    paths:
+      - composeApp/build/reports/
+      - dist/
+    expire_in: 1 week
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+# Build the Linux .deb + a portable app image on a tag like v1.0.0.
+# .deb packaging needs dpkg + fakeroot on the runner.
+release-linux:
+  stage: release
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq fakeroot dpkg
+  script:
+    - ./gradlew --no-daemon -PappVersion=${CI_COMMIT_TAG#v} :composeApp:packageDeb :composeApp:createDistributable
+    - mkdir -p dist
+    - cp composeApp/build/compose/binaries/main/deb/*.deb dist/ || true
+    - tar -C composeApp/build/compose/binaries/main/app -czf dist/loglens-${CI_COMMIT_TAG}-linux-x64.tar.gz loglens
+  artifacts:
+    paths:
+      - dist/
+    expire_in: never
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/'
