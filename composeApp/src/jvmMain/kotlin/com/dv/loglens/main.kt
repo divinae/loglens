@@ -18,30 +18,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.runtime.snapshotFlow
 import org.jetbrains.skia.Image
 
-fun main() {
-    enableNativeWaylandIfAvailable()
-    runApp()
-}
-
-/**
- * Select JBR's native Wayland AWT toolkit (WLToolkit) before AWT initialises, so on a Wayland
- * session we render as a native client instead of through XWayland. Defensive: only when on Linux,
- * in a Wayland session, and the toolkit class is actually present (it ships only in JetBrains
- * Runtime) — otherwise the default XToolkit keeps X11 / non-JBR runtimes working. Escape hatch:
- * `-Dloglens.x11=true` forces XToolkit. (Note: JBR presets awt.toolkit.name to "XToolkit", so we
- * must override that default rather than treat it as a user choice.)
- */
-private fun enableNativeWaylandIfAvailable() {
-    if (!System.getProperty("os.name").orEmpty().contains("linux", ignoreCase = true)) return
-    if (System.getProperty("loglens.x11").toBoolean()) return
-    if (System.getenv("WAYLAND_DISPLAY").isNullOrBlank()) return
-    val present = runCatching {
-        Class.forName("sun.awt.wl.WLToolkit", false, ClassLoader.getSystemClassLoader())
-    }.isSuccess
-    if (present) System.setProperty("awt.toolkit.name", "WLToolkit")
-}
-
-private fun runApp() = application {
+fun main() = application {
     // The window/taskbar icon. A 256px source so it stays crisp on HiDPI displays, where the
     // window manager scales it up rather than rendering a blurry low-res bitmap.
     val icon = remember {
