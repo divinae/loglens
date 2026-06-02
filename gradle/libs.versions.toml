@@ -1,14 +1,14 @@
 [versions]
 androidx-lifecycle = "2.10.0"
-composeHotReload = "1.1.0"
-composeMultiplatform = "1.10.3"
+composeHotReload = "1.1.1"
+composeMultiplatform = "1.11.1"
 junit = "4.13.2"
 kotlin = "2.3.21"
-kotlinx-coroutines = "1.10.2"
+kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.11.0"
-jewel = "0.35.0-261.23567.138"
-icons = "261.23567.174"
-detekt = "1.23.7"
+jewel = "0.37.0-262.4852.51"
+icons = "262.4852.74"
+detekt = "1.23.8"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

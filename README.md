@@ -4,6 +4,12 @@ Desktop viewer for Android logs (`adb logcat`), built with Kotlin Multiplatform 
 
 Inspired by [Android Studio's Logcat](https://developer.android.com/studio/debug/logcat) and [AndLogView](https://github.com/mlopatkin/andlogview).
 
+## Screenshots
+
+| Live logcat with quick-filter pills | Settings | Filter rules |
+|---|---|---|
+| ![Live log view](docs/screenshots/main-log-view.png) | ![Settings](docs/screenshots/settings.png) | ![Filters](docs/screenshots/filters.png) |
+
 ## Features
 
 - **Live logcat** — stream from the selected device, with automatic device detection and switching.
@@ -44,7 +50,7 @@ Inspired by [Android Studio's Logcat](https://developer.android.com/studio/debug
 
 ## Requirements
 
-- **JDK 21** to bootstrap Gradle — point `JAVA_HOME` at java-21 (a newer system JDK, e.g. 26, fails). The build toolchain itself is **JetBrains Runtime (JBR) 21**, auto-provisioned by the foojay resolver; it's used for compile, `run`, and the runtime bundled into packages — you don't install JBR yourself.
+- **JDK 21** to bootstrap Gradle — point `JAVA_HOME` at java-21 (a newer system JDK, e.g. 26, fails). The build *toolchain* is separate: **JetBrains Runtime (JBR) 25**, auto-provisioned by the foojay resolver and used for compile, `run`, and the runtime bundled into packages — you don't install JBR yourself. (JBR 25 is required because Jewel 0.37 / IntelliJ 262 ships Java 25 class files; our own code still compiles to Java 21 bytecode.)
 - **adb** on `PATH` (Android platform-tools) — or set the binary path in the app settings.
 - Linux/macOS/Windows (desktop JVM). Screenshots/recordings open the file via `xdg-open` (Linux).
 
@@ -88,3 +94,14 @@ Kotlin Multiplatform targeting Desktop (JVM). Code lives in `composeApp/src/jvmM
 - `parser/` — `LogParser`, `AndroidStudioLogParser`, `BugreportParser`, `LogcatExporter`.
 - `ui/` — bars, dialogs, log rows, shortcuts.
 - `config/` — `ConfigManager`, `FilterStore`, `SearchHistoryStore`.
+
+## Releasing
+
+Version history is in [`CHANGELOG.md`](CHANGELOG.md); the build/sign/publish process is in
+[`RELEASE.md`](RELEASE.md).
+
+## License
+
+LogLens is released under the **GNU General Public License v3.0** — see [`LICENSE`](LICENSE).
+Third-party components and their licenses are listed in
+[`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).

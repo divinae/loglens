@@ -1,6 +1,9 @@
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JvmVendorSpec
+import io.gitlab.arturbosch.detekt.Detekt
+import io.gitlab.arturbosch.detekt.DetektCreateBaselineTask
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -17,20 +20,40 @@ detekt {
     source.setFrom(files("src/jvmMain/kotlin", "src/commonMain/kotlin"))
 }
 
+// The JBR 25 toolchain would feed detekt --jvm-target=25, which detekt 1.23.x rejects (max 22).
+// Our sources compile to Java 21 bytecode anyway, so pin detekt's analysis target to 21.
+tasks.withType<Detekt>().configureEach { jvmTarget = "21" }
+tasks.withType<DetektCreateBaselineTask>().configureEach { jvmTarget = "21" }
+
 val appVersion: String = (findProperty("appVersion") as? String) ?: "0.0.0"
-val gitSha: String = providers.exec {
-    commandLine("git", "rev-parse", "--short", "HEAD")
-    isIgnoreExitValue = true
-}.standardOutput.asText.map { it.trim() }.getOrElse("dev")
+// Prefer the CI-provided SHA (the runner image may not even have a `git` binary); fall back to
+// `git` locally, and to "dev" if neither is available. runCatching guards against the process
+// failing to start, which `getOrElse` on the provider does not catch.
+val gitSha: String = providers.environmentVariable("CI_COMMIT_SHORT_SHA").orNull?.takeIf { it.isNotBlank() }
+    ?: runCatching {
+        providers.exec {
+            commandLine("git", "rev-parse", "--short", "HEAD")
+            isIgnoreExitValue = true
+        }.standardOutput.asText.get().trim()
+    }.getOrNull()?.takeIf { it.isNotBlank() }
+    ?: "dev"
 val fullVersion = "$appVersion+$gitSha"
 
 kotlin {
-    jvm()
+    // Compile our own code to Java 21 bytecode (we don't need newer language-level features) even
+    // though the toolchain runs on JBR 25 — Jewel 0.37 (IntelliJ 262) ships class-file v69 and only
+    // loads on a Java 25 runtime, so the toolchain/bundled runtime must be 25.
+    jvm {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_21)
+        }
+    }
 
-    // JetBrains Runtime: used for compile, run, and the bundled jpackage runtime, so end users
-    // need no host JDK. Provisioned via the foojay resolver in settings.gradle.kts.
+    // JetBrains Runtime 25: used for compile, run, and the bundled jpackage runtime, so end users
+    // need no host JDK. Provisioned via the foojay resolver in settings.gradle.kts. (Gradle itself
+    // still bootstraps on JDK 21 — the toolchain is independent of the JVM running Gradle.)
     jvmToolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(25))
         vendor.set(JvmVendorSpec.JETBRAINS)
     }
 
@@ -61,7 +84,7 @@ kotlin {
 
 // Compose's run/package tasks don't inherit the kotlin jvmToolchain — point them at JBR explicitly.
 val jbrLauncher = javaToolchains.launcherFor {
-    languageVersion.set(JavaLanguageVersion.of(21))
+    languageVersion.set(JavaLanguageVersion.of(25))
     vendor.set(JvmVendorSpec.JETBRAINS)
 }
 
@@ -111,10 +134,28 @@ val generateBuildInfo by tasks.registering {
     val outDir = layout.buildDirectory.dir("generated/buildinfo/resources")
     outputs.dir(outDir)
     val version = fullVersion
+    // Captured at configuration time so the About dialog can show what the app was built with.
+    val composeVersion = libs.versions.composeMultiplatform.get()
+    val kotlinVersion = libs.versions.kotlin.get()
+    val jewelVersion = libs.versions.jewel.get()
+    val coroutinesVersion = libs.versions.kotlinx.coroutines.get()
+    inputs.property("version", version)
+    inputs.property("compose", composeVersion)
+    inputs.property("kotlin", kotlinVersion)
+    inputs.property("jewel", jewelVersion)
+    inputs.property("coroutines", coroutinesVersion)
     doLast {
         val file = outDir.get().file("build-info.properties").asFile
         file.parentFile.mkdirs()
-        file.writeText("version=$version\n")
+        file.writeText(
+            """
+            version=$version
+            compose=$composeVersion
+            kotlin=$kotlinVersion
+            jewel=$jewelVersion
+            coroutines=$coroutinesVersion
+            """.trimIndent() + "\n",
+        )
     }
 }
 

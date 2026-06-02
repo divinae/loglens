@@ -13,12 +13,42 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.isSpecified
 import com.dv.loglens.viewmodel.MainViewModel
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.runtime.snapshotFlow
 import org.jetbrains.skia.Image
+import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
+// Packaged apps have no console, so an uncaught exception would vanish silently. Append a
+// timestamped stack trace to ~/.config/loglens/crash.log (same dir ConfigManager uses) so users
+// have something to attach to a bug report. Chained after any prior handler.
+private fun installCrashHandler() {
+    val crashLog = File(System.getProperty("user.home"), ".config/loglens/crash.log")
+    val previous = Thread.getDefaultUncaughtExceptionHandler()
+    Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+        runCatching {
+            crashLog.parentFile?.mkdirs()
+            crashLog.appendText(
+                buildString {
+                    append(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                    append(" [").append(thread.name).append("] ")
+                    appendLine(throwable.toString())
+                    throwable.stackTrace.forEach { appendLine("\tat $it") }
+                    appendLine()
+                },
+            )
+        }
+        System.err.println("loglens: uncaught exception on ${thread.name}: ${throwable.message}")
+        previous?.uncaughtException(thread, throwable)
+    }
+}
+
+@OptIn(FlowPreview::class)
 fun main() = application {
+    installCrashHandler()
     // The window/taskbar icon. A 256px source so it stays crisp on HiDPI displays, where the
     // window manager scales it up rather than rendering a blurry low-res bitmap.
     val icon = remember {

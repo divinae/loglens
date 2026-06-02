@@ -75,6 +75,7 @@ import org.jetbrains.jewel.ui.component.CheckboxRow
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Divider
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.ui.component.Dropdown
 import org.jetbrains.jewel.ui.component.OutlinedButton
 import org.jetbrains.jewel.ui.component.RadioButtonRow
@@ -368,6 +369,7 @@ private fun DeleteButton(onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun FilterEditor(
     rule: FilterRule,

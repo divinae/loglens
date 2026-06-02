@@ -25,6 +25,12 @@ dependencyResolutionManagement {
             }
             maven("https://www.jetbrains.com/intellij-repository/releases")
         }
+        // Jewel 0.37 targets the IntelliJ 262 (2026.2 EAP) platform, whose `icons` artifact
+        // (262.x) is published only to the snapshots repo, not releases. Scoped to the IntelliJ
+        // group so we don't pull unrelated snapshot builds.
+        maven("https://www.jetbrains.com/intellij-repository/snapshots") {
+            mavenContent { includeGroupAndSubgroups("com.jetbrains.intellij") }
+        }
         mavenCentral()
     }
 }
