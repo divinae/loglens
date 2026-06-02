@@ -1,3 +1,5 @@
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JvmVendorSpec
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -25,7 +27,12 @@ val fullVersion = "$appVersion+$gitSha"
 kotlin {
     jvm()
 
-    jvmToolchain(21)
+    // JetBrains Runtime so the app has a native Wayland AWT toolkit (WLToolkit); used for compile,
+    // run, and the bundled jpackage runtime. Provisioned via the foojay resolver in settings.
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+        vendor.set(JvmVendorSpec.JETBRAINS)
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -52,9 +59,17 @@ kotlin {
 }
 
 
+// JBR launcher (native Wayland AWT) for the run task and the jpackage runtime image. The Kotlin
+// jvmToolchain above already builds against JBR, but Compose's run/package tasks don't inherit it.
+val jbrLauncher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(21))
+    vendor.set(JvmVendorSpec.JETBRAINS)
+}
+
 compose.desktop {
     application {
         mainClass = "com.dv.loglens.MainKt"
+        javaHome = jbrLauncher.get().metadata.installationPath.asFile.absolutePath
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
@@ -85,6 +100,12 @@ compose.desktop {
             }
         }
     }
+}
+
+// Run LogLens on JBR so `./gradlew run` is a native Wayland client too (not just packaged builds).
+// Compose's run task is a JavaExec; point its launcher at the JBR toolchain.
+tasks.withType<JavaExec>().configureEach {
+    javaLauncher.set(jbrLauncher)
 }
 
 val generateBuildInfo by tasks.registering {
