@@ -58,6 +58,8 @@ fun TopBar(
     isCapturing: Boolean,
     onToggleCapture: () -> Unit,
     onTakeScreenshot: () -> Unit,
+    isRecording: Boolean,
+    onToggleRecording: () -> Unit,
     onSaveLogs: (filtered: Boolean, asLogcat: Boolean) -> Unit,
     onOpenLogs: () -> Unit,
     loadedFile: String?,
@@ -85,6 +87,14 @@ fun TopBar(
     onSetOpenScreenshotAfterCapture: (Boolean) -> Unit,
     adbPath: String,
     onSetAdbPath: (String) -> Unit,
+    recordingDir: String,
+    onSetRecordingDir: (String) -> Unit,
+    recordingShowTaps: Boolean,
+    onSetRecordingShowTaps: (Boolean) -> Unit,
+    recordingBitrateMbps: Int,
+    onSetRecordingBitrateMbps: (Int) -> Unit,
+    recordingSize: String,
+    onSetRecordingSize: (String) -> Unit,
     onShowShortcuts: () -> Unit,
 ) {
     val activeAccent = Color(0xFF3592FF)
@@ -190,6 +200,19 @@ fun TopBar(
             ) {
                 Text("Screenshot device")
             }
+
+            ToggleableIconActionButton(
+                key = if (isRecording) AllIconsKeys.Run.Stop else AllIconsKeys.Nodes.Record,
+                contentDescription = if (isRecording) "Stop recording" else "Record screen",
+                value = isRecording,
+                onValueChange = { onToggleRecording() },
+                modifier = activeBorder(isRecording),
+                colorFilter = ColorFilter.tint(if (isRecording) Color(0xFFE5484D) else inactiveTint),
+                tooltipStyle = tooltipStyle,
+                tooltipPlacement = belowPlacement,
+            ) {
+                Text(if (isRecording) "Stop recording" else "Record screen")
+            }
         }
 
         ToggleableIconActionButton(
@@ -239,6 +262,14 @@ fun TopBar(
                 onSetOpenScreenshotAfterCapture = onSetOpenScreenshotAfterCapture,
                 adbPath = adbPath,
                 onSetAdbPath = onSetAdbPath,
+                recordingDir = recordingDir,
+                onSetRecordingDir = onSetRecordingDir,
+                recordingShowTaps = recordingShowTaps,
+                onSetRecordingShowTaps = onSetRecordingShowTaps,
+                recordingBitrateMbps = recordingBitrateMbps,
+                onSetRecordingBitrateMbps = onSetRecordingBitrateMbps,
+                recordingSize = recordingSize,
+                onSetRecordingSize = onSetRecordingSize,
                 onShowShortcuts = onShowShortcuts,
             )
         }

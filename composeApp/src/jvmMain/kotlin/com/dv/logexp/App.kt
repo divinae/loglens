@@ -102,6 +102,20 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val screenshotDir by viewModel.screenshotDir.collectAsState()
     val openScreenshotAfterCapture by viewModel.openScreenshotAfterCapture.collectAsState()
     val adbPath by viewModel.adbPath.collectAsState()
+    val recordingDir by viewModel.recordingDir.collectAsState()
+    val isRecording by viewModel.isRecording.collectAsState()
+    val recordingShowTaps by viewModel.recordingShowTaps.collectAsState()
+    val recordingBitrateMbps by viewModel.recordingBitrateMbps.collectAsState()
+    val recordingSize by viewModel.recordingSize.collectAsState()
+
+    // Open a finished recording in the default player, reusing the screenshot "open after capture" toggle.
+    LaunchedEffect(Unit) {
+        viewModel.recordingSaved.collect { file ->
+            if (openScreenshotAfterCapture) {
+                runCatching { ProcessBuilder("xdg-open", file.absolutePath).start() }
+            }
+        }
+    }
     val logBuffers by viewModel.logBuffers.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
@@ -267,6 +281,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onClear = viewModel::clearLogs,
                 isCapturing = isCapturing,
                 onToggleCapture = viewModel::toggleCapture,
+                isRecording = isRecording,
+                onToggleRecording = viewModel::toggleRecording,
                 onTakeScreenshot = {
                     val serial = selectedDevice
                     val dir = File(screenshotDir.ifBlank { "${System.getProperty("user.home")}/Pictures/android" })
@@ -339,6 +355,14 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onSetOpenScreenshotAfterCapture = viewModel::setOpenScreenshotAfterCapture,
                 adbPath = adbPath,
                 onSetAdbPath = viewModel::setAdbPath,
+                recordingDir = recordingDir,
+                onSetRecordingDir = viewModel::setRecordingDir,
+                recordingShowTaps = recordingShowTaps,
+                onSetRecordingShowTaps = viewModel::setRecordingShowTaps,
+                recordingBitrateMbps = recordingBitrateMbps,
+                onSetRecordingBitrateMbps = viewModel::setRecordingBitrateMbps,
+                recordingSize = recordingSize,
+                onSetRecordingSize = viewModel::setRecordingSize,
                 onShowShortcuts = { showShortcutsDialog = true },
             )
 

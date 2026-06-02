@@ -32,16 +32,21 @@ import com.dv.logexp.service.Adb
 import com.dv.logexp.service.DeviceService
 import com.dv.logexp.service.LogcatService
 import com.dv.logexp.service.PackageService
+import com.dv.logexp.service.ScreenRecordingService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val FLUSH_INTERVAL_MS = 40L
@@ -111,6 +116,29 @@ class MainViewModel(
     /** Path to the adb executable; blank means "adb" from PATH. */
     private val _adbPath = MutableStateFlow("")
     val adbPath = _adbPath.asStateFlow()
+
+    /** Directory device screen recordings are saved to; blank means the default (~/Videos/android). */
+    private val _recordingDir = MutableStateFlow("")
+    val recordingDir = _recordingDir.asStateFlow()
+
+    private val _isRecording = MutableStateFlow(false)
+    val isRecording = _isRecording.asStateFlow()
+
+    /** Recording options (parity with Android Studio's recorder). */
+    private val _recordingShowTaps = MutableStateFlow(false)
+    val recordingShowTaps = _recordingShowTaps.asStateFlow()
+    private val _recordingBitrateMbps = MutableStateFlow(0)
+    val recordingBitrateMbps = _recordingBitrateMbps.asStateFlow()
+    private val _recordingSize = MutableStateFlow("")
+    val recordingSize = _recordingSize.asStateFlow()
+
+    /** Emits the saved file when a recording finishes successfully, so the UI can open it. */
+    private val _recordingSaved = MutableSharedFlow<File>(extraBufferCapacity = 1)
+    val recordingSaved = _recordingSaved.asSharedFlow()
+
+    @Volatile
+    private var recordingProcess: Process? = null
+    private var recordingJob: Job? = null
 
     private val _autoFollow = MutableStateFlow(true)
     val autoFollow = _autoFollow.asStateFlow()
@@ -258,6 +286,10 @@ class MainViewModel(
         _openScreenshotAfterCapture.value = config.openScreenshotAfterCapture
         _adbPath.value = config.adbPath
         Adb.path = config.adbPath
+        _recordingDir.value = config.recordingDir
+        _recordingShowTaps.value = config.recordingShowTaps
+        _recordingBitrateMbps.value = config.recordingBitrateMbps
+        _recordingSize.value = config.recordingSize
     }
 
     private fun currentConfig(): UserConfig = UserConfig(
@@ -276,6 +308,10 @@ class MainViewModel(
         screenshotDir = _screenshotDir.value,
         openScreenshotAfterCapture = _openScreenshotAfterCapture.value,
         adbPath = _adbPath.value,
+        recordingDir = _recordingDir.value,
+        recordingShowTaps = _recordingShowTaps.value,
+        recordingBitrateMbps = _recordingBitrateMbps.value,
+        recordingSize = _recordingSize.value,
     )
 
     private fun persistConfig() {
@@ -320,6 +356,82 @@ class MainViewModel(
         persistConfig()
         // The 5s device-poll loop picks up the new binary on its own; no forced restart here so
         // typing the path char-by-char doesn't spawn a capture restart per keystroke.
+    }
+
+    fun setRecordingDir(path: String) {
+        if (_recordingDir.value == path) return
+        _recordingDir.value = path
+        persistConfig()
+    }
+
+    fun setRecordingShowTaps(value: Boolean) {
+        if (_recordingShowTaps.value == value) return
+        _recordingShowTaps.value = value
+        persistConfig()
+    }
+
+    fun setRecordingBitrateMbps(value: Int) {
+        if (_recordingBitrateMbps.value == value) return
+        _recordingBitrateMbps.value = value
+        persistConfig()
+    }
+
+    fun setRecordingSize(value: String) {
+        if (_recordingSize.value == value) return
+        _recordingSize.value = value
+        persistConfig()
+    }
+
+    fun toggleRecording() {
+        if (_isRecording.value) stopRecording() else startRecording()
+    }
+
+    private fun startRecording() {
+        val serial = _selectedDevice.value
+        if (_isRecording.value || serial == null || _loadedFile.value != null) return
+        _isRecording.value = true
+        // No ':' — illegal in sdcard (FAT/sdcardfs) filenames, screenrecord would fail to create the file.
+        val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(Date())
+        val devicePath = "/sdcard/logexp-rec-$stamp.mp4"
+        val dir = File(_recordingDir.value.ifBlank { "${System.getProperty("user.home")}/Videos/android" })
+        val target = File(dir, "rec_$stamp.mp4")
+        val showTaps = _recordingShowTaps.value
+        val bitrate = _recordingBitrateMbps.value
+        val size = _recordingSize.value
+        recordingJob = viewModelScope.launch(Dispatchers.IO) {
+            var priorTaps: String? = null
+            try {
+                if (showTaps) {
+                    priorTaps = ScreenRecordingService.getShowTouches(serial)
+                    ScreenRecordingService.setShowTouches(serial, true)
+                }
+                val proc = ScreenRecordingService.start(serial, devicePath, bitrate, size)
+                recordingProcess = proc
+                // Drain the merged output (blocks until the process ends) so the pipe never stalls
+                // and any screenrecord error surfaces.
+                val output = proc.inputStream.bufferedReader().readText()
+                proc.waitFor()
+                if (output.isNotBlank()) System.err.println("logexp: screenrecord: ${output.trim()}")
+                // Process ended (manual stop or the ~180s screenrecord limit) — fetch the file.
+                if (ScreenRecordingService.pullAndCleanup(serial, devicePath, target)) {
+                    _recordingSaved.emit(target)
+                }
+            } catch (e: Exception) {
+                System.err.println("logexp: recording failed: ${e.message}")
+            } finally {
+                // Restore the device's prior show-touches setting (don't clobber the user's choice).
+                if (showTaps) runCatching { ScreenRecordingService.setShowTouches(serial, priorTaps == "1") }
+                recordingProcess = null
+                _isRecording.value = false
+            }
+        }
+    }
+
+    private fun stopRecording() {
+        val serial = _selectedDevice.value
+        // SIGINT the on-device process so the mp4 is finalized; destroy() is only a backstop.
+        viewModelScope.launch(Dispatchers.IO) { ScreenRecordingService.signalStop(serial) }
+        recordingProcess?.destroy()
     }
 
     /** Toggle one adb buffer. Refuses to clear the last one, then restarts capture from the new source. */

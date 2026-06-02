@@ -57,10 +57,19 @@ fun SettingsMenu(
     onSetOpenScreenshotAfterCapture: (Boolean) -> Unit,
     adbPath: String,
     onSetAdbPath: (String) -> Unit,
+    recordingDir: String,
+    onSetRecordingDir: (String) -> Unit,
+    recordingShowTaps: Boolean,
+    onSetRecordingShowTaps: (Boolean) -> Unit,
+    recordingBitrateMbps: Int,
+    onSetRecordingBitrateMbps: (Int) -> Unit,
+    recordingSize: String,
+    onSetRecordingSize: (String) -> Unit,
     onShowShortcuts: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showBuffers by remember { mutableStateOf(false) }
+    var showRecordingOptions by remember { mutableStateOf(false) }
     val fontOptions = remember {
         (LOGICAL_FONTS + SystemFonts.list()).distinct()
     }
@@ -216,8 +225,27 @@ fun SettingsMenu(
                 }
 
                 passiveItem {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Recording dir", modifier = Modifier.padding(end = 8.dp))
+                        val recState = rememberTextFieldState(recordingDir)
+                        LaunchedEffect(recState.text) {
+                            val text = recState.text.toString()
+                            if (text != recordingDir) onSetRecordingDir(text)
+                        }
+                        TextField(
+                            state = recState,
+                            placeholder = { Text("~/Videos/android") },
+                            modifier = Modifier.width(220.dp),
+                        )
+                    }
+                }
+
+                passiveItem {
                     CheckboxRow(
-                        text = "Open screenshot after capture",
+                        text = "Open file after capture",
                         checked = openScreenshotAfterCapture,
                         onCheckedChange = onSetOpenScreenshotAfterCapture,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -238,6 +266,21 @@ fun SettingsMenu(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text("Log buffers...") }
+                    }
+                }
+
+                passiveItem {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                expanded = false
+                                showRecordingOptions = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Recording options...") }
                     }
                 }
 
@@ -267,6 +310,18 @@ fun SettingsMenu(
             logBuffers = logBuffers,
             onToggleLogBuffer = onToggleLogBuffer,
             onDismiss = { showBuffers = false },
+        )
+    }
+
+    if (showRecordingOptions) {
+        RecordingOptionsDialog(
+            showTaps = recordingShowTaps,
+            onSetShowTaps = onSetRecordingShowTaps,
+            bitrateMbps = recordingBitrateMbps,
+            onSetBitrate = onSetRecordingBitrateMbps,
+            size = recordingSize,
+            onSetSize = onSetRecordingSize,
+            onDismiss = { showRecordingOptions = false },
         )
     }
 }
