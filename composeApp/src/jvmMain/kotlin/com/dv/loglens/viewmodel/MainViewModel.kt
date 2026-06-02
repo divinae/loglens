@@ -728,27 +728,34 @@ class MainViewModel(
                                 }
                                 foldCurrent = merged
                             } else {
-                                // New record (recognised header, or an orphan continuation with no
-                                // current record → standalone D entry, as in LogParser.parseLog).
-                                val entry = header?.copy(id = nextLogId.getAndIncrement())
-                                    ?: LogEntry(
-                                        id = nextLogId.getAndIncrement(),
-                                        content = cap.raw,
-                                        message = cap.raw,
-                                        level = "D",
-                                    )
-                                logs.add(entry)
-                                foldLogsIdx = logs.lastIndex
-                                if (matches(entry)) {
-                                    filteredLogs.add(entry)
-                                    foldFilteredIdx = filteredLogs.lastIndex
+                                val isSep = LogParser.isSeparator(cap.raw)
+                                val prev = if (foldLogsIdx >= 0) logs[foldLogsIdx] else null
+                                // Recognised header, or an orphan continuation with no current record
+                                // → standalone D entry, as in LogParser.parseLog. id assigned only if
+                                // we actually add it (a dedup bump consumes no id).
+                                val candidate = header
+                                    ?: LogEntry(id = 0, content = cap.raw, message = cap.raw, level = "D")
+                                if (prev != null && !isSep && candidate.sameLogAs(prev)) {
+                                    // Same log again back-to-back: bump the count in place, no new row.
+                                    val bumped = prev.copy(repeatCount = prev.repeatCount + 1)
+                                    logs[foldLogsIdx] = bumped
+                                    if (foldFilteredIdx >= 0) filteredLogs[foldFilteredIdx] = bumped
+                                    foldCurrent = if (header != null) bumped else null
                                 } else {
-                                    foldFilteredIdx = -1
+                                    val entry = candidate.copy(id = nextLogId.getAndIncrement())
+                                    logs.add(entry)
+                                    foldLogsIdx = logs.lastIndex
+                                    if (matches(entry)) {
+                                        filteredLogs.add(entry)
+                                        foldFilteredIdx = filteredLogs.lastIndex
+                                    } else {
+                                        foldFilteredIdx = -1
+                                    }
+                                    if (CrashDetector.isCrash(entry)) registerCrash(entry.id)
+                                    // A separator collects no continuations, so trailing text isn't
+                                    // glued onto an unrelated record.
+                                    foldCurrent = if (header != null && !isSep) entry else null
                                 }
-                                if (CrashDetector.isCrash(entry)) registerCrash(entry.id)
-                                // A separator collects no continuations, so trailing text isn't glued
-                                // onto an unrelated record.
-                                foldCurrent = if (header != null && !LogParser.isSeparator(cap.raw)) entry else null
                             }
                         }
                     }

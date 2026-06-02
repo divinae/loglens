@@ -82,18 +82,23 @@ object LogParser {
         for (raw in lines) {
             if (raw.isBlank()) continue
             val header = parseHeader(id, raw, pidToPackage)
+            val isSep = isSeparator(raw)
+            val candidate = header ?: LogEntry(id = id, content = raw, message = raw, level = "D")
+            val prev = out.lastOrNull()
             if (current != null && shouldFold(current, header, raw)) {
                 val merged = foldContinuation(current, raw, header?.message ?: raw)
                 out[out.lastIndex] = merged
                 current = merged
-            } else if (header != null) {
-                out.add(header)
-                id++
-                current = if (isSeparator(raw)) null else header
+            } else if (prev != null && !isSep && candidate.sameLogAs(prev)) {
+                // Same log printed again back-to-back: bump the count instead of a duplicate row.
+                val bumped = prev.copy(repeatCount = prev.repeatCount + 1)
+                out[out.lastIndex] = bumped
+                current = if (header != null) bumped else null
             } else {
-                out.add(LogEntry(id = id, content = raw, message = raw, level = "D"))
+                out.add(candidate)
                 id++
-                current = null
+                // Only a real record collects continuations; a separator or orphan line resets.
+                current = if (header != null && !isSep) candidate else null
             }
         }
         return out

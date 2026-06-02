@@ -87,6 +87,36 @@ class LogParserTest {
     }
 
     @Test
+    fun coalescesConsecutiveIdenticalLogs() {
+        val lines = """
+            06-02 10:00:00.000  1  1 I Tag: same message
+            06-02 10:00:00.100  1  1 I Tag: same message
+            06-02 10:00:00.200  1  1 I Tag: same message
+            06-02 10:00:00.300  1  1 I Tag: different
+        """.trimIndent().lineSequence()
+
+        val parsed = LogParser.parseLog(lines)
+
+        assertEquals(2, parsed.size)
+        assertEquals(3, parsed[0].repeatCount)
+        assertEquals("same message", parsed[0].message)
+        assertEquals(1, parsed[1].repeatCount)
+        assertEquals("different", parsed[1].message)
+    }
+
+    @Test
+    fun nonConsecutiveDuplicatesAreNotCoalesced() {
+        val lines = """
+            06-02 10:00:00.000  1  1 I Tag: a
+            06-02 10:00:00.100  1  1 I Tag: b
+            06-02 10:00:00.200  1  1 I Tag: a
+        """.trimIndent().lineSequence()
+        val parsed = LogParser.parseLog(lines)
+        assertEquals(3, parsed.size)
+        assertTrue(parsed.all { it.repeatCount == 1 })
+    }
+
+    @Test
     fun parseLineReturnsNullForContinuation() {
         assertEquals(null, LogParser.parseLine("\tat com.foo.Bar.baz(Bar.java:42)", emptyMap()))
         val header = LogParser.parseLine("06-02 10:00:00.000  1  1 E AndroidRuntime: FATAL EXCEPTION: main", emptyMap())

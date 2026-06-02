@@ -3,6 +3,7 @@ package com.dv.loglens.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -105,8 +106,9 @@ fun LogRow(
     isCrash: Boolean = false,
 ) {
     val color = logLevelColor(log.level, isDarkMode)
-    // A folded record (stack trace / crash dump) carries newlines; it collapses to its first line.
-    val multiline = '\n' in log.message
+    // Only offer collapse for records worth it: a crash dump, or enough folded lines that hiding them
+    // helps. Short multi-line messages (e.g. a 2-line warning) render normally without a fold link.
+    val foldable = isCrash || log.message.count { it == '\n' } >= COLLAPSE_MIN_NEWLINES
     val resolvedWeight = remember(fontWeight) { FontWeight(FontWeightPreset.fromName(fontWeight).weight) }
     val backgroundColor = when {
         isSelected && isDarkMode -> ROW_SELECTED_DARK
@@ -223,12 +225,13 @@ fun LogRow(
                     onActivate = { onActivateCell(column) },
                     modifier = cellModifier,
                 ) {
-                    // A multiline record (folded stack trace) collapses to its first line with a
-                    // chevron; expanding shows the whole trace regardless of the soft-wrap setting.
-                    val multiline = column == LogColumn.MESSAGE && '\n' in log.message
-                    val collapsed = multiline && !isExpanded
+                    // A foldable record (crash dump / long stack trace) collapses to its first line
+                    // with a link; expanding shows the whole thing regardless of the soft-wrap setting.
+                    val cellFoldable = column == LogColumn.MESSAGE && foldable
+                    val hasHidden = '\n' in text
+                    val collapsed = cellFoldable && hasHidden && !isExpanded
                     val shown = if (collapsed) text.substringBefore('\n') else text
-                    val wrapEffective = if (multiline) isExpanded else wrap
+                    val wrapEffective = if (cellFoldable && hasHidden) isExpanded else wrap
 
                     @Composable
                     fun body() {
@@ -260,7 +263,8 @@ fun LogRow(
                         }
                     }
 
-                    if (column == LogColumn.MESSAGE && (multiline || isCrash)) {
+                    val showRepeat = column == LogColumn.MESSAGE && log.repeatCount > 1
+                    if (cellFoldable || showRepeat) {
                         Row(verticalAlignment = Alignment.Top) {
                             if (isCrash) {
                                 Text(
@@ -270,8 +274,22 @@ fun LogRow(
                                     modifier = Modifier.padding(end = 3.dp),
                                 )
                             }
-                            // weight(1f) so body fills and the count + chevron sit at the right edge.
+                            // weight(1f) so body fills and the badges sit at the right edge.
                             Box(Modifier.weight(1f)) { body() }
+                            if (showRepeat) {
+                                // Pill badge for back-to-back duplicates coalesced into this one row.
+                                val pill = linkColor(isDarkMode)
+                                Text(
+                                    "×${log.repeatCount}",
+                                    color = pill,
+                                    fontSize = (fontSize.value - 1).sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .padding(start = 4.dp)
+                                        .background(pill.copy(alpha = 0.12f), RoundedCornerShape(50))
+                                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                                )
+                            }
                             if (collapsed) {
                                 Text(
                                     "+${log.message.count { it == '\n' }}",
@@ -284,7 +302,7 @@ fun LogRow(
                             // single-line logs reserve no space. Same font + top alignment as the
                             // text so it lines up exactly; horizontal padding widens the hit target
                             // without changing the row height.
-                            if (multiline) {
+                            if (hasHidden) {
                                 Text(
                                     if (isExpanded) "collapse" else "expand",
                                     color = linkColor(isDarkMode),
@@ -384,6 +402,10 @@ private fun SelectableLogCell(
             },
     )
 }
+
+// Minimum folded newline count for a non-crash record to get the collapse affordance; below this a
+// multi-line message just renders in full, so ordinary 2–3 line logs don't sprout an expand link.
+private const val COLLAPSE_MIN_NEWLINES = 3
 
 /** Colour of the crash/ANR marker glyph; a saturated red that reads on both themes. */
 private fun crashColor(isDarkMode: Boolean): Color =
