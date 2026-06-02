@@ -99,6 +99,14 @@ class MainViewModel(
     private val _searchHistory = MutableStateFlow<List<String>>(emptyList())
     val searchHistory = _searchHistory.asStateFlow()
 
+    /** Directory device screenshots are saved to; blank means the default (~/Pictures/android). */
+    private val _screenshotDir = MutableStateFlow("")
+    val screenshotDir = _screenshotDir.asStateFlow()
+
+    /** Whether to open the screenshot in the default image viewer after capture. */
+    private val _openScreenshotAfterCapture = MutableStateFlow(true)
+    val openScreenshotAfterCapture = _openScreenshotAfterCapture.asStateFlow()
+
     private val _autoFollow = MutableStateFlow(true)
     val autoFollow = _autoFollow.asStateFlow()
 
@@ -202,7 +210,8 @@ class MainViewModel(
     }
 
     fun selectDevice(serial: String?) {
-        if (_selectedDevice.value == serial) return
+        // Re-selecting the same device must still switch back to live when a file is loaded.
+        if (_selectedDevice.value == serial && _loadedFile.value == null) return
         _selectedDevice.value = serial
         restartCapture(clearLogs = true)
         if (serial != null) refreshPackages()
@@ -240,6 +249,8 @@ class MainViewModel(
         _searchQuery.value = config.searchQuery
         parsedQuery = LogQuery.parse(config.searchQuery)
         _searchQueryError.value = parsedQuery.error
+        _screenshotDir.value = config.screenshotDir
+        _openScreenshotAfterCapture.value = config.openScreenshotAfterCapture
     }
 
     private fun currentConfig(): UserConfig = UserConfig(
@@ -255,6 +266,8 @@ class MainViewModel(
         quickFilterVisible = _quickFilterVisible.value,
         logBuffers = _logBuffers.value,
         searchQuery = _searchQuery.value,
+        screenshotDir = _screenshotDir.value,
+        openScreenshotAfterCapture = _openScreenshotAfterCapture.value,
     )
 
     private fun persistConfig() {
@@ -277,6 +290,18 @@ class MainViewModel(
     fun setQuickFilterVisible(value: Boolean) {
         if (_quickFilterVisible.value == value) return
         _quickFilterVisible.value = value
+        persistConfig()
+    }
+
+    fun setScreenshotDir(path: String) {
+        if (_screenshotDir.value == path) return
+        _screenshotDir.value = path
+        persistConfig()
+    }
+
+    fun setOpenScreenshotAfterCapture(value: Boolean) {
+        if (_openScreenshotAfterCapture.value == value) return
+        _openScreenshotAfterCapture.value = value
         persistConfig()
     }
 

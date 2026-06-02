@@ -49,7 +49,12 @@ import com.dv.logexp.model.ThemeMode
 import com.dv.logexp.model.cell
 import com.dv.logexp.service.SystemFonts
 import com.dv.logexp.parser.LogcatExporter
+import com.dv.logexp.service.ScreenshotService
 import com.dv.logexp.util.FilePicker
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import javax.imageio.ImageIO
 import com.dv.logexp.util.copyToClipboard
 import com.dv.logexp.ui.QuickFilterBar
 import com.dv.logexp.ui.FilterBar
@@ -94,6 +99,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchQueryError by viewModel.searchQueryError.collectAsState()
     val searchHistory by viewModel.searchHistory.collectAsState()
+    val screenshotDir by viewModel.screenshotDir.collectAsState()
+    val openScreenshotAfterCapture by viewModel.openScreenshotAfterCapture.collectAsState()
     val logBuffers by viewModel.logBuffers.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
@@ -259,6 +266,20 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 onClear = viewModel::clearLogs,
                 isCapturing = isCapturing,
                 onToggleCapture = viewModel::toggleCapture,
+                onTakeScreenshot = {
+                    val serial = selectedDevice
+                    val dir = File(screenshotDir.ifBlank { "${System.getProperty("user.home")}/Pictures/android" })
+                    val stamp = SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date())
+                    val target = File(dir, "scr_$stamp.png")
+                    scope.launch(Dispatchers.IO) {
+                        if (ScreenshotService.capture(serial, target)) {
+                            runCatching { ImageIO.read(target)?.let(::copyToClipboard) }
+                            if (openScreenshotAfterCapture) {
+                                runCatching { ProcessBuilder("xdg-open", target.absolutePath).start() }
+                            }
+                        }
+                    }
+                },
                 onSaveLogs = { filtered, asLogcat ->
                     // Snapshot now: the source list keeps growing during capture while IO runs.
                     val snapshot = (if (filtered) filteredLogs else logs).toList()
@@ -311,6 +332,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 totalLogCount = logs.size,
                 logBuffers = logBuffers,
                 onToggleLogBuffer = viewModel::toggleLogBuffer,
+                screenshotDir = screenshotDir,
+                onSetScreenshotDir = viewModel::setScreenshotDir,
+                openScreenshotAfterCapture = openScreenshotAfterCapture,
+                onSetOpenScreenshotAfterCapture = viewModel::setOpenScreenshotAfterCapture,
                 onShowShortcuts = { showShortcutsDialog = true },
             )
 

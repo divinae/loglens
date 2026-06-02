@@ -16,6 +16,8 @@ data class UserConfig(
     val quickFilterVisible: Boolean = true,
     val logBuffers: Set<LogBuffer> = DEFAULT_LOG_BUFFERS,
     val searchQuery: String = "",
+    val screenshotDir: String = "",
+    val openScreenshotAfterCapture: Boolean = true,
 )
 
 const val DEFAULT_FILTERS_LIST_WIDTH: Float = 280f

@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +29,7 @@ import org.jetbrains.jewel.ui.component.ListComboBox
 import org.jetbrains.jewel.ui.component.OutlinedButton
 import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.TextField
 import org.jetbrains.jewel.ui.component.separator
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
@@ -48,6 +51,10 @@ fun SettingsMenu(
     onSetAlwaysShowBookmarks: (Boolean) -> Unit,
     logBuffers: Set<LogBuffer>,
     onToggleLogBuffer: (LogBuffer) -> Unit,
+    screenshotDir: String,
+    onSetScreenshotDir: (String) -> Unit,
+    openScreenshotAfterCapture: Boolean,
+    onSetOpenScreenshotAfterCapture: (Boolean) -> Unit,
     onShowShortcuts: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -162,6 +169,36 @@ fun SettingsMenu(
                         text = "Always show bookmarks",
                         checked = alwaysShowBookmarks,
                         onCheckedChange = onSetAlwaysShowBookmarks,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+
+                separator()
+
+                passiveItem {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Screenshot dir", modifier = Modifier.padding(end = 8.dp))
+                        val dirState = rememberTextFieldState(screenshotDir)
+                        LaunchedEffect(dirState.text) {
+                            val text = dirState.text.toString()
+                            if (text != screenshotDir) onSetScreenshotDir(text)
+                        }
+                        TextField(
+                            state = dirState,
+                            placeholder = { Text("~/Pictures/android") },
+                            modifier = Modifier.width(220.dp),
+                        )
+                    }
+                }
+
+                passiveItem {
+                    CheckboxRow(
+                        text = "Open screenshot after capture",
+                        checked = openScreenshotAfterCapture,
+                        onCheckedChange = onSetOpenScreenshotAfterCapture,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }

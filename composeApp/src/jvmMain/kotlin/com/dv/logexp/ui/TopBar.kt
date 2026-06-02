@@ -57,6 +57,7 @@ fun TopBar(
     onClear: () -> Unit,
     isCapturing: Boolean,
     onToggleCapture: () -> Unit,
+    onTakeScreenshot: () -> Unit,
     onSaveLogs: (filtered: Boolean, asLogcat: Boolean) -> Unit,
     onOpenLogs: () -> Unit,
     loadedFile: String?,
@@ -78,12 +79,17 @@ fun TopBar(
     totalLogCount: Int,
     logBuffers: Set<LogBuffer>,
     onToggleLogBuffer: (LogBuffer) -> Unit,
+    screenshotDir: String,
+    onSetScreenshotDir: (String) -> Unit,
+    openScreenshotAfterCapture: Boolean,
+    onSetOpenScreenshotAfterCapture: (Boolean) -> Unit,
     onShowShortcuts: () -> Unit,
 ) {
     val activeAccent = Color(0xFF3592FF)
     val inactiveTint = JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)
     fun activeBorder(active: Boolean): Modifier =
         if (active) Modifier.border(1.dp, activeAccent, RoundedCornerShape(4.dp)) else Modifier
+
     fun iconTint(active: Boolean): ColorFilter =
         ColorFilter.tint(if (active) activeAccent else inactiveTint)
 
@@ -170,6 +176,20 @@ fun TopBar(
 
         Spacer(Modifier.weight(1f))
 
+        // Device screenshot — only meaningful with a live device source.
+        if (loadedFile == null && selectedDevice != null) {
+            IconActionButton(
+                key = AllIconsKeys.Actions.ViewAsImage,
+                contentDescription = "Screenshot device",
+                onClick = onTakeScreenshot,
+                colorFilter = iconTint(false),
+                tooltipStyle = tooltipStyle,
+                tooltipPlacement = belowPlacement,
+            ) {
+                Text("Screenshot device")
+            }
+        }
+
         ToggleableIconActionButton(
             key = AllIconsKeys.RunConfigurations.Scroll_down,
             contentDescription = if (autoFollow) "Auto-follow on" else "Auto-follow off",
@@ -211,6 +231,10 @@ fun TopBar(
                 onSetAlwaysShowBookmarks = onSetAlwaysShowBookmarks,
                 logBuffers = logBuffers,
                 onToggleLogBuffer = onToggleLogBuffer,
+                screenshotDir = screenshotDir,
+                onSetScreenshotDir = onSetScreenshotDir,
+                openScreenshotAfterCapture = openScreenshotAfterCapture,
+                onSetOpenScreenshotAfterCapture = onSetOpenScreenshotAfterCapture,
                 onShowShortcuts = onShowShortcuts,
             )
         }
