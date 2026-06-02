@@ -6,7 +6,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -118,6 +121,8 @@ fun LogRow(
     }
     val findHighlightColor = if (isDarkMode) Color(0xFF5A4A1F) else Color(0xFFFFF59D)
     var messageOverflows by remember { mutableStateOf(false) }
+    // Press position of a right-click that landed on an empty gutter, anchoring the fallback menu.
+    var rowMenuOffset by remember { mutableStateOf<IntOffset?>(null) }
     val popupBg = islandsPopup(isDarkMode)
     val borderColor = JewelTheme.globalColors.borders.normal
     val textColor = JewelTheme.globalColors.text.normal
@@ -157,14 +162,23 @@ fun LogRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                // Min intrinsic height lets each cell fillMaxHeight() to the row's full height, so a
+                // right-click anywhere in a column (not just on the text) still hits its cell.
+                .height(IntrinsicSize.Min)
                 .background(backgroundColor)
                 .onPointerEvent(PointerEventType.Press) {
-                    // A cell double-click consumes the press to enter selection mode; don't also toggle the row.
-                    if (it.changes.firstOrNull()?.isConsumed == true) return@onPointerEvent
+                    // Right-click always selects the row (even when a cell consumed the press to show
+                    // its own menu); only open the row's fallback menu for empty gutters.
                     if (it.buttons.isSecondaryPressed) {
                         if (!isSelected) onSelect(false, false)
+                        if (it.changes.firstOrNull()?.isConsumed != true) {
+                            val pos = it.changes.firstOrNull()?.position
+                            if (pos != null) rowMenuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
+                        }
                         return@onPointerEvent
                     }
+                    // A cell double-click consumes the press to enter selection mode; don't also toggle the row.
+                    if (it.changes.firstOrNull()?.isConsumed == true) return@onPointerEvent
                     val multi = it.keyboardModifiers.isCtrlPressed || it.keyboardModifiers.isMetaPressed
                     val range = it.keyboardModifiers.isShiftPressed
                     onSelect(multi, range)
@@ -172,6 +186,27 @@ fun LogRow(
                 .padding(vertical = 1.dp)
                 .padding(horizontal = 8.dp)
         ) {
+            rowMenuOffset?.let { off ->
+                val copyMulti = isSelected && selectedCount > 1
+                CellContextMenu(
+                    column = LogColumn.MESSAGE,
+                    value = log.message,
+                    onAddFilter = onAddFilter,
+                    onCopyCell = {
+                        if (copyMulti) onCopyColumnSelected(LogColumn.MESSAGE) else copyToClipboard(log.message)
+                    },
+                    copyCellLabel = if (copyMulti) "Copy Message ($selectedCount rows)" else "Copy Message",
+                    onCopyRow = { if (copyMulti) onCopySelected() else copyToClipboard(log.content) },
+                    copyRowLabel = if (copyMulti) "Copy $selectedCount rows" else "Copy row",
+                    isBookmarked = isBookmarked,
+                    onToggleBookmark = onToggleBookmark,
+                    jsonFontFamily = fontFamily,
+                    jsonFontSize = fontSize,
+                    jsonCandidate = { if (copyMulti) selectedMessages() else log.message },
+                    offset = off,
+                    onDismiss = { rowMenuOffset = null },
+                )
+            }
             Box(Modifier.width(12.dp).align(Alignment.Top).padding(top = 2.dp)) {
                 if (isBookmarked) {
                     Icon(
@@ -188,10 +223,9 @@ fun LogRow(
                 val text = log.cell(column)
 
                 val cellModifier = if (column == LogColumn.MESSAGE) {
-
-                    Modifier.weight(1f)
+                    Modifier.weight(1f).fillMaxHeight()
                 } else {
-                    Modifier.width((columnWidths[column] ?: 100f).dp)
+                    Modifier.width((columnWidths[column] ?: 100f).dp).fillMaxHeight()
                 }
                 val wrap = column == LogColumn.MESSAGE && softWrap
                 val cellActive = activeCell?.first == log.id && activeCell.second == column

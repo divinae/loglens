@@ -62,33 +62,11 @@ internal fun FilterableCell(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val filterBuilder = if (value.isNotBlank()) ruleBuilder(column, value) else null
-    val filterLabel = labelFor(column, value)
-    val copyItems = buildList {
-        if (value.isNotEmpty()) {
-            add(FilterMenuItem(copyCellLabel, AllIconsKeys.Actions.Copy, onCopyCell))
-        }
-        add(FilterMenuItem(copyRowLabel, AllIconsKeys.Actions.Copy, onCopyRow))
-    }
-    val bookmarkItem = FilterMenuItem(
-        if (isBookmarked) "Remove bookmark" else "Add bookmark",
-        if (isBookmarked) AllIconsKeys.Actions.Cancel else AllIconsKeys.Nodes.Bookmark,
-        onToggleBookmark,
-    )
     var showMenu by remember { mutableStateOf(false) }
     var menuOffset by remember { mutableStateOf(IntOffset.Zero) }
-    var jsonDialog by remember { mutableStateOf<String?>(null) }
     // Manual double-click detection (desktop awtEvent.clickCount is unreliable across CMP versions).
     var lastPressTime by remember { mutableStateOf(0L) }
     var lastPressPos by remember { mutableStateOf(Offset.Zero) }
-    jsonDialog?.let { json ->
-        JsonViewerDialog(
-            json = json,
-            fontFamily = jsonFontFamily,
-            fontSize = jsonFontSize,
-            onDismiss = { jsonDialog = null },
-        )
-    }
     Box(
         modifier = modifier.onPointerEvent(PointerEventType.Press) { event ->
             val change = event.changes.firstOrNull() ?: return@onPointerEvent
@@ -96,6 +74,8 @@ internal fun FilterableCell(
                 val pos = change.position
                 menuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
                 showMenu = true
+                // Consume so the row's fallback context menu doesn't also fire for this cell.
+                change.consume()
                 return@onPointerEvent
             }
             if (event.buttons.isPrimaryPressed) {
@@ -114,96 +94,159 @@ internal fun FilterableCell(
     ) {
         content()
         if (showMenu) {
-            PopupMenu(
-                onDismissRequest = { showMenu = false; true },
-                popupPositionProvider = CursorPositionProvider(menuOffset),
+            CellContextMenu(
+                column = column,
+                value = value,
+                onAddFilter = onAddFilter,
+                onCopyCell = onCopyCell,
+                copyCellLabel = copyCellLabel,
+                onCopyRow = onCopyRow,
+                copyRowLabel = copyRowLabel,
+                isBookmarked = isBookmarked,
+                onToggleBookmark = onToggleBookmark,
+                jsonFontFamily = jsonFontFamily,
+                jsonFontSize = jsonFontSize,
+                jsonCandidate = jsonCandidate,
+                offset = menuOffset,
+                onDismiss = { showMenu = false },
+            )
+        }
+    }
+}
+
+/**
+ * The right-click context menu for a log cell (or row), hosted inside the anchor it pops from.
+ * [offset] is the press position relative to that anchor; [CursorPositionProvider] places the popup
+ * there. Shared by [FilterableCell] and the row-level fallback so empty gutters still get a menu.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+internal fun CellContextMenu(
+    column: LogColumn,
+    value: String,
+    onAddFilter: (FilterRule) -> Unit,
+    onCopyCell: () -> Unit,
+    copyCellLabel: String,
+    onCopyRow: () -> Unit,
+    copyRowLabel: String,
+    isBookmarked: Boolean,
+    onToggleBookmark: () -> Unit,
+    jsonFontFamily: FontFamily,
+    jsonFontSize: TextUnit,
+    jsonCandidate: () -> String,
+    offset: IntOffset,
+    onDismiss: () -> Unit,
+) {
+    val filterBuilder = if (value.isNotBlank()) ruleBuilder(column, value) else null
+    val filterLabel = labelFor(column, value)
+    val copyItems = buildList {
+        if (value.isNotEmpty()) {
+            add(FilterMenuItem(copyCellLabel, AllIconsKeys.Actions.Copy, onCopyCell))
+        }
+        add(FilterMenuItem(copyRowLabel, AllIconsKeys.Actions.Copy, onCopyRow))
+    }
+    val bookmarkItem = FilterMenuItem(
+        if (isBookmarked) "Remove bookmark" else "Add bookmark",
+        if (isBookmarked) AllIconsKeys.Actions.Cancel else AllIconsKeys.Nodes.Bookmark,
+        onToggleBookmark,
+    )
+    var jsonDialog by remember { mutableStateOf<String?>(null) }
+    jsonDialog?.let { json ->
+        JsonViewerDialog(
+            json = json,
+            fontFamily = jsonFontFamily,
+            fontSize = jsonFontSize,
+            onDismiss = { jsonDialog = null },
+        )
+    }
+    PopupMenu(
+        onDismissRequest = { onDismiss(); true },
+        popupPositionProvider = CursorPositionProvider(offset),
+    ) {
+        selectableItem(
+            selected = false,
+            iconKey = bookmarkItem.icon,
+            onClick = { bookmarkItem.action(); onDismiss() },
+        ) {
+            Text(bookmarkItem.label)
+        }
+        passiveItem {
+            Divider(
+                orientation = Orientation.Horizontal,
+                thickness = 1.dp,
+                color = JewelTheme.globalColors.borders.normal,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+        }
+        copyItems.forEach { item ->
+            selectableItem(
+                selected = false,
+                iconKey = item.icon,
+                onClick = { item.action(); onDismiss() },
             ) {
-                selectableItem(
-                    selected = false,
-                    iconKey = bookmarkItem.icon,
-                    onClick = { bookmarkItem.action(); showMenu = false },
+                Text(item.label)
+            }
+        }
+        val formattedJson = formatJson(jsonCandidate())
+        if (formattedJson != null) {
+            selectableItem(
+                selected = false,
+                iconKey = AllIconsKeys.Actions.PrettyPrint,
+                onClick = { jsonDialog = formattedJson; onDismiss() },
+            ) {
+                Text("Format JSON")
+            }
+        }
+        if (copyItems.isNotEmpty() && filterBuilder != null) {
+            passiveItem {
+                Divider(
+                    orientation = Orientation.Horizontal,
+                    thickness = 1.dp,
+                    color = JewelTheme.globalColors.borders.normal,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
+        }
+        if (filterBuilder != null) {
+            selectableItem(
+                selected = false,
+                iconKey = AllIconsKeys.Actions.Show,
+                onClick = { onAddFilter(filterBuilder(FilterMode.SHOW)); onDismiss() },
+            ) {
+                Text("Show only $filterLabel")
+            }
+            selectableItem(
+                selected = false,
+                iconKey = AllIconsKeys.Actions.Cancel,
+                onClick = { onAddFilter(filterBuilder(FilterMode.HIDE)); onDismiss() },
+            ) {
+                Text("Hide $filterLabel")
+            }
+            passiveItem {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text(bookmarkItem.label)
-                }
-                passiveItem {
-                    Divider(
-                        orientation = Orientation.Horizontal,
-                        thickness = 1.dp,
-                        color = JewelTheme.globalColors.borders.normal,
-                        modifier = Modifier.padding(vertical = 4.dp),
+                    Icon(
+                        key = AllIconsKeys.Actions.Highlighting,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
                     )
-                }
-                copyItems.forEach { item ->
-                    selectableItem(
-                        selected = false,
-                        iconKey = item.icon,
-                        onClick = { item.action(); showMenu = false },
-                    ) {
-                        Text(item.label)
-                    }
-                }
-                val formattedJson = formatJson(jsonCandidate())
-                if (formattedJson != null) {
-                    selectableItem(
-                        selected = false,
-                        iconKey = AllIconsKeys.Actions.PrettyPrint,
-                        onClick = { jsonDialog = formattedJson; showMenu = false },
-                    ) {
-                        Text("Format JSON")
-                    }
-                }
-                if (copyItems.isNotEmpty() && filterBuilder != null) {
-                    passiveItem {
-                        Divider(
-                            orientation = Orientation.Horizontal,
-                            thickness = 1.dp,
-                            color = JewelTheme.globalColors.borders.normal,
-                            modifier = Modifier.padding(vertical = 4.dp),
+                    Text("Highlight", modifier = Modifier.padding(start = 4.dp, end = 4.dp))
+                    HIGHLIGHT_COLORS.forEach { (color, _) ->
+                        Box(
+                            Modifier
+                                .size(16.dp)
+                                .background(Color(color.toInt()), CircleShape)
+                                .border(1.dp, Color.Gray, CircleShape)
+                                .clickable {
+                                    onAddFilter(
+                                        filterBuilder(FilterMode.HIGHLIGHT).copy(highlightColor = color)
+                                    )
+                                    onDismiss()
+                                }
                         )
-                    }
-                }
-                if (filterBuilder != null) {
-                    selectableItem(
-                        selected = false,
-                        iconKey = AllIconsKeys.Actions.Show,
-                        onClick = { onAddFilter(filterBuilder(FilterMode.SHOW)); showMenu = false },
-                    ) {
-                        Text("Show only $filterLabel")
-                    }
-                    selectableItem(
-                        selected = false,
-                        iconKey = AllIconsKeys.Actions.Cancel,
-                        onClick = { onAddFilter(filterBuilder(FilterMode.HIDE)); showMenu = false },
-                    ) {
-                        Text("Hide $filterLabel")
-                    }
-                    passiveItem {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Icon(
-                                key = AllIconsKeys.Actions.Highlighting,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Text("Highlight", modifier = Modifier.padding(start = 4.dp, end = 4.dp))
-                            HIGHLIGHT_COLORS.forEach { (color, _) ->
-                                Box(
-                                    Modifier
-                                        .size(16.dp)
-                                        .background(Color(color.toInt()), CircleShape)
-                                        .border(1.dp, Color.Gray, CircleShape)
-                                        .clickable {
-                                            onAddFilter(
-                                                filterBuilder(FilterMode.HIGHLIGHT).copy(highlightColor = color)
-                                            )
-                                            showMenu = false
-                                        }
-                                )
-                            }
-                        }
                     }
                 }
             }

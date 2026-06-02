@@ -46,35 +46,58 @@ fun LogHeaders(
     onToggleColumn: (LogColumn) -> Unit,
     currentWidthOf: (LogColumn) -> Float,
 ) {
+    // One menu for the whole header strip: the column-visibility toggles are the same wherever you
+    // right-click, so a single row-level menu means no dead spots (spacers, margins, resize handles).
+    var showContextMenu by remember { mutableStateOf(false) }
+    var menuOffset by remember { mutableStateOf(IntOffset.Zero) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 6.dp)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .onPointerEvent(PointerEventType.Press) { event ->
+                if (event.button == PointerButton.Secondary) {
+                    val pos = event.changes.first().position
+                    menuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
+                    showContextMenu = true
+                }
+            },
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (showContextMenu) {
+            PopupMenu(
+                onDismissRequest = {
+                    showContextMenu = false
+                    true
+                },
+                popupPositionProvider = CursorPositionProvider(menuOffset),
+            ) {
+                LogColumn.entries.forEach { col ->
+                    val isVisible = col in visibleColumns
+                    selectableItem(
+                        selected = isVisible,
+                        onClick = {
+                            onToggleColumn(col)
+                            showContextMenu = false
+                        },
+                    ) {
+                        Text(if (isVisible) "✓ ${col.displayName}" else "    ${col.displayName}")
+                    }
+                }
+            }
+        }
         Spacer(Modifier.width(8.dp))
         LogColumn.entries.forEach { column ->
             if (column !in visibleColumns) return@forEach
 
             val widthDp = if (column == LogColumn.MESSAGE) null else (columnWidths[column] ?: 100f)
-            var showContextMenu by remember { mutableStateOf(false) }
-            var menuOffset by remember { mutableStateOf(IntOffset.Zero) }
             val headerModifier =
                 if (widthDp == null) Modifier.weight(1f) else Modifier.width(widthDp.dp)
 
             Box(modifier = headerModifier) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onPointerEvent(PointerEventType.Press) { event ->
-                            if (event.button == PointerButton.Secondary) {
-                                val pos = event.changes.first().position
-                                menuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
-                                showContextMenu = true
-                            }
-                        },
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -102,29 +125,6 @@ fun LogHeaders(
                                 }
                                 .background(JewelTheme.globalColors.borders.normal.copy(alpha = 0.6f))
                         )
-                    }
-                }
-
-                if (showContextMenu) {
-                    PopupMenu(
-                        onDismissRequest = {
-                            showContextMenu = false
-                            true
-                        },
-                        popupPositionProvider = CursorPositionProvider(menuOffset),
-                    ) {
-                        LogColumn.entries.forEach { col ->
-                            val isVisible = col in visibleColumns
-                            selectableItem(
-                                selected = isVisible,
-                                onClick = {
-                                    onToggleColumn(col)
-                                    showContextMenu = false
-                                },
-                            ) {
-                                Text(if (isVisible) "✓ ${col.displayName}" else "    ${col.displayName}")
-                            }
-                        }
                     }
                 }
             }
