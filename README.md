@@ -2,6 +2,8 @@
 
 Desktop viewer for Android logs (`adb logcat`), built with Kotlin Multiplatform + Compose for Desktop and the JetBrains Jewel (IntelliJ) UI style. Streams live logcat from a connected device, filters, highlights and searches logs, and captures device screenshots and screen recordings.
 
+Inspired by [Android Studio's Logcat](https://developer.android.com/studio/debug/logcat) and [AndLogView](https://github.com/mlopatkin/andlogview).
+
 ## Features
 
 - **Live logcat** — stream from the selected device, with automatic device detection and switching.
