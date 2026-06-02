@@ -21,6 +21,7 @@ import com.dv.loglens.model.LogBuffer
 import com.dv.loglens.model.MAX_FONT_SIZE
 import com.dv.loglens.model.MIN_FONT_SIZE
 import com.dv.loglens.model.ThemeMode
+import com.dv.loglens.service.EmbeddedFonts
 import com.dv.loglens.service.SystemFonts
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.CheckboxRow
@@ -71,7 +72,7 @@ fun SettingsMenu(
     var showBuffers by remember { mutableStateOf(false) }
     var showRecordingOptions by remember { mutableStateOf(false) }
     val fontOptions = remember {
-        (LOGICAL_FONTS + SystemFonts.list()).distinct()
+        (EmbeddedFonts.names + LOGICAL_FONTS + SystemFonts.list()).distinct()
     }
     val weightOptions = remember { FontWeightPreset.entries.toList() }
 

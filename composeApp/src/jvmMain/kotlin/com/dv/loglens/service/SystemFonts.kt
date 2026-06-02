@@ -25,7 +25,7 @@ object SystemFonts {
         "SansSerif" -> FontFamily.SansSerif
         "Serif" -> FontFamily.Serif
         "Dialog", "DialogInput" -> FontFamily.Default
-        else -> resolveNamed(name, weight) ?: FontFamily.Monospace
+        else -> EmbeddedFonts.resolve(name) ?: resolveNamed(name, weight) ?: FontFamily.Monospace
     }
 
     private fun resolveNamed(name: String, weight: Int): FontFamily? = runCatching {
