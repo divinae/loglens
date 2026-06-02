@@ -100,6 +100,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val devices by viewModel.devices.collectAsState()
     val selectedDevice by viewModel.selectedDevice.collectAsState()
     val loadedFile by viewModel.loadedFile.collectAsState()
+    val recentFiles by viewModel.recentFiles.collectAsState()
     val fontSize by viewModel.fontSize.collectAsState()
     val fontFamily by viewModel.fontFamily.collectAsState()
     val fontWeight by viewModel.fontWeight.collectAsState()
@@ -338,10 +339,12 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     val snapshot = (if (filtered) filteredLogs else logs).toList()
                     val ext = if (asLogcat) "logcat" else "txt"
                     val base = if (filtered) "logs-filtered" else "logs"
+                    // No ':' — illegal in filenames on some filesystems.
+                    val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm").format(Date())
                     scope.launch(Dispatchers.IO) {
                         val target = FilePicker.saveFile(
                             if (filtered) "Save filtered logs" else "Save all logs",
-                            "$base.$ext",
+                            "$base-$stamp.$ext",
                         )
                         if (target != null) {
                             val payload = if (asLogcat) {
@@ -358,6 +361,9 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                         FilePicker.openFile("Open logs")?.let(viewModel::loadLogsFromFile)
                     }
                 },
+                recentFiles = recentFiles,
+                onOpenRecent = viewModel::openRecentFile,
+                onClearRecent = viewModel::clearRecentFiles,
                 loadedFile = loadedFile,
                 onToggleAutoFollow = viewModel::toggleAutoFollow,
                 onSetTheme = viewModel::setTheme,

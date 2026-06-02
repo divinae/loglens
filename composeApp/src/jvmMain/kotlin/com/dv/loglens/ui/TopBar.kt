@@ -62,6 +62,9 @@ fun TopBar(
     onToggleRecording: () -> Unit,
     onSaveLogs: (filtered: Boolean, asLogcat: Boolean) -> Unit,
     onOpenLogs: () -> Unit,
+    recentFiles: List<String>,
+    onOpenRecent: (String) -> Unit,
+    onClearRecent: () -> Unit,
     loadedFile: String?,
     onToggleAutoFollow: () -> Unit,
     onSetTheme: (ThemeMode) -> Unit,
@@ -142,9 +145,12 @@ fun TopBar(
                 devices = devices,
                 selectedSerial = selectedDevice,
                 loadedFile = loadedFile,
+                recentFiles = recentFiles,
                 onSelect = onSelectDevice,
                 onRefresh = onRefreshDevices,
                 onOpenFile = onOpenLogs,
+                onOpenRecent = onOpenRecent,
+                onClearRecent = onClearRecent,
             )
         }
 

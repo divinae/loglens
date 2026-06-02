@@ -23,6 +23,8 @@ data class UserConfig(
     val recordingShowTaps: Boolean = false,
     val recordingBitrateMbps: Int = 0,
     val recordingSize: String = "",
+    // Absolute paths of recently opened log files, most-recent first.
+    val recentFiles: List<String> = emptyList(),
     // Window bounds in dp. x/y < 0 means "unplaced" → center on first launch.
     val windowX: Float = -1f,
     val windowY: Float = -1f,

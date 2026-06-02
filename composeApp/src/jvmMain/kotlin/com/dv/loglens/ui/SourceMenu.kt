@@ -40,9 +40,12 @@ fun SourceMenu(
     devices: List<Device>,
     selectedSerial: String?,
     loadedFile: String?,
+    recentFiles: List<String>,
     onSelect: (String?) -> Unit,
     onRefresh: () -> Unit,
     onOpenFile: () -> Unit,
+    onOpenRecent: (String) -> Unit,
+    onClearRecent: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selected = devices.firstOrNull { it.serial == selectedSerial }
@@ -155,6 +158,60 @@ fun SourceMenu(
                             )
                         }
                         Text("Open file...")
+                    }
+                }
+
+                if (recentFiles.isNotEmpty()) {
+                    separator()
+                    passiveItem {
+                        Text(
+                            "Recent files",
+                            color = iconTint.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        )
+                    }
+                    recentFiles.forEach { path ->
+                        val name = path.substringAfterLast('/')
+                        val dir = path.substringBeforeLast('/', "")
+                        selectableItem(
+                            selected = false,
+                            onClick = {
+                                onOpenRecent(path)
+                                expanded = false
+                            },
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        key = AllIconsKeys.FileTypes.Text,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = iconTint,
+                                    )
+                                }
+                                Text(name)
+                                if (dir.isNotEmpty()) {
+                                    Text(dir, color = iconTint.copy(alpha = 0.6f))
+                                }
+                            }
+                        }
+                    }
+                    selectableItem(
+                        selected = false,
+                        onClick = {
+                            onClearRecent()
+                            expanded = false
+                        },
+                    ) {
+                        Text(
+                            "Clear recent",
+                            color = iconTint.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        )
                     }
                 }
             }

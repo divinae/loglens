@@ -58,6 +58,7 @@ private const val SEARCH_HISTORY_LIMIT = 30
 
 // Cap for slurping a whole file into memory to test/parse as JSON; larger files go line-by-line.
 private const val MAX_JSON_LOG_BYTES = 256L * 1024 * 1024
+private const val MAX_RECENT_FILES = 10
 
 class MainViewModel(
     private val configManager: ConfigManager = ConfigManager(),
@@ -197,6 +198,10 @@ class MainViewModel(
     private val _loadedFile = MutableStateFlow<String?>(null)
     val loadedFile = _loadedFile.asStateFlow()
 
+    /** Absolute paths of recently opened log files, most-recent first. */
+    private val _recentFiles = MutableStateFlow<List<String>>(emptyList())
+    val recentFiles = _recentFiles.asStateFlow()
+
     private var captureJob: Job? = null
     private var captureGen: Long = 0
 
@@ -303,6 +308,7 @@ class MainViewModel(
         _recordingBitrateMbps.value = config.recordingBitrateMbps
         _recordingSize.value = config.recordingSize
         windowBounds = WindowBounds(config.windowX, config.windowY, config.windowWidth, config.windowHeight)
+        _recentFiles.value = config.recentFiles
     }
 
     private fun currentConfig(): UserConfig = UserConfig(
@@ -325,6 +331,7 @@ class MainViewModel(
         recordingShowTaps = _recordingShowTaps.value,
         recordingBitrateMbps = _recordingBitrateMbps.value,
         recordingSize = _recordingSize.value,
+        recentFiles = _recentFiles.value,
         windowX = windowBounds.x,
         windowY = windowBounds.y,
         windowWidth = windowBounds.width,
@@ -815,7 +822,28 @@ class MainViewModel(
             _autoFollow.value = false
             _loadedFile.value = file.name
             recomputeFiltered()
+            rememberRecentFile(file)
         }
+    }
+
+    /** Open a previously loaded file by path; if it's gone, drop it from the recent list. */
+    fun openRecentFile(path: String) {
+        val file = File(path)
+        if (file.exists()) loadLogsFromFile(file)
+        else _recentFiles.value = _recentFiles.value.filterNot { it == path }.also { persistConfig() }
+    }
+
+    fun clearRecentFiles() {
+        if (_recentFiles.value.isEmpty()) return
+        _recentFiles.value = emptyList()
+        persistConfig()
+    }
+
+    private fun rememberRecentFile(file: File) {
+        val path = file.absolutePath
+        // Most-recent first, de-duplicated, capped so the list (and config) stays small.
+        _recentFiles.value = (listOf(path) + _recentFiles.value.filterNot { it == path }).take(MAX_RECENT_FILES)
+        persistConfig()
     }
 
     fun replaceFilters(newFilters: List<FilterRule>) {
