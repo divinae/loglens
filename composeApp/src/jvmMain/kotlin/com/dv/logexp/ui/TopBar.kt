@@ -202,7 +202,7 @@ fun TopBar(
             }
 
             ToggleableIconActionButton(
-                key = if (isRecording) AllIconsKeys.Run.Stop else AllIconsKeys.Nodes.Record,
+                key = if (isRecording) AllIconsKeys.Run.Stop else AllIconsKeys.Profiler.Rec,
                 contentDescription = if (isRecording) "Stop recording" else "Record screen",
                 value = isRecording,
                 onValueChange = { onToggleRecording() },
