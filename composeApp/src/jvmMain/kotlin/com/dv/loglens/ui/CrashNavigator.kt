@@ -28,6 +28,7 @@ private val crashRed = Color(0xFFE5484D)
 @Composable
 fun CrashNavigator(
     count: Int,
+    current: Int,
     onPrev: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
@@ -41,8 +42,9 @@ fun CrashNavigator(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Show the current crash position once we're on one (e.g. "⚠ 2/5"); otherwise just the total.
         Text(
-            text = "⚠ $count",
+            text = if (current >= 0) "⚠ ${current + 1}/$count" else "⚠ $count",
             fontSize = 12.sp,
             color = crashRed,
         )

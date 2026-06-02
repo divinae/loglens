@@ -510,6 +510,9 @@ class MainViewModel(
         if (_alwaysShowBookmarks.value) recomputeFiltered()
     }
 
+    /** 0-based position of [id] among crashes in log order, or -1 if it isn't a crash. */
+    fun crashOrdinal(id: Int): Int = sortedCrashes.indexOf(id)
+
     fun findNextCrash(currentId: Int): Int? =
         sortedCrashes.firstOrNull { it > currentId } ?: sortedCrashes.firstOrNull()
 

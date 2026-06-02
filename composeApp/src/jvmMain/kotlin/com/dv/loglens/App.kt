@@ -579,6 +579,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 if (viewModel.crashIds.isNotEmpty()) {
                     CrashNavigator(
                         count = viewModel.crashIds.size,
+                        current = viewModel.crashOrdinal(selectedIds.lastOrNull() ?: -1),
                         onPrev = { jumpToCrash(forward = false) },
                         onNext = { jumpToCrash(forward = true) },
                         modifier = Modifier
