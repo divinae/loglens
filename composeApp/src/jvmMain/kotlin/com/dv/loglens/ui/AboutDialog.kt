@@ -25,6 +25,7 @@ import androidx.compose.ui.window.rememberDialogState
 import com.dv.loglens.BuildInfo
 import com.dv.loglens.ui.theme.islandsPanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Text
 import java.awt.Desktop
 import java.net.URI
@@ -50,7 +51,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
         Column(
             modifier = Modifier.fillMaxSize().background(islandsPanel(JewelTheme.isDark)).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Top),
         ) {
             Text("LogLens", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(
@@ -98,6 +99,10 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = dim,
                     modifier = Modifier.padding(top = 4.dp),
                 )
+            }
+
+            DefaultButton(onClick = onDismiss, modifier = Modifier.padding(top = 16.dp)) {
+                Text("Close")
             }
         }
     }

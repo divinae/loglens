@@ -26,10 +26,17 @@ tasks.withType<Detekt>().configureEach { jvmTarget = "21" }
 tasks.withType<DetektCreateBaselineTask>().configureEach { jvmTarget = "21" }
 
 val appVersion: String = (findProperty("appVersion") as? String) ?: "0.0.0"
-val gitSha: String = providers.exec {
-    commandLine("git", "rev-parse", "--short", "HEAD")
-    isIgnoreExitValue = true
-}.standardOutput.asText.map { it.trim() }.getOrElse("dev")
+// Prefer the CI-provided SHA (the runner image may not even have a `git` binary); fall back to
+// `git` locally, and to "dev" if neither is available. runCatching guards against the process
+// failing to start, which `getOrElse` on the provider does not catch.
+val gitSha: String = providers.environmentVariable("CI_COMMIT_SHORT_SHA").orNull?.takeIf { it.isNotBlank() }
+    ?: runCatching {
+        providers.exec {
+            commandLine("git", "rev-parse", "--short", "HEAD")
+            isIgnoreExitValue = true
+        }.standardOutput.asText.get().trim()
+    }.getOrNull()?.takeIf { it.isNotBlank() }
+    ?: "dev"
 val fullVersion = "$appVersion+$gitSha"
 
 kotlin {
