@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dv.logexp.config.ConfigManager
 import com.dv.logexp.config.FilterStore
+import com.dv.logexp.config.SearchHistoryStore
 import com.dv.logexp.model.DEFAULT_COLUMN_WIDTHS
 import com.dv.logexp.model.DEFAULT_FILTERS_LIST_WIDTH
 import com.dv.logexp.model.DEFAULT_FONT_FAMILY
@@ -20,6 +21,7 @@ import com.dv.logexp.model.FilterRule
 import com.dv.logexp.model.LogBuffer
 import com.dv.logexp.model.LogColumn
 import com.dv.logexp.model.LogEntry
+import com.dv.logexp.model.LogQuery
 import com.dv.logexp.model.MAX_FONT_SIZE
 import com.dv.logexp.model.MIN_FONT_SIZE
 import com.dv.logexp.model.ThemeMode
@@ -43,12 +45,15 @@ import java.util.concurrent.atomic.AtomicInteger
 
 private const val FLUSH_INTERVAL_MS = 40L
 
+private const val SEARCH_HISTORY_LIMIT = 30
+
 // Cap for slurping a whole file into memory to test/parse as JSON; larger files go line-by-line.
 private const val MAX_JSON_LOG_BYTES = 256L * 1024 * 1024
 
 class MainViewModel(
     private val configManager: ConfigManager = ConfigManager(),
     private val filterStore: FilterStore = FilterStore(),
+    private val searchHistoryStore: SearchHistoryStore = SearchHistoryStore(),
     private val logcatService: LogcatService = LogcatService(),
 ) : ViewModel() {
 
@@ -81,6 +86,18 @@ class MainViewModel(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
+
+    /** Non-null when the current query has a syntax/regex error (UI shows an error outline). */
+    private val _searchQueryError = MutableStateFlow<String?>(null)
+    val searchQueryError = _searchQueryError.asStateFlow()
+
+    /** Parsed form of [_searchQuery]; rebuilt only when the text changes, not per log line. */
+    @Volatile
+    private var parsedQuery: LogQuery = LogQuery.EMPTY
+
+    /** Recently committed quick-filter queries, most-recent first. */
+    private val _searchHistory = MutableStateFlow<List<String>>(emptyList())
+    val searchHistory = _searchHistory.asStateFlow()
 
     private val _autoFollow = MutableStateFlow(true)
     val autoFollow = _autoFollow.asStateFlow()
@@ -141,6 +158,7 @@ class MainViewModel(
     init {
         applyConfig(configManager.load())
         _filters.value = filterStore.load()
+        _searchHistory.value = searchHistoryStore.load()
         recomputeFiltered()
 
         viewModelScope.launch {
@@ -154,6 +172,15 @@ class MainViewModel(
         }
 
         startCapture()
+
+        // Catch every exit path (window close, Ctrl+C/SIGTERM, JVM shutdown): record the query in
+        // history and persist it so it's restored into the quick filter on next launch.
+        Runtime.getRuntime().addShutdownHook(
+            Thread {
+                commitSearchQuery()
+                configManager.save(currentConfig())
+            }
+        )
     }
 
     fun refreshDevices() {
@@ -210,26 +237,28 @@ class MainViewModel(
         _alwaysShowBookmarks.value = config.alwaysShowBookmarks
         _quickFilterVisible.value = config.quickFilterVisible
         _logBuffers.value = config.logBuffers
+        _searchQuery.value = config.searchQuery
+        parsedQuery = LogQuery.parse(config.searchQuery)
+        _searchQueryError.value = parsedQuery.error
     }
 
+    private fun currentConfig(): UserConfig = UserConfig(
+        visibleColumns = _visibleColumns.value,
+        columnWidths = _columnWidths.value,
+        themeMode = _themeMode.value,
+        fontSize = _fontSize.value,
+        fontFamily = _fontFamily.value,
+        fontWeight = _fontWeight.value,
+        softWrap = _softWrap.value,
+        filtersListWidth = _filtersListWidth.value,
+        alwaysShowBookmarks = _alwaysShowBookmarks.value,
+        quickFilterVisible = _quickFilterVisible.value,
+        logBuffers = _logBuffers.value,
+        searchQuery = _searchQuery.value,
+    )
+
     private fun persistConfig() {
-        viewModelScope.launch(Dispatchers.IO) {
-            configManager.save(
-                UserConfig(
-                    visibleColumns = _visibleColumns.value,
-                    columnWidths = _columnWidths.value,
-                    themeMode = _themeMode.value,
-                    fontSize = _fontSize.value,
-                    fontFamily = _fontFamily.value,
-                    fontWeight = _fontWeight.value,
-                    softWrap = _softWrap.value,
-                    filtersListWidth = _filtersListWidth.value,
-                    alwaysShowBookmarks = _alwaysShowBookmarks.value,
-                    quickFilterVisible = _quickFilterVisible.value,
-                    logBuffers = _logBuffers.value,
-                )
-            )
-        }
+        viewModelScope.launch(Dispatchers.IO) { configManager.save(currentConfig()) }
     }
 
     fun setFiltersListWidth(width: Float) {
@@ -375,14 +404,35 @@ class MainViewModel(
     fun updateSearchQuery(query: String) {
         if (_searchQuery.value == query) return
         _searchQuery.value = query
+        parsedQuery = LogQuery.parse(query)
+        _searchQueryError.value = parsedQuery.error
         recomputeFiltered()
+    }
+
+    /**
+     * Record the current query in history. Skips blanks and queries that failed to parse.
+     * Saved synchronously (history is tiny) so it survives an immediate app exit.
+     */
+    fun commitSearchQuery() {
+        val query = _searchQuery.value.trim()
+        if (query.isEmpty() || parsedQuery.error != null) return
+        // Move an existing identical entry to the front; cap the list.
+        val updated = (listOf(query) + _searchHistory.value.filterNot { it == query }).take(SEARCH_HISTORY_LIMIT)
+        if (updated == _searchHistory.value) return
+        _searchHistory.value = updated
+        searchHistoryStore.save(updated)
+    }
+
+    fun clearSearchHistory() {
+        if (_searchHistory.value.isEmpty()) return
+        _searchHistory.value = emptyList()
+        searchHistoryStore.save(emptyList())
     }
 
     /** True if [log] should appear in [filteredLogs] under the current criteria. */
     private fun matches(log: LogEntry): Boolean {
         if (_alwaysShowBookmarks.value && log.id in bookmarkedIds) return true
-        val query = _searchQuery.value
-        if (query.isNotBlank() && !log.content.contains(query, ignoreCase = true)) return false
+        if (!parsedQuery.matches(log)) return false
         if (hideFilters.any { it.matches(log) }) return false
         if (showFilters.isNotEmpty() && showFilters.none { it.matches(log) }) return false
         return true

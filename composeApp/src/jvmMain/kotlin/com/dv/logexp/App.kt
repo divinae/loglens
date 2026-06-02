@@ -91,6 +91,9 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val filtersListWidth by viewModel.filtersListWidth.collectAsState()
     val alwaysShowBookmarks by viewModel.alwaysShowBookmarks.collectAsState()
     val quickFilterVisible by viewModel.quickFilterVisible.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val searchQueryError by viewModel.searchQueryError.collectAsState()
+    val searchHistory by viewModel.searchHistory.collectAsState()
     val logBuffers by viewModel.logBuffers.collectAsState()
     val resolvedFontFamily = remember(fontFamily, fontWeight) {
         SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
@@ -466,7 +469,12 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
 
             if (quickFilterVisible) {
                 QuickFilterBar(
+                    initialQuery = searchQuery,
+                    error = searchQueryError,
+                    history = searchHistory,
                     onSearchChange = viewModel::updateSearchQuery,
+                    onCommit = viewModel::commitSearchQuery,
+                    onClearHistory = viewModel::clearSearchHistory,
                 )
                 Divider(Orientation.Horizontal)
             }
@@ -475,10 +483,8 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 filters = filters,
                 quickFilterVisible = quickFilterVisible,
                 onToggleQuickFilter = {
-                    val next = !quickFilterVisible
-                    // Hiding the bar drops its search so a hidden quick filter never silently filters.
-                    if (!next) viewModel.updateSearchQuery("")
-                    viewModel.setQuickFilterVisible(next)
+                    // Hiding the bar keeps the active filter; the bar reseeds from it when shown again.
+                    viewModel.setQuickFilterVisible(!quickFilterVisible)
                 },
                 onOpenFilters = {
                     filtersDialogInitialId = null

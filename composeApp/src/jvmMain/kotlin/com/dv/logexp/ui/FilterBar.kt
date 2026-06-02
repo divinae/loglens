@@ -56,7 +56,6 @@ import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.ToggleableIconActionButton
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.component.styling.TooltipColors
@@ -239,8 +238,7 @@ private fun OpenFiltersButton(onClick: () -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun QuickFilterToggleButton(visible: Boolean, onClick: () -> Unit) {
-    // Same styling as the TopBar icons: accent border + tint when active, muted otherwise.
-    val accent = Color(0xFF3592FF)
+    // Muted tint in both states — the toggle should not change colour when the bar is visible.
     val inactiveTint = JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)
     val popupBg = islandsPopup(JewelTheme.isDark)
     val borderColor = JewelTheme.globalColors.borders.normal
@@ -260,17 +258,16 @@ private fun QuickFilterToggleButton(visible: Boolean, onClick: () -> Unit) {
             ),
         )
     }
-    ToggleableIconActionButton(
+    // Plain (non-toggle) button so it never shows a selected highlight when the bar is visible.
+    IconActionButton(
         key = if (visible) AllIconsKeys.General.ArrowDown else AllIconsKeys.General.ArrowUp,
-        contentDescription = if (visible) "Hide search bar" else "Show search bar",
-        value = visible,
-        onValueChange = { onClick() },
-        modifier = if (visible) Modifier.border(1.dp, accent, RoundedCornerShape(4.dp)) else Modifier,
-        colorFilter = ColorFilter.tint(if (visible) accent else inactiveTint),
+        contentDescription = if (visible) "Hide quick filter bar" else "Show quick filter bar",
+        onClick = onClick,
+        colorFilter = ColorFilter.tint(inactiveTint),
         tooltipStyle = tooltipStyle,
         tooltipPlacement = abovePlacement,
     ) {
-        Text(if (visible) "Hide search bar" else "Show search bar")
+        Text(if (visible) "Hide quick filter bar" else "Show quick filter bar")
     }
 }
 
