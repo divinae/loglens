@@ -1,4 +1,4 @@
-# logexp
+# LogLens
 
 Desktop viewer for Android logs (`adb logcat`), built with Kotlin Multiplatform + Compose for Desktop and the JetBrains Jewel (IntelliJ) UI style. Streams live logcat from a connected device, filters, highlights and searches logs, and captures device screenshots and screen recordings.
 
@@ -22,9 +22,9 @@ Desktop viewer for Android logs (`adb logcat`), built with Kotlin Multiplatform 
 - **Selection** — single, range (Shift), drag; copy lines or a single column.
 - **Screenshot** — capture the device to a file + clipboard, optionally open in the default viewer.
 - **Screen recording** — `screenrecord` with Android Studio-style options (show taps, bitrate, size); auto-open when finished.
-- **Open from file** — parse saved logs (`-v threadtime`) and Android Studio `.logcat` exports (JSON).
+- **Open from file** — parse saved logs (`-v threadtime`), Android Studio `.logcat` exports (JSON), and full Android **bugreports / `dumpstate`** dumps (extracts every embedded logcat section and mines the `ps` section for pid→process names). Multiline messages (e.g. Java stack traces) are folded back into a single record.
 - **Save logs** — all or filtered, as plain text or `.logcat` format.
-- **Appearance** — System/Light/Dark theme, font size/family/weight (system fonts), soft wrap.
+- **Appearance** — System/Light/Dark theme, font size/family/weight (system fonts), soft wrap. HiDPI-aware (Compose renders at native display scale; the app/window icon ships at 256px so it stays crisp).
 - Configuration and filters persist across launches.
 
 ## Keyboard shortcuts
@@ -56,25 +56,27 @@ Desktop viewer for Android logs (`adb logcat`), built with Kotlin Multiplatform 
 .\gradlew.bat :composeApp:run
 ```
 
-Native packages (Deb / Msi / Dmg):
+Native packages (Deb / Msi / Dmg) with bundled JRE and per-OS icons:
 
 ```shell
 ./gradlew :composeApp:packageDistributionForCurrentOS
 ```
 
+Icons live in `composeApp/icons/` (`loglens.svg` source → `.png`/`.ico`/`.icns`).
+
 ## Configuration
 
-- Settings: `~/.config/logexp/config.json`
+- Settings: `~/.config/loglens/config.json`
 - Filters and search history: stored alongside the config.
 
 ## Structure
 
-Kotlin Multiplatform targeting Desktop (JVM). Code lives in `composeApp/src/jvmMain/kotlin/com/dv/logexp`:
+Kotlin Multiplatform targeting Desktop (JVM). Code lives in `composeApp/src/jvmMain/kotlin/com/dv/loglens`:
 
 - `App.kt`, `main.kt` — UI root and entry point.
 - `viewmodel/` — `MainViewModel` (capture, incremental filtering, state).
 - `model/` — `LogEntry`, `FilterRule`, `LogQuery`, `LogBuffer`, `LogColumn`, `UserConfig`.
 - `service/` — `LogcatService`, `DeviceService`, `PackageService`, `ScreenshotService`, `ScreenRecordingService`, `Adb`.
-- `parser/` — `LogParser`, `AndroidStudioLogParser`, `LogcatExporter`.
+- `parser/` — `LogParser`, `AndroidStudioLogParser`, `BugreportParser`, `LogcatExporter`.
 - `ui/` — bars, dialogs, log rows, shortcuts.
 - `config/` — `ConfigManager`, `FilterStore`, `SearchHistoryStore`.

@@ -54,12 +54,35 @@ kotlin {
 
 compose.desktop {
     application {
-        mainClass = "com.dv.logexp.MainKt"
+        mainClass = "com.dv.loglens.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.dv.logexp"
+            packageName = "loglens"
             packageVersion = appVersion
+            description = "Android logcat explorer"
+            vendor = "dv"
+            copyright = "© 2026 dv"
+
+            val iconsDir = project.file("icons")
+            macOS {
+                bundleID = "com.dv.loglens"
+                dockName = "loglens"
+                iconFile.set(iconsDir.resolve("loglens.icns"))
+            }
+            windows {
+                iconFile.set(iconsDir.resolve("loglens.ico"))
+                menuGroup = "loglens"
+                perUserInstall = true
+                // Stable GUID so future installers upgrade in place instead of installing side-by-side.
+                upgradeUuid = "8f3a6d2e-1c47-4b6a-9d8e-5a2f0c7b9e14"
+            }
+            linux {
+                iconFile.set(iconsDir.resolve("loglens-linux.png"))
+                packageName = "loglens"
+                menuGroup = "Development"
+                appCategory = "Development"
+            }
         }
     }
 }

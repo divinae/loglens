@@ -1,4 +1,4 @@
-rootProject.name = "logexp"
+rootProject.name = "loglens"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

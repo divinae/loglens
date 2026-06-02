@@ -1,0 +1,49 @@
+package com.dv.loglens.model
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class UserConfig(
+    val visibleColumns: Set<LogColumn> = DEFAULT_VISIBLE_COLUMNS,
+    val columnWidths: Map<LogColumn, Float> = DEFAULT_COLUMN_WIDTHS,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val fontSize: Float = DEFAULT_FONT_SIZE,
+    val fontFamily: String = DEFAULT_FONT_FAMILY,
+    val fontWeight: String = DEFAULT_FONT_WEIGHT,
+    val softWrap: Boolean = true,
+    val filtersListWidth: Float = DEFAULT_FILTERS_LIST_WIDTH,
+    val alwaysShowBookmarks: Boolean = true,
+    val quickFilterVisible: Boolean = true,
+    val logBuffers: Set<LogBuffer> = DEFAULT_LOG_BUFFERS,
+    val searchQuery: String = "",
+    val screenshotDir: String = "",
+    val openScreenshotAfterCapture: Boolean = true,
+    val adbPath: String = "",
+    val recordingDir: String = "",
+    val recordingShowTaps: Boolean = false,
+    val recordingBitrateMbps: Int = 0,
+    val recordingSize: String = "",
+)
+
+const val DEFAULT_FILTERS_LIST_WIDTH: Float = 280f
+
+val DEFAULT_VISIBLE_COLUMNS: Set<LogColumn> = setOf(
+    LogColumn.INDEX,
+    LogColumn.DATE,
+    LogColumn.TIME,
+    LogColumn.PROCESS,
+    LogColumn.LEVEL,
+    LogColumn.TAG,
+    LogColumn.MESSAGE
+)
+
+val DEFAULT_COLUMN_WIDTHS: Map<LogColumn, Float> = mapOf(
+    LogColumn.INDEX to 60f,
+    LogColumn.DATE to 60f,
+    LogColumn.TIME to 100f,
+    LogColumn.PID to 60f,
+    LogColumn.TID to 60f,
+    LogColumn.PROCESS to 120f,
+    LogColumn.LEVEL to 30f,
+    LogColumn.TAG to 120f
+)
