@@ -1,3 +1,5 @@
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JvmVendorSpec
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -25,7 +27,12 @@ val fullVersion = "$appVersion+$gitSha"
 kotlin {
     jvm()
 
-    jvmToolchain(21)
+    // JetBrains Runtime: used for compile, run, and the bundled jpackage runtime, so end users
+    // need no host JDK. Provisioned via the foojay resolver in settings.gradle.kts.
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+        vendor.set(JvmVendorSpec.JETBRAINS)
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -52,9 +59,17 @@ kotlin {
 }
 
 
+// Compose's run/package tasks don't inherit the kotlin jvmToolchain — point them at JBR explicitly.
+val jbrLauncher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(21))
+    vendor.set(JvmVendorSpec.JETBRAINS)
+}
+
 compose.desktop {
     application {
         mainClass = "com.dv.loglens.MainKt"
+        // jpackage builds the bundled runtime image (jlink) from this JDK — so it's JBR, not Adoptium.
+        javaHome = jbrLauncher.get().metadata.installationPath.asFile.absolutePath
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
@@ -85,6 +100,11 @@ compose.desktop {
             }
         }
     }
+}
+
+// `./gradlew run` on JBR too, not just packaged builds. Compose's run task is a JavaExec.
+tasks.withType<JavaExec>().configureEach {
+    javaLauncher.set(jbrLauncher)
 }
 
 val generateBuildInfo by tasks.registering {

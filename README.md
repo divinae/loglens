@@ -44,13 +44,13 @@ Inspired by [Android Studio's Logcat](https://developer.android.com/studio/debug
 
 ## Requirements
 
-- **JDK 21** — the project toolchain. Building with a newer system JDK (e.g. 26) fails; point `JAVA_HOME` at java-21.
+- **JDK 21** to bootstrap Gradle — point `JAVA_HOME` at java-21 (a newer system JDK, e.g. 26, fails). The build toolchain itself is **JetBrains Runtime (JBR) 21**, auto-provisioned by the foojay resolver; it's used for compile, `run`, and the runtime bundled into packages — you don't install JBR yourself.
 - **adb** on `PATH` (Android platform-tools) — or set the binary path in the app settings.
 - Linux/macOS/Windows (desktop JVM). Screenshots/recordings open the file via `xdg-open` (Linux).
 
 ### Wayland
 
-On Linux/Wayland the app runs through **XWayland** (the X11 compatibility layer), not as a native Wayland client. Native Wayland would require running on the JetBrains Runtime with its `WLToolkit` (`-Dawt.toolkit.name=WLToolkit`), but Compose/Skiko currently can't lock the drawing surface under that toolkit and the window fails to create ([JetBrains/skiko#890](https://github.com/JetBrains/skiko/issues/890)). An attempt to enable it lives in git history (commit `d82d748`, reverted in `c760073`); revisit once that upstream issue is fixed.
+On Linux/Wayland the app runs through **XWayland** (the X11 compatibility layer), not as a native Wayland client. Native Wayland would require selecting the JetBrains Runtime's `WLToolkit` (`-Dawt.toolkit.name=WLToolkit`), but Compose/Skiko currently can't lock the drawing surface under that toolkit and the window fails to create ([JetBrains/skiko#890](https://github.com/JetBrains/skiko/issues/890)). The runtime ships JBR (so `WLToolkit` is already bundled), so re-enabling it once that upstream issue is fixed is a one-flag change — see the reverted attempt in git history (commit `d82d748`, reverted in `c760073`).
 
 ## Build and run
 
@@ -62,11 +62,13 @@ On Linux/Wayland the app runs through **XWayland** (the X11 compatibility layer)
 .\gradlew.bat :composeApp:run
 ```
 
-Native packages (Deb / Msi / Dmg) with bundled JRE and per-OS icons:
+Native packages (Deb / Msi / Dmg) with a **bundled JBR runtime** (no JDK needed on the target host) and per-OS icons:
 
 ```shell
 ./gradlew :composeApp:packageDistributionForCurrentOS
 ```
+
+jpackage only builds for the current OS, so build each format on its native platform. The `.deb` step also needs `dpkg` and `fakeroot` on the build host (absent on Arch by default → `Invalid or unsupported type: [deb]`). For a host-agnostic portable build, use `createDistributable` instead — it writes a self-contained app image (launcher + bundled JBR) under `composeApp/build/compose/binaries/main/app/` that you can archive and run directly.
 
 Icons live in `composeApp/icons/` (`loglens.svg` source → `.png`/`.ico`/`.icns`).
 
