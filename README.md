@@ -48,6 +48,10 @@ Inspired by [Android Studio's Logcat](https://developer.android.com/studio/debug
 - **adb** on `PATH` (Android platform-tools) — or set the binary path in the app settings.
 - Linux/macOS/Windows (desktop JVM). Screenshots/recordings open the file via `xdg-open` (Linux).
 
+### Wayland
+
+On Linux/Wayland the app runs through **XWayland** (the X11 compatibility layer), not as a native Wayland client. Native Wayland would require running on the JetBrains Runtime with its `WLToolkit` (`-Dawt.toolkit.name=WLToolkit`), but Compose/Skiko currently can't lock the drawing surface under that toolkit and the window fails to create ([JetBrains/skiko#890](https://github.com/JetBrains/skiko/issues/890)). An attempt to enable it lives in git history (commit `d82d748`, reverted in `c760073`); revisit once that upstream issue is fixed.
+
 ## Build and run
 
 ```shell
