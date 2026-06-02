@@ -23,9 +23,51 @@ object LogParser {
             ?: LogEntry(id = id, content = rawLine, message = rawLine, level = "D")
 
     /**
-     * Parse a whole log, folding multiline messages (e.g. Java stack traces) back together: a line
-     * that doesn't start a new logcat record is appended to the message of the entry before it,
-     * instead of becoming its own bogus entry. Used for files; live capture stays per-line.
+     * Parse a single line as a log record header, returning null when the line is a continuation
+     * (e.g. a stack-trace frame). The returned entry carries a placeholder id (0); the caller
+     * assigns the real id. Lets live capture fold multiline records the way [parseLog] does for
+     * files — the consumer attaches null-lines to the preceding entry via [foldContinuation].
+     */
+    fun parseLine(rawLine: String, pidToPackage: Map<String, String>): LogEntry? =
+        parseHeader(0, rawLine, pidToPackage)
+
+    /** True when [rawLine] is a logcat buffer separator (`--------- beginning of ...`). */
+    fun isSeparator(rawLine: String): Boolean = rawLine.startsWith("---------")
+
+    // Tags whose consecutive same-process records are one logical dump (a crash/tombstone), even
+    // though logcat prefixes every stack-trace line with its own header.
+    private val foldedTags = setOf("AndroidRuntime", "DEBUG")
+
+    /**
+     * Attach a continuation line to [current]: keep [contentLine] in [content] and grow the
+     * [message] (with [messageLine]) so a stack trace stays searchable as one logical line. Single
+     * source of the fold rule, shared by [parseLog] and live capture. For raw continuation lines
+     * [messageLine] defaults to [contentLine]; for a re-prefixed logcat crash line pass the parsed
+     * message so the per-line `E AndroidRuntime:` prefix isn't repeated into the folded message.
+     */
+    fun foldContinuation(current: LogEntry, contentLine: String, messageLine: String = contentLine): LogEntry =
+        current.copy(
+            content = current.content + "\n" + contentLine,
+            message = if (current.message.isEmpty()) messageLine.trimEnd()
+            else current.message + "\n" + messageLine.trimEnd(),
+        )
+
+    /**
+     * True when a freshly read line should fold into the current record instead of starting a new
+     * one: a raw continuation line ([header] == null), or another line of the same crash/tombstone
+     * dump (same [foldedTags] tag + pid + tid). Separators never fold.
+     */
+    fun shouldFold(anchor: LogEntry, header: LogEntry?, raw: String): Boolean {
+        if (isSeparator(raw)) return false
+        if (header == null) return true
+        return anchor.tag in foldedTags &&
+            header.tag == anchor.tag && header.pid == anchor.pid && header.tid == anchor.tid
+    }
+
+    /**
+     * Parse a whole log, folding multiline messages (Java stack traces, native tombstones) back
+     * together: a continuation line — or another line of the same crash dump — is appended to the
+     * preceding entry instead of becoming its own bogus record.
      */
     fun parseLog(
         lines: Sequence<String>,
@@ -39,21 +81,15 @@ object LogParser {
         var current: LogEntry? = null
         for (raw in lines) {
             if (raw.isBlank()) continue
-            val isSeparator = raw.startsWith("---------")
             val header = parseHeader(id, raw, pidToPackage)
-            if (header != null) {
-                out.add(header)
-                id++
-                current = if (isSeparator) null else header
-            } else if (current != null) {
-                // Continuation of the previous record: keep the raw text in [content] and grow the
-                // [message] so a stack trace stays searchable as one logical line.
-                val merged = current.copy(
-                    content = current.content + "\n" + raw,
-                    message = if (current.message.isEmpty()) raw.trimEnd() else current.message + "\n" + raw.trimEnd(),
-                )
+            if (current != null && shouldFold(current, header, raw)) {
+                val merged = foldContinuation(current, raw, header?.message ?: raw)
                 out[out.lastIndex] = merged
                 current = merged
+            } else if (header != null) {
+                out.add(header)
+                id++
+                current = if (isSeparator(raw)) null else header
             } else {
                 out.add(LogEntry(id = id, content = raw, message = raw, level = "D"))
                 id++

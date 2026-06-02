@@ -29,6 +29,7 @@ import com.dv.loglens.model.UserConfig
 import com.dv.loglens.model.WindowBounds
 import com.dv.loglens.parser.AndroidStudioLogParser
 import com.dv.loglens.parser.BugreportParser
+import com.dv.loglens.parser.CrashDetector
 import com.dv.loglens.parser.LogParser
 import com.dv.loglens.service.Adb
 import com.dv.loglens.service.DeviceService
@@ -77,6 +78,14 @@ class MainViewModel(
     val selectedIds = mutableStateSetOf<Int>()
     val bookmarkedIds = mutableStateSetOf<Int>()
     val pidToPackage = mutableStateMapOf<String, String>()
+
+    /** Ids of entries detected as crash/ANR; drives the row marker and crash-jump navigation. */
+    val crashIds = mutableStateSetOf<Int>()
+    // Pre-sorted like [sortedBookmarks] so next/prev crash navigation doesn't re-sort per keypress.
+    private var sortedCrashes: List<Int> = emptyList()
+
+    /** Ids of multiline entries the user expanded in the list (UI state, not persisted). */
+    val expandedIds = mutableStateSetOf<Int>()
 
     // Cached partition of the active filters, refreshed whenever the filter set changes so per-log
     // matching doesn't re-scan/re-categorise the rule list.
@@ -264,6 +273,7 @@ class MainViewModel(
             logs.clear()
             filteredLogs.clear()
             selectedIds.clear()
+            clearDerivedState()
             nextLogId.set(0)
         }
         startCapture()
@@ -500,6 +510,27 @@ class MainViewModel(
         if (_alwaysShowBookmarks.value) recomputeFiltered()
     }
 
+    fun findNextCrash(currentId: Int): Int? =
+        sortedCrashes.firstOrNull { it > currentId } ?: sortedCrashes.firstOrNull()
+
+    fun findPreviousCrash(currentId: Int): Int? =
+        sortedCrashes.lastOrNull { it < currentId } ?: sortedCrashes.lastOrNull()
+
+    private fun registerCrash(id: Int) {
+        if (crashIds.add(id)) sortedCrashes = crashIds.sorted()
+    }
+
+    fun toggleExpand(id: Int) {
+        if (!expandedIds.add(id)) expandedIds.remove(id)
+    }
+
+    /** Drop id-keyed derived state when the log set is reset; ids are reused after [nextLogId] resets. */
+    private fun clearDerivedState() {
+        crashIds.clear()
+        sortedCrashes = emptyList()
+        expandedIds.clear()
+    }
+
     fun setAutoFollow(enabled: Boolean) {
         _autoFollow.value = enabled
     }
@@ -552,6 +583,11 @@ class MainViewModel(
     fun selectRange(ids: Collection<Int>) {
         selectedIds.clear()
         selectedIds.addAll(ids)
+    }
+
+    fun clearSelection() {
+        selectedIds.clear()
+        selectionAnchor = null
     }
 
     fun toggleColumn(column: LogColumn) {
@@ -633,13 +669,14 @@ class MainViewModel(
         _loadedFile.value = null
         _isCapturing.value = true
         val gen = ++captureGen
-        val channel = Channel<LogEntry>(Channel.UNLIMITED)
+        val channel = Channel<CapturedLine>(Channel.UNLIMITED)
 
-        // Producer: read and parse lines off the main thread.
+        // Producer: read and detect record headers off the main thread. A null header marks a
+        // continuation line (stack frame) the consumer folds into the preceding entry.
         val producer = viewModelScope.launch(Dispatchers.Default) {
             try {
                 logcatService.stream(_selectedDevice.value, _logBuffers.value).collect { line ->
-                    channel.send(LogParser.parse(nextLogId.getAndIncrement(), line, pidSnapshot))
+                    channel.send(CapturedLine(line, LogParser.parseLine(line, pidSnapshot)))
                 }
             } finally {
                 channel.close()
@@ -648,20 +685,62 @@ class MainViewModel(
 
         // Consumer: batch-flush parsed entries to the observable list on the main thread, so a large
         // backlog collapses into a few list updates per second instead of one recomposition per line.
+        // Continuation lines are folded onto the current record in place (O(1)): the stream is ordered
+        // and nothing appends between a header and its continuations, so the record stays at the tail
+        // index we recorded. State persists across batches because a trace can span a flush boundary.
         captureJob = viewModelScope.launch {
+            var foldCurrent: LogEntry? = null
+            var foldLogsIdx = -1
+            var foldFilteredIdx = -1
             try {
                 while (isActive) {
                     val first = channel.receiveCatching().getOrNull() ?: break
-                    val batch = ArrayList<LogEntry>()
+                    val batch = ArrayList<CapturedLine>()
                     batch.add(first)
                     while (true) {
                         batch.add(channel.tryReceive().getOrNull() ?: break)
                     }
                     if (gen == captureGen) {
-                        logs.addAll(batch)
-                        // Filter only the new batch and append — no full re-scan of the growing list.
-                        val matched = batch.filter { matches(it) }
-                        if (matched.isNotEmpty()) filteredLogs.addAll(matched)
+                        for (cap in batch) {
+                            val header = cap.header
+                            if (foldCurrent != null && LogParser.shouldFold(foldCurrent, header, cap.raw)) {
+                                // Continuation (or another line of the same crash dump): grow the
+                                // current record in place. Re-prefixed crash lines contribute only
+                                // their parsed message, not the repeated `E AndroidRuntime:` prefix.
+                                val merged = LogParser.foldContinuation(foldCurrent, cap.raw, header?.message ?: cap.raw)
+                                logs[foldLogsIdx] = merged
+                                if (foldFilteredIdx >= 0) {
+                                    filteredLogs[foldFilteredIdx] = merged
+                                } else if (matches(merged)) {
+                                    // The grown message now matches a filter it didn't before.
+                                    filteredLogs.add(merged)
+                                    foldFilteredIdx = filteredLogs.lastIndex
+                                }
+                                foldCurrent = merged
+                            } else {
+                                // New record (recognised header, or an orphan continuation with no
+                                // current record → standalone D entry, as in LogParser.parseLog).
+                                val entry = header?.copy(id = nextLogId.getAndIncrement())
+                                    ?: LogEntry(
+                                        id = nextLogId.getAndIncrement(),
+                                        content = cap.raw,
+                                        message = cap.raw,
+                                        level = "D",
+                                    )
+                                logs.add(entry)
+                                foldLogsIdx = logs.lastIndex
+                                if (matches(entry)) {
+                                    filteredLogs.add(entry)
+                                    foldFilteredIdx = filteredLogs.lastIndex
+                                } else {
+                                    foldFilteredIdx = -1
+                                }
+                                if (CrashDetector.isCrash(entry)) registerCrash(entry.id)
+                                // A separator collects no continuations, so trailing text isn't glued
+                                // onto an unrelated record.
+                                foldCurrent = if (header != null && !LogParser.isSeparator(cap.raw)) entry else null
+                            }
+                        }
                     }
                     delay(FLUSH_INTERVAL_MS)
                 }
@@ -671,6 +750,9 @@ class MainViewModel(
             }
         }
     }
+
+    /** A captured line and its parsed header ([LogParser.parseLine]), or null header for a continuation. */
+    private class CapturedLine(val raw: String, val header: LogEntry?)
 
     fun stopCapture() {
         captureGen++
@@ -688,6 +770,7 @@ class MainViewModel(
         logs.clear()
         filteredLogs.clear()
         selectedIds.clear()
+        clearDerivedState()
         // Restart the Index column from 0; new entries get fresh ids.
         nextLogId.set(0)
         // For a live device, also wipe the on-device logcat buffer so cleared lines never reappear.
@@ -721,8 +804,11 @@ class MainViewModel(
             logs.clear()
             filteredLogs.clear()
             selectedIds.clear()
+            clearDerivedState()
             logs.addAll(parsed)
             nextLogId.set(parsed.size)
+            parsed.forEach { if (CrashDetector.isCrash(it)) crashIds.add(it.id) }
+            sortedCrashes = crashIds.sorted()
             _autoFollow.value = false
             _loadedFile.value = file.name
             recomputeFiltered()

@@ -25,7 +25,8 @@ object IslandsLight {
     val panel = Color(0xFFE9EAEB)
     val editor = Color(0xFFFFFFFF)
     val popup = Color(0xFFF7F8F9)
-    val rowSelected = Color(0xFFD0E3FF)
+    val logInfo = Color(0xFF2E7D32)
+    val rowSelected = Color(0xFFE7EEFF)
     val borderNormal = Color(0xFFD3D5DB)
     val borderFocused = Color(0xFFB6B8BD)
     val textNormal = Color(0xFF1F2125)
@@ -35,7 +36,6 @@ object IslandsLight {
 
     val logError = Color(0xFFC7222D)
     val logWarn = Color(0xFFB26000)
-    val logInfo = Color(0xFF2E7D32)
     val logDebug = Color(0xFF0000DD)
     val logVerbose = Color(0xFF000000)
 }

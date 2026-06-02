@@ -2,8 +2,11 @@ package com.dv.loglens
 
 import androidx.compose.foundation.ScrollbarStyle
 import androidx.compose.foundation.VerticalScrollbar
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.LazyListState
@@ -21,6 +24,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,6 +63,7 @@ import com.dv.loglens.util.copyToClipboard
 import com.dv.loglens.ui.QuickFilterBar
 import com.dv.loglens.ui.FilterBar
 import com.dv.loglens.ui.FiltersDialog
+import com.dv.loglens.ui.CrashNavigator
 import com.dv.loglens.ui.FindBar
 import com.dv.loglens.ui.LogHeaders
 import com.dv.loglens.ui.ShortcutsDialog
@@ -77,7 +82,13 @@ import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
 
-@OptIn(ExperimentalComposeUiApi::class)
+/** A [BringIntoViewSpec] that never scrolls — used so focusing a cell's copy field doesn't jump the list. */
+@OptIn(ExperimentalFoundationApi::class)
+private val NoScrollBringIntoViewSpec = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
+}
+
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
     val themeMode by viewModel.themeMode.collectAsState()
@@ -202,8 +213,31 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 val centerOffset = -((viewportEnd - viewportStart - rowSize) / 2)
                 scope.launch { listState.animateScrollToItem(rowIdx, centerOffset) }
             }
-            viewModel.toggleSelection(filteredLogs[rowIdx].id, multiSelect = false)
+            val log = filteredLogs[rowIdx]
+            viewModel.toggleSelection(log.id, multiSelect = false)
             viewModel.setAutoFollow(false)
+            // Expand a folded match so the matching line isn't hidden behind the collapsed first line.
+            if ('\n' in log.message) viewModel.expandedIds.add(log.id)
+        }
+
+        // Jump to a log by id (used by crash navigation): align its first line to the top of the
+        // viewport so a long folded trace reads from its start, then select and expand it.
+        fun jumpToLogId(id: Int) {
+            val rowIdx = filteredLogs.indexOfFirst { it.id == id }
+            if (rowIdx < 0) return
+            scope.launch { listState.animateScrollToItem(rowIdx) }
+            viewModel.toggleSelection(id, multiSelect = false)
+            viewModel.setAutoFollow(false)
+            if ('\n' in filteredLogs[rowIdx].message) viewModel.expandedIds.add(id)
+        }
+
+        fun jumpToCrash(forward: Boolean) {
+            if (viewModel.crashIds.isEmpty()) return
+            val currentId = viewModel.selectedIds.lastOrNull()
+                ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
+                ?: -1
+            val target = if (forward) viewModel.findNextCrash(currentId) else viewModel.findPreviousCrash(currentId)
+            target?.let { jumpToLogId(it) }
         }
 
         LaunchedEffect(Unit) {
@@ -427,6 +461,10 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 )
                             },
                     ) {
+                    // Focusing the substring-copy text field would otherwise bring-into-view and jump
+                    // the list; suppress that auto-scroll so double-click stays put. Explicit jumps
+                    // (find / crash nav) use animateScrollToItem and are unaffected.
+                    CompositionLocalProvider(LocalBringIntoViewSpec provides NoScrollBringIntoViewSpec) {
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                         itemsIndexed(filteredLogs, key = { _, log -> log.id }) { index, log ->
                             val hl = highlightFilters.firstOrNull { it.matches(log) }
@@ -473,14 +511,21 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                                 activeCell = activeCell,
                                 onActivateCell = { column ->
                                     activeCell = log.id to column
+                                    // Entering substring-copy mode: drop the row selection so the
+                                    // highlighted text field isn't fighting the selected-row background.
+                                    viewModel.clearSelection()
                                     viewModel.setAutoFollow(false)
                                 },
                                 onExitSelection = {
                                     activeCell = null
                                     runCatching { focusRequester.requestFocus() }
                                 },
+                                isExpanded = log.id in viewModel.expandedIds,
+                                onToggleExpand = { viewModel.toggleExpand(log.id) },
+                                isCrash = log.id in viewModel.crashIds,
                             )
                         }
+                    }
                     }
                     Box(
                         modifier = Modifier
@@ -526,6 +571,20 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                             .padding(horizontal = 12.dp)
                             .padding(top = 4.dp)
                             .widthIn(min = 360.dp),
+                    )
+                }
+
+                // Floating crash/ANR navigator, top-right over the logs; drops below the find bar
+                // when that's open so the two don't overlap.
+                if (viewModel.crashIds.isNotEmpty()) {
+                    CrashNavigator(
+                        count = viewModel.crashIds.size,
+                        onPrev = { jumpToCrash(forward = false) },
+                        onNext = { jumpToCrash(forward = true) },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(horizontal = 12.dp)
+                            .padding(top = if (findVisible) 48.dp else 4.dp),
                     )
                 }
             }

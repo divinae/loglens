@@ -31,6 +31,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
@@ -97,15 +100,18 @@ fun LogRow(
     activeCell: Pair<Int, LogColumn>? = null,
     onActivateCell: (LogColumn) -> Unit = {},
     onExitSelection: () -> Unit = {},
+    isExpanded: Boolean = false,
+    onToggleExpand: () -> Unit = {},
+    isCrash: Boolean = false,
 ) {
     val color = logLevelColor(log.level, isDarkMode)
+    // A folded record (stack trace / crash dump) carries newlines; it collapses to its first line.
+    val multiline = '\n' in log.message
     val resolvedWeight = remember(fontWeight) { FontWeight(FontWeightPreset.fromName(fontWeight).weight) }
-    val bookmarkTint = JewelTheme.globalColors.text.info.copy(alpha = 0.10f)
     val backgroundColor = when {
         isSelected && isDarkMode -> ROW_SELECTED_DARK
         isSelected -> ROW_SELECTED_LIGHT
         highlightColor != null -> highlightColor
-        isBookmarked -> bookmarkTint
         else -> Color.Transparent
     }
     val findHighlightColor = if (isDarkMode) Color(0xFF5A4A1F) else Color(0xFFFFF59D)
@@ -217,31 +223,85 @@ fun LogRow(
                     onActivate = { onActivateCell(column) },
                     modifier = cellModifier,
                 ) {
-                    if (cellActive) {
-                        SelectableLogCell(
-                            text = text,
-                            color = color,
-                            wrapText = wrap,
-                            fontSize = fontSize,
-                            fontFamily = fontFamily,
-                            fontWeight = resolvedWeight,
-                            onExit = onExitSelection,
-                        )
+                    // A multiline record (folded stack trace) collapses to its first line with a
+                    // chevron; expanding shows the whole trace regardless of the soft-wrap setting.
+                    val multiline = column == LogColumn.MESSAGE && '\n' in log.message
+                    val collapsed = multiline && !isExpanded
+                    val shown = if (collapsed) text.substringBefore('\n') else text
+                    val wrapEffective = if (multiline) isExpanded else wrap
+
+                    @Composable
+                    fun body() {
+                        if (cellActive) {
+                            SelectableLogCell(
+                                text = shown,
+                                color = color,
+                                wrapText = wrapEffective,
+                                fontSize = fontSize,
+                                fontFamily = fontFamily,
+                                fontWeight = resolvedWeight,
+                                onExit = onExitSelection,
+                            )
+                        } else {
+                            LogCell(
+                                shown,
+                                color,
+                                Modifier,
+                                wrapText = wrapEffective,
+                                fontSize = fontSize,
+                                fontFamily = fontFamily,
+                                fontWeight = resolvedWeight,
+                                findQuery = findQuery,
+                                findColor = findHighlightColor,
+                                onTextLayout = if (column == LogColumn.MESSAGE) {
+                                    { result -> messageOverflows = result.hasVisualOverflow }
+                                } else null,
+                            )
+                        }
+                    }
+
+                    if (column == LogColumn.MESSAGE && (multiline || isCrash)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            if (isCrash) {
+                                Text(
+                                    "⚠",
+                                    color = crashColor(isDarkMode),
+                                    fontSize = fontSize,
+                                    modifier = Modifier.padding(end = 3.dp),
+                                )
+                            }
+                            // weight(1f) so body fills and the count + chevron sit at the right edge.
+                            Box(Modifier.weight(1f)) { body() }
+                            if (collapsed) {
+                                Text(
+                                    "+${log.message.count { it == '\n' }}",
+                                    color = color.copy(alpha = 0.5f),
+                                    fontSize = fontSize,
+                                    modifier = Modifier.padding(start = 4.dp),
+                                )
+                            }
+                            // Expand/collapse toggle at the far right; only for folded records, so
+                            // single-line logs reserve no space. Same font + top alignment as the
+                            // text so it lines up exactly; horizontal padding widens the hit target
+                            // without changing the row height.
+                            if (multiline) {
+                                Text(
+                                    if (isExpanded) "collapse" else "expand",
+                                    color = linkColor(isDarkMode),
+                                    fontSize = fontSize,
+                                    textDecoration = TextDecoration.Underline,
+                                    modifier = Modifier
+                                        .pointerHoverIcon(PointerIcon.Hand)
+                                        .onPointerEvent(PointerEventType.Press) { e ->
+                                            e.changes.firstOrNull()?.consume()
+                                            onToggleExpand()
+                                        }
+                                        .padding(start = 6.dp, end = 4.dp),
+                                )
+                            }
+                        }
                     } else {
-                        LogCell(
-                            text,
-                            color,
-                            Modifier,
-                            wrapText = wrap,
-                            fontSize = fontSize,
-                            fontFamily = fontFamily,
-                            fontWeight = resolvedWeight,
-                            findQuery = findQuery,
-                            findColor = findHighlightColor,
-                            onTextLayout = if (column == LogColumn.MESSAGE) {
-                                { result -> messageOverflows = result.hasVisualOverflow }
-                            } else null,
-                        )
+                        body()
                     }
                 }
             }
@@ -324,6 +384,14 @@ private fun SelectableLogCell(
             },
     )
 }
+
+/** Colour of the crash/ANR marker glyph; a saturated red that reads on both themes. */
+private fun crashColor(isDarkMode: Boolean): Color =
+    if (isDarkMode) Color(0xFFFF6B68) else Color(0xFFCC0000)
+
+/** Standard hyperlink blue, tuned per theme for the expand/collapse link. */
+private fun linkColor(isDarkMode: Boolean): Color =
+    if (isDarkMode) Color(0xFF589DF6) else Color(0xFF2470B3)
 
 private fun highlightMatches(text: String, query: String, color: Color): AnnotatedString {
     if (query.isBlank()) return AnnotatedString(text)
