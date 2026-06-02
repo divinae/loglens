@@ -6,13 +6,6 @@ All notable changes to LogLens are documented here. The format is based on
 
 ## [Unreleased]
 
-### Changed
-- Dependency bump to the 2026.2 line: Compose Multiplatform 1.10.3 → 1.11.1,
-  Jewel 0.35.0-261 → 0.37.0-262, IntelliJ icons 261 → 262.4852.74, kotlinx-coroutines 1.10.2 → 1.11.0,
-  Detekt 1.23.7 → 1.23.8, Compose Hot Reload 1.1.0 → 1.1.1.
-- Bundled runtime / build toolchain bumped JBR 21 → JBR 25 (required by Jewel 0.37 / IntelliJ 262,
-  which ships Java 25 class files). Gradle still bootstraps on JDK 21; app code targets Java 21 bytecode.
-
 ## [1.0.0] - 2026-06-02
 
 First public release.
@@ -36,7 +29,12 @@ First public release.
 - **Appearance** — System/Light/Dark theme, font size/family/weight, soft wrap; HiDPI-aware icon.
 - Multiline folding of stack traces and repeat-count coalescing.
 - Persisted configuration, filters, search history, window geometry, and recent files.
-- Native packages (`.dmg`/`.msi`/`.deb`) with a bundled JetBrains Runtime — no host JDK required.
+- Native packages (`.dmg`/`.msi`/`.deb`) with a bundled JetBrains Runtime 25 — no host JDK required.
+
+### Build
+- Built with Kotlin 2.3.21, Compose Multiplatform 1.11.1, Jewel 0.37.0-262, kotlinx-coroutines 1.11.0.
+  Build/runtime toolchain is JetBrains Runtime 25 (Jewel 0.37 / IntelliJ 262 ships Java 25 class files);
+  Gradle still bootstraps on JDK 21 and our own code targets Java 21 bytecode.
 
 [Unreleased]: https://gitlab.com/divinae/logexp/-/compare/v1.0.0...main
 [1.0.0]: https://gitlab.com/divinae/logexp/-/tags/v1.0.0
