@@ -15,7 +15,7 @@ object FilePicker {
 
     // kdialog filters are "patterns|label", multiple separated by newlines.
     private const val KDIALOG_FILTER =
-        "*.txt *.log *.logcat|Log files (*.txt, *.log, *.logcat)\n*|All files (*)"
+        "*.txt *.log *.logcat *.zip|Log files & bugreports (*.txt, *.log, *.logcat, *.zip)\n*|All files (*)"
 
     fun openFile(title: String): File? = when {
         kdialog != null -> runPicker(listOf(kdialog!!, "--title", title, "--getopenfilename", startDir(), KDIALOG_FILTER))

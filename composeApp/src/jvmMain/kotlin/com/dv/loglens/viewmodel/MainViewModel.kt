@@ -686,16 +686,20 @@ class MainViewModel(
         stopCapture()
         viewModelScope.launch {
             val parsed = withContext(Dispatchers.IO) {
-                // Studio .logcat exports (JSON) and bugreports/dumpstates need the whole text; only
-                // slurp when it's small enough, otherwise fall back to streaming the lines.
-                val text = if (file.length() < MAX_JSON_LOG_BYTES) file.readText() else null
+                // adb bugreports ship as a zip — pull the bugreport-*.txt out first. Otherwise slurp
+                // the file (Studio JSON / flat bugreports need the whole text), unless it's huge, in
+                // which case we stream the lines.
+                val text = BugreportParser.extractFromZip(file)
+                    ?: if (file.length() < MAX_JSON_LOG_BYTES) file.readText() else null
                 val structured = when {
                     text == null -> null
                     AndroidStudioLogParser.matches(text) -> AndroidStudioLogParser.parse(text)
                     BugreportParser.matches(text) -> BugreportParser.parse(text)
                     else -> null
                 }
-                structured ?: file.useLines { lines -> LogParser.parseLog(lines) }
+                structured
+                    ?: text?.let { LogParser.parseLog(it.lineSequence()) }
+                    ?: file.useLines { lines -> LogParser.parseLog(lines) }
             }
             logs.clear()
             filteredLogs.clear()

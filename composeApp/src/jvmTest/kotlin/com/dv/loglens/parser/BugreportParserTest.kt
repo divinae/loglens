@@ -1,5 +1,8 @@
 package com.dv.loglens.parser
 
+import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -66,6 +69,29 @@ class BugreportParserTest {
             MemTotal: 1 kB
         """.trimIndent()
         assertNull(BugreportParser.parse(noLogcat))
+    }
+
+    @Test
+    fun extractsReportFromAdbZip() {
+        val zip = File.createTempFile("bugreport-test", ".zip").apply { deleteOnExit() }
+        ZipOutputStream(zip.outputStream()).use { out ->
+            // Decoy entries the real archive carries; the parser must pick the bugreport-*.txt.
+            out.putNextEntry(ZipEntry("version.txt")); out.write("11".toByteArray()); out.closeEntry()
+            out.putNextEntry(ZipEntry("bugreport-emu64-2026.txt")); out.write(sample.toByteArray()); out.closeEntry()
+        }
+        val text = assertNotNull(BugreportParser.extractFromZip(zip))
+        assertTrue(text.contains("ActivityManager"))
+        val parsed = assertNotNull(BugreportParser.parse(text))
+        assertTrue(parsed.any { it.tag == "ActivityManager" })
+        zip.delete()
+    }
+
+    @Test
+    fun extractFromZipIgnoresPlainTextFile() {
+        val txt = File.createTempFile("plain", ".txt").apply { deleteOnExit() }
+        txt.writeText(sample)
+        assertNull(BugreportParser.extractFromZip(txt))
+        txt.delete()
     }
 
     private fun assertFalseLike(value: Boolean) = assertTrue(!value)

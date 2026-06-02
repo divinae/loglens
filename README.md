@@ -22,7 +22,7 @@ Desktop viewer for Android logs (`adb logcat`), built with Kotlin Multiplatform 
 - **Selection** — single, range (Shift), drag; copy lines or a single column.
 - **Screenshot** — capture the device to a file + clipboard, optionally open in the default viewer.
 - **Screen recording** — `screenrecord` with Android Studio-style options (show taps, bitrate, size); auto-open when finished.
-- **Open from file** — parse saved logs (`-v threadtime`), Android Studio `.logcat` exports (JSON), and full Android **bugreports / `dumpstate`** dumps (extracts every embedded logcat section and mines the `ps` section for pid→process names). Multiline messages (e.g. Java stack traces) are folded back into a single record.
+- **Open from file** — parse saved logs (`-v threadtime`), Android Studio `.logcat` exports (JSON), and full Android **bugreports / `dumpstate`** dumps — both the flat `.txt` and the `adb bugreport` **`.zip`** (the embedded `bugreport-*.txt` is read straight from the archive). Extracts every embedded logcat section and mines the `ps` section for pid→process names. Multiline messages (e.g. Java stack traces) are folded back into a single record.
 - **Save logs** — all or filtered, as plain text or `.logcat` format.
 - **Appearance** — System/Light/Dark theme, font size/family/weight (system fonts), soft wrap. HiDPI-aware (Compose renders at native display scale; the app/window icon ships at 256px so it stays crisp).
 - Configuration and filters persist across launches.

@@ -1,6 +1,8 @@
 package com.dv.loglens.parser
 
 import com.dv.loglens.model.LogEntry
+import java.io.File
+import java.util.zip.ZipFile
 
 /**
  * Parser for Android bugreports / `dumpstate` text dumps. A bugreport is one big text file split
@@ -16,6 +18,34 @@ import com.dv.loglens.model.LogEntry
  * map so app-name filtering works on offline dumps too.
  */
 object BugreportParser {
+
+    /**
+     * `adb bugreport` ships a zip whose root holds the flat `bugreport-<device>-<date>.txt` report
+     * (alongside `FS/`, `version.txt`, `dumpstate_log.txt`, ...). If [file] is such a zip, return the
+     * report's text; null if it isn't a zip or has no usable text report. Call off the UI thread.
+     */
+    fun extractFromZip(file: File): String? {
+        if (!isZip(file)) return null
+        return runCatching {
+            ZipFile(file).use { zip ->
+                val entries = zip.entries().asSequence().filterNot { it.isDirectory }.toList()
+                // Prefer the canonical bugreport-*.txt; fall back to the largest .txt in the archive.
+                val entry = entries
+                    .filter { val n = it.name.substringAfterLast('/'); n.startsWith("bugreport") && n.endsWith(".txt") }
+                    .maxByOrNull { it.size }
+                    ?: entries.filter { it.name.endsWith(".txt") }.maxByOrNull { it.size }
+                    ?: return null
+                zip.getInputStream(entry).bufferedReader().use { it.readText() }
+            }
+        }.getOrNull()
+    }
+
+    /** Cheap zip sniff by the local-file-header magic `PK`, so a `.txt` mislabelled as zip (or vice-versa) is judged by content, not extension. */
+    private fun isZip(file: File): Boolean = runCatching {
+        file.inputStream().use { ins ->
+            ins.read() == 0x50 && ins.read() == 0x4B && ins.read() == 0x03 && ins.read() == 0x04
+        }
+    }.getOrDefault(false)
 
     /** True if [text] looks like a bugreport/dumpstate containing embedded logcat sections. */
     fun matches(text: String): Boolean {
