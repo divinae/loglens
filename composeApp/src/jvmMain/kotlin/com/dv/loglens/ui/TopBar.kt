@@ -57,6 +57,8 @@ fun TopBar(
     onClear: () -> Unit,
     isCapturing: Boolean,
     onToggleCapture: () -> Unit,
+    isPaused: Boolean,
+    onTogglePause: () -> Unit,
     onTakeScreenshot: () -> Unit,
     isRecording: Boolean,
     onToggleRecording: () -> Unit,
@@ -158,15 +160,19 @@ fun TopBar(
 
         // Live controls only make sense with a device source selected, not for a file or no source.
         if (loadedFile == null && selectedDevice != null) {
+            // Pause/resume the display; the stream keeps buffering while paused, so resuming
+            // flushes the backlog with no gap. Falls back to starting capture when none runs
+            // (no device stream yet / stream died).
+            val showPause = isCapturing && !isPaused
             IconActionButton(
-                key = if (isCapturing) AllIconsKeys.Actions.Pause else AllIconsKeys.Toolwindows.ToolWindowRun,
-                contentDescription = if (isCapturing) "Pause log capture" else "Resume log capture",
-                onClick = onToggleCapture,
+                key = if (showPause) AllIconsKeys.Actions.Pause else AllIconsKeys.Toolwindows.ToolWindowRun,
+                contentDescription = if (showPause) "Pause log capture" else "Resume log capture",
+                onClick = { if (isCapturing) onTogglePause() else onToggleCapture() },
                 colorFilter = iconTint(false),
                 tooltipStyle = tooltipStyle,
                 tooltipPlacement = belowPlacement,
             ) {
-                Text(if (isCapturing) "Pause capture" else "Resume capture")
+                Text(if (showPause) "Pause capture" else "Resume capture")
             }
 
             IconActionButton(

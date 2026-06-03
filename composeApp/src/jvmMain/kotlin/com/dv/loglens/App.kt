@@ -101,6 +101,7 @@ fun App(
     val columnWidths by viewModel.columnWidths.collectAsState()
     val autoFollow by viewModel.autoFollow.collectAsState()
     val isCapturing by viewModel.isCapturing.collectAsState()
+    val isPaused by viewModel.isPaused.collectAsState()
     val filters by viewModel.filters.collectAsState()
     val devices by viewModel.devices.collectAsState()
     val selectedDevice by viewModel.selectedDevice.collectAsState()
@@ -341,6 +342,8 @@ fun App(
                     onClear = viewModel::clearLogs,
                     isCapturing = isCapturing,
                     onToggleCapture = viewModel::toggleCapture,
+                    isPaused = isPaused,
+                    onTogglePause = viewModel::togglePause,
                     isRecording = isRecording,
                     onToggleRecording = viewModel::toggleRecording,
                     onTakeScreenshot = {

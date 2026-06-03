@@ -112,6 +112,14 @@ class MainViewModel(
     private val _isCapturing = MutableStateFlow(false)
     val isCapturing = _isCapturing.asStateFlow()
 
+    /**
+     * Display pause: the adb stream keeps running and lines keep buffering in the capture channel,
+     * only the UI stops appending. Resuming flushes the backlog, so nothing is lost — unlike
+     * stop/start, which re-reads the device ring buffer.
+     */
+    private val _isPaused = MutableStateFlow(false)
+    val isPaused = _isPaused.asStateFlow()
+
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode = _themeMode.asStateFlow()
 
@@ -228,6 +236,22 @@ class MainViewModel(
     @Volatile
     private var pidSnapshot: Map<String, String> = emptyMap()
 
+    /** Pids that produced at least one visible log entry; gates process-death banners to spam-free. */
+    private val pidsSeenInLogs = HashSet<String>()
+
+    /** Package names that produced log entries, for process-start banners after a restart. */
+    private val packagesSeenInLogs = HashSet<String>()
+
+    /** `date time` of the newest parsed entry; reconnect resumes the stream from here (logcat -T). */
+    @Volatile
+    private var lastEntryTimestamp: String? = null
+
+    /** Serial of the last live capture source, so a reappearing device resumes automatically. */
+    private var lastLiveSerial: String? = null
+
+    /** One-shot logcat -T value consumed by the next [startCapture] (set on auto-reconnect). */
+    private var resumeSinceTimestamp: String? = null
+
     init {
         applyConfig(configManager.load())
         _filters.value = filterStore.load()
@@ -263,15 +287,49 @@ class MainViewModel(
                 _devices.value = list
                 val current = _selectedDevice.value
                 if (current != null && list.none { it.serial == current }) {
+                    // Device dropped: remember it for auto-reconnect and stop the dead stream
+                    // instead of restarting against no device (which only spews adb errors).
+                    lastLiveSerial = current
                     _selectedDevice.value = null
-                    restartCapture(clearLogs = false)
-                } else if (current == null && list.size == 1 && list[0].isOnline) {
-                    _selectedDevice.value = list[0].serial
-                    restartCapture(clearLogs = true)
+                    stopCapture()
+                    appendSystemBanner("DEVICE DISCONNECTED ($current)")
+                } else if (current == null) {
+                    // Prefer the device we lost; otherwise auto-pick a sole online device.
+                    val returned = list.firstOrNull { it.serial == lastLiveSerial && it.isOnline }
+                    val sole = list.singleOrNull()?.takeIf { it.isOnline }
+                    val pick = returned ?: sole ?: return@withContext
+                    val isReconnect = pick.serial == lastLiveSerial
+                    _selectedDevice.value = pick.serial
+                    if (isReconnect) {
+                        // Resume from the last seen line so the kept logs aren't duplicated and
+                        // lines buffered on the device while unplugged still arrive.
+                        appendSystemBanner("DEVICE RECONNECTED (${pick.serial})")
+                        resumeSinceTimestamp = lastEntryTimestamp
+                        restartCapture(clearLogs = false)
+                    } else {
+                        restartCapture(clearLogs = true)
+                    }
                     refreshPackages()
                 }
             }
         }
+    }
+
+    /**
+     * Append a synthetic separator-style entry (device/process lifecycle banner) to the log and,
+     * filter permitting, the visible view. Live capture only — banners make no sense in a file.
+     */
+    private fun appendSystemBanner(text: String) {
+        if (_loadedFile.value != null) return
+        val content = "---------------------------- $text ----------------------------"
+        val entry = LogEntry(
+            id = nextLogId.getAndIncrement(),
+            content = content,
+            message = content,
+            level = "I",
+        )
+        logs.add(entry)
+        if (matches(entry)) filteredLogs.add(entry)
     }
 
     fun selectDevice(serial: String?) {
@@ -568,6 +626,9 @@ class MainViewModel(
         crashIds.clear()
         visibleCrashes = emptyList()
         expandedIds.clear()
+        pidsSeenInLogs.clear()
+        packagesSeenInLogs.clear()
+        lastEntryTimestamp = null
     }
 
     fun setAutoFollow(enabled: Boolean) {
@@ -583,6 +644,7 @@ class MainViewModel(
             val newMap = PackageService.fetchPidMap(_selectedDevice.value)
             if (newMap.isEmpty() || newMap == pidToPackage) return@launch
             withContext(Dispatchers.Main) {
+                emitProcessBanners(oldMap = pidSnapshot, newMap = newMap)
                 pidToPackage.clear()
                 pidToPackage.putAll(newMap)
                 pidSnapshot = newMap
@@ -601,6 +663,25 @@ class MainViewModel(
                 }
                 // Backfilled app names can change filter matches, so rebuild the filtered view.
                 if (changed) recomputeFiltered()
+            }
+        }
+    }
+
+    /**
+     * Android-Studio-style process lifecycle banners, derived from pid→package poll diffs. Scoped
+     * to processes that actually appeared in this session's logs ([pidsSeenInLogs] /
+     * [packagesSeenInLogs]) — unrelated system process churn stays silent.
+     */
+    private fun emitProcessBanners(oldMap: Map<String, String>, newMap: Map<String, String>) {
+        if (!_isCapturing.value || oldMap.isEmpty()) return
+        for ((pid, pkg) in oldMap) {
+            if (pid !in newMap && pid in pidsSeenInLogs) {
+                appendSystemBanner("PROCESS ENDED ($pid) for package $pkg")
+            }
+        }
+        for ((pid, pkg) in newMap) {
+            if (pid !in oldMap && pkg in packagesSeenInLogs) {
+                appendSystemBanner("PROCESS STARTED ($pid) for package $pkg")
             }
         }
     }
@@ -716,6 +797,11 @@ class MainViewModel(
         // Going live: we are no longer reading from a file.
         _loadedFile.value = null
         _isCapturing.value = true
+        _isPaused.value = false
+        _selectedDevice.value?.let { lastLiveSerial = it }
+        // One-shot resume point from an auto-reconnect; a normal start reads the whole buffer.
+        val sinceTime = resumeSinceTimestamp
+        resumeSinceTimestamp = null
         val gen = ++captureGen
         val channel = Channel<CapturedLine>(Channel.UNLIMITED)
 
@@ -723,7 +809,7 @@ class MainViewModel(
         // continuation line (stack frame) the consumer folds into the preceding entry.
         val producer = viewModelScope.launch(Dispatchers.Default) {
             try {
-                logcatService.stream(_selectedDevice.value, _logBuffers.value).collect { line ->
+                logcatService.stream(_selectedDevice.value, _logBuffers.value, sinceTime).collect { line ->
                     channel.send(CapturedLine(line, LogParser.parseLine(line, pidSnapshot)))
                 }
             } finally {
@@ -742,6 +828,12 @@ class MainViewModel(
             var foldFilteredIdx = -1
             try {
                 while (isActive) {
+                    // Display pause: stop draining; the unbounded channel keeps buffering the
+                    // stream, so resuming flushes everything that arrived in the meantime.
+                    if (_isPaused.value) {
+                        delay(FLUSH_INTERVAL_MS)
+                        continue
+                    }
                     val first = channel.receiveCatching().getOrNull() ?: break
                     val batch = ArrayList<CapturedLine>()
                     batch.add(first)
@@ -751,6 +843,12 @@ class MainViewModel(
                     if (gen == captureGen) {
                         for (cap in batch) {
                             val header = cap.header
+                            if (header != null && header.time.isNotBlank()) {
+                                // Reconnect resume point + process-banner bookkeeping.
+                                lastEntryTimestamp = "${header.date} ${header.time}"
+                                if (header.pid.isNotBlank()) pidsSeenInLogs.add(header.pid)
+                                if (header.appName.isNotBlank()) packagesSeenInLogs.add(header.appName)
+                            }
                             if (foldCurrent != null && LogParser.shouldFold(foldCurrent, header, cap.raw)) {
                                 // Continuation (or another line of the same crash dump): grow the
                                 // current record in place. Re-prefixed crash lines contribute only
@@ -819,10 +917,16 @@ class MainViewModel(
         captureJob = null
         logcatService.stop()
         _isCapturing.value = false
+        _isPaused.value = false
     }
 
     fun toggleCapture() {
         if (_isCapturing.value) stopCapture() else startCapture()
+    }
+
+    /** Pause/resume the display while the stream keeps buffering; see [isPaused]. */
+    fun togglePause() {
+        if (_isCapturing.value) _isPaused.value = !_isPaused.value
     }
 
     fun clearLogs() {

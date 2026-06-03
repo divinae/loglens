@@ -7,6 +7,14 @@ All notable changes to LogLens are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Pause without stopping** — the capture toggle now pauses the display while the adb stream
+  keeps buffering; resuming flushes the backlog with no gap (a stopped stream re-reads the
+  device ring buffer instead).
+- **Process lifecycle banners** — Android-Studio-style `PROCESS STARTED (pid) for package …` /
+  `PROCESS ENDED` lines, scoped to processes that logged in the current session.
+- **Auto-reconnect** — when the captured device drops and returns, capture resumes from the last
+  seen line (`logcat -T`) without clearing logs or duplicating them; `DEVICE DISCONNECTED` /
+  `DEVICE RECONNECTED` banners mark the gap.
 - **Clickable URLs** — http/https links in the message column are underlined and open in the
   system browser (with an `xdg-open` fallback on Linux, where AWT's BROWSE action is typically
   unavailable; this also fixes the About dialog link there).

@@ -13,12 +13,18 @@ class LogcatService {
     @Volatile
     private var process: Process? = null
 
-    fun stream(deviceSerial: String? = null, buffers: Set<LogBuffer> = emptySet()): Flow<String> = flow {
+    fun stream(
+        deviceSerial: String? = null,
+        buffers: Set<LogBuffer> = emptySet(),
+        sinceTime: String? = null,
+    ): Flow<String> = flow {
         try {
             val cmd = buildList {
                 add(Adb.exe())
                 if (deviceSerial != null) { add("-s"); add(deviceSerial) }
                 add("logcat"); add("-v"); add("threadtime")
+                // Resume point for reconnects: only lines at/after this "MM-DD HH:MM:SS.mmm".
+                if (sinceTime != null) { add("-T"); add(sinceTime) }
                 // One -b per selected buffer; empty set leaves adb on its own default selection.
                 buffers.forEach { add("-b"); add(it.adbName) }
             }
