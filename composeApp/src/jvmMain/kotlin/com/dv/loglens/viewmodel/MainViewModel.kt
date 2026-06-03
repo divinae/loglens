@@ -1,8 +1,11 @@
 package com.dv.loglens.viewmodel
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateSetOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dv.loglens.config.ConfigManager
@@ -80,10 +83,16 @@ class MainViewModel(
     val bookmarkedIds = mutableStateSetOf<Int>()
     val pidToPackage = mutableStateMapOf<String, String>()
 
-    /** Ids of entries detected as crash/ANR; drives the row marker and crash-jump navigation. */
+    /** Ids of entries detected as crash/ANR; drives the row marker. */
     val crashIds = mutableStateSetOf<Int>()
-    // Pre-sorted like [sortedBookmarks] so next/prev crash navigation doesn't re-sort per keypress.
-    private var sortedCrashes: List<Int> = emptyList()
+
+    /**
+     * Crash ids currently present in [filteredLogs], in log order; the navigator badge and
+     * next/prev jumps use this so filtered-out crashes are skipped. Rebuilt alongside
+     * [recomputeFiltered] and maintained incrementally during capture.
+     */
+    var visibleCrashes by mutableStateOf<List<Int>>(emptyList())
+        private set
 
     /** Ids of multiline entries the user expanded in the list (UI state, not persisted). */
     val expandedIds = mutableStateSetOf<Int>()
@@ -517,17 +526,18 @@ class MainViewModel(
         if (_alwaysShowBookmarks.value) recomputeFiltered()
     }
 
-    /** 0-based position of [id] among crashes in log order, or -1 if it isn't a crash. */
-    fun crashOrdinal(id: Int): Int = sortedCrashes.indexOf(id)
+    /** 0-based position of [id] among visible crashes in log order, or -1 if it isn't one. */
+    fun crashOrdinal(id: Int): Int = visibleCrashes.indexOf(id)
 
     fun findNextCrash(currentId: Int): Int? =
-        sortedCrashes.firstOrNull { it > currentId } ?: sortedCrashes.firstOrNull()
+        visibleCrashes.firstOrNull { it > currentId } ?: visibleCrashes.firstOrNull()
 
     fun findPreviousCrash(currentId: Int): Int? =
-        sortedCrashes.lastOrNull { it < currentId } ?: sortedCrashes.lastOrNull()
+        visibleCrashes.lastOrNull { it < currentId } ?: visibleCrashes.lastOrNull()
 
-    private fun registerCrash(id: Int) {
-        if (crashIds.add(id)) sortedCrashes = crashIds.sorted()
+    // Capture appends in id order, so appending keeps [visibleCrashes] sorted.
+    private fun registerCrash(id: Int, visible: Boolean) {
+        if (crashIds.add(id) && visible) visibleCrashes = visibleCrashes + id
     }
 
     fun toggleExpand(id: Int) {
@@ -537,7 +547,7 @@ class MainViewModel(
     /** Drop id-keyed derived state when the log set is reset; ids are reused after [nextLogId] resets. */
     private fun clearDerivedState() {
         crashIds.clear()
-        sortedCrashes = emptyList()
+        visibleCrashes = emptyList()
         expandedIds.clear()
     }
 
@@ -671,6 +681,9 @@ class MainViewModel(
         val rebuilt = logs.filter { matches(it) }
         filteredLogs.clear()
         filteredLogs.addAll(rebuilt)
+        visibleCrashes =
+            if (crashIds.isEmpty()) emptyList()
+            else rebuilt.mapNotNull { log -> log.id.takeIf { it in crashIds } }
     }
 
     fun startCapture() {
@@ -725,6 +738,8 @@ class MainViewModel(
                                     // The grown message now matches a filter it didn't before.
                                     filteredLogs.add(merged)
                                     foldFilteredIdx = filteredLogs.lastIndex
+                                    // A previously hidden crash just became visible.
+                                    if (merged.id in crashIds) visibleCrashes = visibleCrashes + merged.id
                                 }
                                 foldCurrent = merged
                             } else {
@@ -751,7 +766,9 @@ class MainViewModel(
                                     } else {
                                         foldFilteredIdx = -1
                                     }
-                                    if (CrashDetector.isCrash(entry)) registerCrash(entry.id)
+                                    if (CrashDetector.isCrash(entry)) {
+                                        registerCrash(entry.id, visible = foldFilteredIdx >= 0)
+                                    }
                                     // A separator collects no continuations, so trailing text isn't
                                     // glued onto an unrelated record.
                                     foldCurrent = if (header != null && !isSep) entry else null
@@ -824,8 +841,8 @@ class MainViewModel(
             clearDerivedState()
             logs.addAll(parsed)
             nextLogId.set(parsed.size)
+            // visibleCrashes is derived from these in recomputeFiltered() below.
             parsed.forEach { if (CrashDetector.isCrash(it)) crashIds.add(it.id) }
-            sortedCrashes = crashIds.sorted()
             _autoFollow.value = false
             _loadedFile.value = file.name
             recomputeFiltered()
