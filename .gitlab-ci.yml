@@ -25,19 +25,13 @@ stages:
 verify:
   stage: verify
   script:
-    # createDistributable also smoke-tests jlink/jpackage with the JBR 25 toolchain and produces
-    # a runnable portable app image for every Linux build, not just tagged releases.
+    # createDistributable smoke-tests jlink/jpackage with the JBR 25 toolchain on every Linux
+    # build; the resulting app image is only uploaded from the tagged release job.
     - ./gradlew --no-daemon :composeApp:jvmTest detekt :composeApp:createDistributable
-    - mkdir -p dist
-    - tar -C composeApp/build/compose/binaries/main/app -czf dist/loglens-${CI_COMMIT_SHORT_SHA}-linux-x64.tar.gz loglens
   artifacts:
     when: always
     reports:
       junit: composeApp/build/test-results/jvmTest/*.xml
-    paths:
-      - composeApp/build/reports/
-      - dist/
-    expire_in: 1 week
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH'
