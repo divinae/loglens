@@ -7,6 +7,10 @@ All notable changes to LogLens are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Query language extensions** — `is:crash` / `is:stacktrace` record classes, `age:30s|5m|2h|1d`
+  relative-time filter, and per-field regex via `tag~:Foo.*` (alongside the existing `tag:/…/`).
+- **Filter syntax help** — `?` button in the quick-filter bar (or F1 in the field) opens a
+  reference of the full query grammar.
 - **Pause without stopping** — the capture toggle now pauses the display while the adb stream
   keeps buffering; resuming flushes the backlog with no gap (a stopped stream re-reads the
   device ring buffer instead).
