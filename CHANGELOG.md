@@ -6,6 +6,25 @@ All notable changes to LogLens are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **Clickable URLs** — http/https links in the message column are underlined and open in the
+  system browser (with an `xdg-open` fallback on Linux, where AWT's BROWSE action is typically
+  unavailable; this also fixes the About dialog link there).
+- **Expand multiline logs by default** — new setting; foldable multiline records start expanded
+  instead of collapsed. Per-row expand/collapse still works in both modes.
+
+### Changed
+- Multiline `Log` calls (e.g. HTTP client dumps) are folded into one record the way Android
+  Studio groups them: logcat gives every embedded line an identical header down to the
+  millisecond, so an exact header match joins the preceding record.
+- Collapsed multiline records preview the whole message flattened into one ellipsized line
+  instead of just the first line, so fields past the first newline (e.g. a request URL) stay
+  visible and clickable without expanding.
+
+### Fixed
+- Rows hidden by a filter change are also dropped from the selection, so shortcuts (B, copy,
+  arrow navigation) no longer act on lines that are no longer visible.
+
 ## [1.0.1] - 2026-06-03
 
 ### Fixed
