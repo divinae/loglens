@@ -50,6 +50,7 @@ fun QuickFilterBar(
     ) {
         // Seed from the view-model query so re-showing a hidden bar keeps the active filter.
         val searchState = rememberTextFieldState(initialQuery)
+        var showHelp by remember { mutableStateOf(false) }
         // -1 = currently editing (not browsing history); 0 = most recent, growing = older.
         var historyIndex by remember { mutableStateOf(-1) }
         // Text we last injected from history/clear, so genuine user edits can reset the browse position.
@@ -100,7 +101,7 @@ fun QuickFilterBar(
 
         TextField(
             state = searchState,
-            placeholder = { Text("Filter: text, or tag:Foo level>=W package:com.foo -msg:spam") },
+            placeholder = { Text("Filter: text, or tag:Foo level>=W package:com.foo -msg:spam is:crash age:5m tag~:regex") },
             outline = if (error != null) Outline.Error else Outline.None,
             trailingIcon = if (searchState.text.isNotEmpty()) {
                 {
@@ -131,6 +132,10 @@ fun QuickFilterBar(
                             historyIndex = -1
                             true
                         }
+                        Key.F1 -> {
+                            showHelp = true
+                            true
+                        }
                         // Up = older entries.
                         Key.DirectionUp -> {
                             if (historyIndex < history.lastIndex) {
@@ -157,5 +162,16 @@ fun QuickFilterBar(
                     }
                 },
         )
+
+        IconActionButton(
+            key = AllIconsKeys.Actions.Help,
+            contentDescription = "Filter query syntax help",
+            onClick = { showHelp = true },
+            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.6f)),
+        )
+
+        if (showHelp) {
+            QueryHelpDialog(onDismiss = { showHelp = false })
+        }
     }
 }
