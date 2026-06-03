@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -63,6 +64,7 @@ import com.dv.loglens.util.copyToClipboard
 import com.dv.loglens.ui.QuickFilterBar
 import com.dv.loglens.ui.FilterBar
 import com.dv.loglens.ui.FiltersDialog
+import com.dv.loglens.ui.BookmarkNavigator
 import com.dv.loglens.ui.CrashNavigator
 import com.dv.loglens.ui.FindBar
 import com.dv.loglens.ui.LogHeaders
@@ -248,6 +250,16 @@ fun App(
                 ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
                 ?: -1
             val target = if (forward) viewModel.findNextCrash(currentId) else viewModel.findPreviousCrash(currentId)
+            target?.let { jumpToLogId(it) }
+        }
+
+        fun jumpToBookmark(forward: Boolean) {
+            if (viewModel.bookmarkedIds.isEmpty()) return
+            val currentId = viewModel.selectedIds.lastOrNull()
+                ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
+                ?: -1
+            val target =
+                if (forward) viewModel.findNextBookmark(currentId) else viewModel.findPreviousBookmark(currentId)
             target?.let { jumpToLogId(it) }
         }
 
@@ -610,20 +622,34 @@ fun App(
                     )
                 }
 
-                // Floating crash/ANR navigator, top-right over the logs; drops below the find bar
-                // when that's open so the two don't overlap. Counts and walks only crashes that
-                // survive the current filters — hidden ones are skipped.
-                if (viewModel.visibleCrashes.isNotEmpty()) {
-                    CrashNavigator(
-                        count = viewModel.visibleCrashes.size,
-                        current = viewModel.crashOrdinal(selectedIds.lastOrNull() ?: -1),
-                        onPrev = { jumpToCrash(forward = false) },
-                        onNext = { jumpToCrash(forward = true) },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(horizontal = 12.dp)
-                            .padding(top = if (findVisible) 48.dp else 4.dp),
-                    )
+                // Floating navigators, top-right over the logs, stacked; they drop below the find
+                // bar when that's open so nothing overlaps. The crash pill counts and walks only
+                // crashes that survive the current filters; the bookmark pill walks all bookmarks
+                // (with "Always show bookmarks" on they are visible regardless of filters).
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(horizontal = 12.dp)
+                        .padding(top = if (findVisible) 48.dp else 4.dp),
+                ) {
+                    if (viewModel.visibleCrashes.isNotEmpty()) {
+                        CrashNavigator(
+                            count = viewModel.visibleCrashes.size,
+                            current = viewModel.crashOrdinal(selectedIds.lastOrNull() ?: -1),
+                            onPrev = { jumpToCrash(forward = false) },
+                            onNext = { jumpToCrash(forward = true) },
+                        )
+                    }
+                    if (viewModel.bookmarkedIds.isNotEmpty()) {
+                        BookmarkNavigator(
+                            count = viewModel.bookmarkedIds.size,
+                            current = viewModel.bookmarkOrdinal(selectedIds.lastOrNull() ?: -1),
+                            onPrev = { jumpToBookmark(forward = false) },
+                            onNext = { jumpToBookmark(forward = true) },
+                        )
+                    }
                 }
             }
 

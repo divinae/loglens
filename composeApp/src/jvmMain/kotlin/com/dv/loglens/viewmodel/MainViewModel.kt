@@ -590,6 +590,9 @@ class MainViewModel(
         if (_alwaysShowBookmarks.value) recomputeFiltered()
     }
 
+    /** 0-based position of [id] among bookmarks in log order, or -1 if it isn't one. */
+    fun bookmarkOrdinal(id: Int): Int = sortedBookmarks.indexOf(id)
+
     /** 0-based position of [id] among visible crashes in log order, or -1 if it isn't one. */
     fun crashOrdinal(id: Int): Int = visibleCrashes.indexOf(id)
 

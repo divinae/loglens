@@ -7,6 +7,8 @@ All notable changes to LogLens are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Bookmark navigator** — a floating pill below the crash navigator steps between bookmarked
+  lines (prev/next with a position counter), same as F3 / Shift+F3.
 - **Query language extensions** — `is:crash` / `is:stacktrace` record classes, `age:30s|5m|2h|1d`
   relative-time filter, and per-field regex via `tag~:Foo.*` (alongside the existing `tag:/…/`).
 - **Filter syntax help** — `?` button in the quick-filter bar (or F1 in the field) opens a
