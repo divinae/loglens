@@ -6,9 +6,21 @@ All notable changes to LogLens are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-06-03
+
 ### Fixed
+- Clearing logs during live capture no longer stops listening: `adb logcat -c` killed the
+  concurrently running logcat reader, so the capture is now stopped, the buffers cleared, and
+  the stream resumed automatically.
+- Typing in the filter or find field no longer triggers plain-key shortcuts — e.g. a `b` no
+  longer toggles a bookmark on the selected line, and ↑/↓ no longer move the log selection
+  (the field consumed the typed character but the key event still bubbled to the global handler).
 - Release pipeline now uploads the Linux artifacts (`.deb`, portable `.tar.gz`) to the GitLab
   Package Registry and creates the GitLab Release with asset links automatically.
+
+### Changed
+- Clear logs is now Ctrl/Cmd+R (was Ctrl/Cmd+K). The separate restart-capture shortcut was
+  removed — clearing resumes capture by itself.
 
 ## [1.0.0] - 2026-06-02
 
@@ -40,5 +52,6 @@ First public release.
   Build/runtime toolchain is JetBrains Runtime 25 (Jewel 0.37 / IntelliJ 262 ships Java 25 class files);
   Gradle still bootstraps on JDK 21 and our own code targets Java 21 bytecode.
 
-[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.0.0...main
+[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.0.1...main
+[1.0.1]: https://gitlab.com/divinae/loglens/-/compare/v1.0.0...v1.0.1
 [1.0.0]: https://gitlab.com/divinae/loglens/-/tags/v1.0.0
