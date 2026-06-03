@@ -15,6 +15,10 @@ Written with substantial AI assistance ([Claude Code](https://claude.com/claude-
 ## Features
 
 - **Live logcat** — stream from the selected device, with automatic device detection and switching.
+  Pause holds the display while capture keeps buffering (resume flushes the backlog); a device that
+  drops and returns reconnects automatically without clearing or duplicating logs.
+- **Process & device lifecycle banners** — Android-Studio-style `PROCESS STARTED/ENDED` lines for
+  processes that logged in the session, plus `DEVICE DISCONNECTED/RECONNECTED` markers.
 - **Logcat buffers** — pick `adb logcat -b` buffers (main, system, crash, radio, events, kernel).
 - **Columns** — Index, Date, Time, PID, TID, App, Level, Tag, Message; toggleable and resizable (drag).
 - **Filters** — SHOW / HIDE / HIGHLIGHT / SHOW_AND_HIGHLIGHT rules per field (message, tag, app, pid, level) with regex and case-sensitive options; colored highlighting; reordering; persisted to disk.
@@ -24,16 +28,23 @@ Written with substantial AI assistance ([Claude Code](https://claude.com/claude-
   - `tag:Foo`, `package:com.foo` (alias `app`/`pkg`), `msg:timeout` (alias `message`)
   - `pid:1234`, `tid:42` — exact numeric match
   - `level:E`, `level>=W` — ranking V<D<I<W<E<F (A==F)
-  - `tag:/Foo.*Bar/` — regex on the field
+  - `tag:/Foo.*Bar/` or `tag~:Foo.*Bar` — regex on the field
+  - `is:crash` — crash/ANR/native-crash records; `is:stacktrace` — records with a stack trace
+  - `age:5m` — only records newer than 30s / 5m / 2h / 1d
   - `-tag:Spam`, `-foobar` — negation
-  - terms are implicitly AND-ed; recent queries kept in history
+  - terms are implicitly AND-ed; recent queries kept in history; `?` (or F1) opens a syntax reference
 - **Find bar** — in-view search with match navigation (F3 / Shift+F3).
-- **Bookmarks** — pin lines, next/prev navigation, optional always-visible-despite-filters.
+- **Bookmarks** — pin lines, floating prev/next navigator, optional always-visible-despite-filters.
+- **Crash/ANR detection** — row markers plus a floating navigator stepping between detected crashes.
+- **Clickable URLs** — http/https links in messages open in the system browser.
 - **Selection** — single, range (Shift), drag; copy lines or a single column.
 - **Screenshot** — capture the device to a file + clipboard, optionally open in the default viewer.
 - **Screen recording** — `screenrecord` with Android Studio-style options (show taps, bitrate, size); auto-open when finished.
 - **Open from file** — parse saved logs (`-v threadtime`), Android Studio `.logcat` exports (JSON), and full Android **bugreports / `dumpstate`** dumps — both the flat `.txt` and the `adb bugreport` **`.zip`** (the embedded `bugreport-*.txt` is read straight from the archive). Extracts every embedded logcat section and mines the `ps` section for pid→process names. Multiline messages (e.g. Java stack traces) are folded back into a single record.
 - **Save logs** — all or filtered, as plain text or `.logcat` format.
+- **Multiline folding** — stack traces and multiline `Log` calls (e.g. HTTP client dumps) are one
+  record, like Android Studio groups them; collapsed records preview the whole message on one line
+  and can start expanded via a setting. Back-to-back duplicates coalesce into one row with a `×N` badge.
 - **Appearance** — System/Light/Dark theme, font size/family/weight (system fonts), soft wrap. HiDPI-aware (Compose renders at native display scale; the app/window icon ships at 256px so it stays crisp).
 - Configuration and filters persist across launches.
 
@@ -43,12 +54,12 @@ Written with substantial AI assistance ([Claude Code](https://claude.com/claude-
 |---|---|
 | `Ctrl/Cmd + F` | Find bar / focus search |
 | `Ctrl/Cmd + C` | Copy selected lines |
-| `Ctrl/Cmd + K` | Clear logs |
-| `Ctrl/Cmd + R` | Restart capture (clear + resume) |
+| `Ctrl/Cmd + R` | Clear logs |
 | `Esc` | Close find bar |
 | `↑ / ↓` | Move selection up / down |
 | `B` | Toggle bookmark on selection |
 | `F3 / Shift + F3` | Next / previous match or bookmark |
+| `F1` (in filter field) | Filter query syntax help |
 
 ## Requirements
 
