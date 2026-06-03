@@ -44,12 +44,9 @@ import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -259,12 +256,15 @@ fun LogRow(
                     onActivate = { onActivateCell(column) },
                     modifier = cellModifier,
                 ) {
-                    // A foldable record (crash dump / long stack trace) collapses to its first line
-                    // with a link; expanding shows the whole thing regardless of the soft-wrap setting.
+                    // A foldable record (crash dump / multiline print) collapses to one ellipsized
+                    // line with the whole message flattened — not just the first line, so key fields
+                    // past the first newline (e.g. a request URL) stay visible and clickable.
+                    // Expanding shows the real layout regardless of the soft-wrap setting.
                     val cellFoldable = column == LogColumn.MESSAGE && foldable
                     val hasHidden = '\n' in text
                     val collapsed = cellFoldable && hasHidden && !isExpanded
-                    val shown = if (collapsed) text.substringBefore('\n') else text
+                    val shown =
+                        if (collapsed) text.take(COLLAPSE_PREVIEW_MAX_CHARS).replace('\n', ' ') else text
                     val wrapEffective = if (cellFoldable && hasHidden) isExpanded else wrap
 
                     @Composable
@@ -290,6 +290,9 @@ fun LogRow(
                                 fontWeight = resolvedWeight,
                                 findQuery = findQuery,
                                 findColor = findHighlightColor,
+                                // Only the message column gets clickable URLs; other columns skip
+                                // the scan entirely.
+                                linkColor = if (column == LogColumn.MESSAGE) linkColor(isDarkMode) else null,
                                 onTextLayout = if (column == LogColumn.MESSAGE) {
                                     { result -> messageOverflows = result.hasVisualOverflow }
                                 } else null,
@@ -372,10 +375,11 @@ private fun LogCell(
     fontWeight: FontWeight,
     findQuery: String,
     findColor: Color,
+    linkColor: Color? = null,
     onTextLayout: ((TextLayoutResult) -> Unit)? = null,
 ) {
-    val annotated = remember(text, findQuery, findColor) {
-        highlightMatches(text, findQuery, findColor)
+    val annotated = remember(text, findQuery, findColor, linkColor) {
+        buildLogCellAnnotated(text, findQuery, findColor, linkColor)
     }
     Text(
         text = annotated,
@@ -441,25 +445,14 @@ private fun SelectableLogCell(
 // multi-line message just renders in full, so ordinary 2–3 line logs don't sprout an expand link.
 private const val COLLAPSE_MIN_NEWLINES = 3
 
+// Cap on the flattened collapsed preview, so a record with a huge payload doesn't allocate and
+// lay out megabytes for a single ellipsized line.
+private const val COLLAPSE_PREVIEW_MAX_CHARS = 500
+
 /** Colour of the crash/ANR marker glyph; a saturated red that reads on both themes. */
 private fun crashColor(isDarkMode: Boolean): Color =
     if (isDarkMode) Color(0xFFFF6B68) else Color(0xFFCC0000)
 
-/** Standard hyperlink blue, tuned per theme for the expand/collapse link. */
+/** Standard hyperlink blue, tuned per theme for the expand/collapse link and message URLs. */
 private fun linkColor(isDarkMode: Boolean): Color =
     if (isDarkMode) Color(0xFF589DF6) else Color(0xFF2470B3)
-
-private fun highlightMatches(text: String, query: String, color: Color): AnnotatedString {
-    if (query.isBlank()) return AnnotatedString(text)
-    // indexOf(ignoreCase) compares via regionMatches — no lowercased copies of text/query allocated.
-    var i = text.indexOf(query, ignoreCase = true)
-    if (i < 0) return AnnotatedString(text)
-    val len = query.length
-    return buildAnnotatedString {
-        append(text)
-        while (i >= 0) {
-            addStyle(SpanStyle(background = color), i, i + len)
-            i = text.indexOf(query, i + len, ignoreCase = true)
-        }
-    }
-}

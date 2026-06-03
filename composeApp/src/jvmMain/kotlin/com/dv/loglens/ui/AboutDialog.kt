@@ -27,8 +27,6 @@ import com.dv.loglens.ui.theme.islandsPanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Text
-import java.awt.Desktop
-import java.net.URI
 
 private const val REPO_URL = "https://gitlab.com/divinae/loglens"
 
@@ -104,14 +102,6 @@ fun AboutDialog(onDismiss: () -> Unit) {
             DefaultButton(onClick = onDismiss, modifier = Modifier.padding(top = 16.dp)) {
                 Text("Close")
             }
-        }
-    }
-}
-
-private fun openInBrowser(url: String) {
-    runCatching {
-        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-            Desktop.getDesktop().browse(URI(url))
         }
     }
 }
