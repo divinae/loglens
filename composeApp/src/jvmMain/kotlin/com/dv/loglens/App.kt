@@ -171,6 +171,9 @@ fun App(
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     val findFocusRequester = remember { FocusRequester() }
+    // True while the filter/find text field has focus; plain-key shortcuts (B, arrows) must not
+    // fire then — the field consumes the typed character but the key event still bubbles up.
+    var textInputFocused by remember { mutableStateOf(false) }
 
     val isDark = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -251,8 +254,19 @@ fun App(
         }
 
         LaunchedEffect(findVisible) {
-            if (findVisible) findFocusRequester.requestFocus()
-            else runCatching { focusRequester.requestFocus() }
+            if (findVisible) {
+                findFocusRequester.requestFocus()
+            } else {
+                // The disposed find field may not emit a focus-lost event — clear the flag so
+                // plain-key shortcuts come back.
+                textInputFocused = false
+                runCatching { focusRequester.requestFocus() }
+            }
+        }
+
+        LaunchedEffect(quickFilterVisible) {
+            // Same as above: hiding the quick-filter bar disposes its field without a focus event.
+            if (!quickFilterVisible && !findVisible) textInputFocused = false
         }
 
         var isAutoScrolling by remember { mutableStateOf(false) }
@@ -310,7 +324,7 @@ fun App(
                     onCloseFind = { findVisible = false; findQuery = "" },
                     onCopySelected = copySelected,
                     onClearLogs = viewModel::clearLogs,
-                    onRestartCapture = viewModel::restartCapture,
+                    textInputFocused = textInputFocused,
                 )
         ) {
             // Wrapped so main() can turn the bar into the window-drag handle on macOS, where the
@@ -581,6 +595,7 @@ fun App(
                         onClose = { findVisible = false; findQuery = "" },
                         onCopySelected = copySelected,
                         focusRequester = findFocusRequester,
+                        onFocusChanged = { textInputFocused = it },
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(horizontal = 12.dp)
@@ -616,6 +631,7 @@ fun App(
                     onSearchChange = viewModel::updateSearchQuery,
                     onCommit = viewModel::commitSearchQuery,
                     onClearHistory = viewModel::clearSearchHistory,
+                    onFocusChanged = { textInputFocused = it },
                 )
                 Divider(Orientation.Horizontal)
             }

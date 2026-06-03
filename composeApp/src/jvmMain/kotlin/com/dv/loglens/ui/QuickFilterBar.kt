@@ -41,6 +41,7 @@ fun QuickFilterBar(
     onSearchChange: (String) -> Unit,
     onCommit: () -> Unit,
     onClearHistory: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit = {},
 ) {
     Row(
         modifier = Modifier.padding(top = 8.dp).padding(horizontal = 8.dp).fillMaxWidth(),
@@ -120,6 +121,7 @@ fun QuickFilterBar(
                     // Record the finished query when focus leaves the field — no Enter needed.
                     if (wasFocused && !focus.isFocused) onCommit()
                     wasFocused = focus.isFocused
+                    onFocusChanged(focus.isFocused)
                 }
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false

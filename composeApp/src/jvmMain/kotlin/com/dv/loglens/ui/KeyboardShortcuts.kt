@@ -22,8 +22,7 @@ data class ShortcutSpec(val keys: String, val description: String)
 val SHORTCUTS: List<ShortcutSpec> = listOf(
     ShortcutSpec("Ctrl/Cmd + F", "Open find bar / focus search"),
     ShortcutSpec("Ctrl/Cmd + C", "Copy selected lines"),
-    ShortcutSpec("Ctrl/Cmd + K", "Clear logs"),
-    ShortcutSpec("Ctrl/Cmd + R", "Restart capture (clear + resume)"),
+    ShortcutSpec("Ctrl/Cmd + R", "Clear logs"),
     ShortcutSpec("Esc", "Close find bar"),
     ShortcutSpec("↑ / ↓", "Move selection up / down"),
     ShortcutSpec("B", "Toggle bookmark on selection"),
@@ -48,7 +47,7 @@ fun Modifier.logKeyboardShortcuts(
     onCloseFind: () -> Unit,
     onCopySelected: () -> Unit,
     onClearLogs: () -> Unit,
-    onRestartCapture: () -> Unit,
+    textInputFocused: Boolean = false,
 ): Modifier = this.onKeyEvent { event ->
     when (event.type) {
         KeyEventType.KeyDown -> when {
@@ -62,23 +61,21 @@ fun Modifier.logKeyboardShortcuts(
                     true
                 } else false
             }
-            event.key == Key.K && (event.isCtrlPressed || event.isMetaPressed) -> {
-                onClearLogs()
-                true
-            }
             event.key == Key.R && (event.isCtrlPressed || event.isMetaPressed) -> {
-                onRestartCapture()
+                onClearLogs()
                 true
             }
             event.key == Key.Escape && findActive -> {
                 onCloseFind()
                 true
             }
-            event.key == Key.DirectionDown -> {
+            // Plain keys leak out of focused text fields (the field consumes the typed character's
+            // KeyDown but the arrows/KeyUp still bubble), so they only act when no field is focused.
+            event.key == Key.DirectionDown && !textInputFocused -> {
                 moveSelection(filteredLogs, selectedIds, listState, scope, onSelect, onDisableAutoFollow, delta = 1)
                 true
             }
-            event.key == Key.DirectionUp -> {
+            event.key == Key.DirectionUp && !textInputFocused -> {
                 moveSelection(filteredLogs, selectedIds, listState, scope, onSelect, onDisableAutoFollow, delta = -1)
                 true
             }
@@ -87,7 +84,9 @@ fun Modifier.logKeyboardShortcuts(
 
         KeyEventType.KeyUp -> when (event.key) {
             Key.B -> {
-                if (selectedIds.isNotEmpty()) {
+                // Typing "b" into a filter/find field must not toggle bookmarks: the field eats the
+                // KeyDown but this KeyUp still reaches us.
+                if (!textInputFocused && selectedIds.isNotEmpty()) {
                     selectedIds.forEach(onToggleBookmark)
                     true
                 } else false
