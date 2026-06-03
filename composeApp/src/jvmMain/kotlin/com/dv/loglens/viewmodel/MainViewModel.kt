@@ -275,9 +275,6 @@ class MainViewModel(
         if (serial != null) refreshPackages()
     }
 
-    /** Public entry for the Ctrl+R shortcut: clear logs and resume capturing. */
-    fun restartCapture() = restartCapture(clearLogs = true)
-
     private fun restartCapture(clearLogs: Boolean) {
         captureJob?.cancel()
         captureJob = null
@@ -808,10 +805,17 @@ class MainViewModel(
         // Restart the Index column from 0; new entries get fresh ids.
         nextLogId.set(0)
         // For a live device, also wipe the on-device logcat buffer so cleared lines never reappear.
+        // `logcat -c` kills a concurrently running logcat reader (EOF), which would end the capture,
+        // so stop the stream first, clear, then resume.
         if (_loadedFile.value == null && _selectedDevice.value != null) {
             val serial = _selectedDevice.value
             val buffers = _logBuffers.value
-            viewModelScope.launch { logcatService.clearBuffers(serial, buffers) }
+            val wasCapturing = _isCapturing.value
+            if (wasCapturing) stopCapture()
+            viewModelScope.launch {
+                logcatService.clearBuffers(serial, buffers)
+                if (wasCapturing) startCapture()
+            }
         }
     }
 
