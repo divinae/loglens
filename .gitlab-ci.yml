@@ -34,7 +34,6 @@ verify:
       junit: composeApp/build/test-results/jvmTest/*.xml
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH'
 
 # Build the Linux .deb + a portable app image on a tag like v1.0.0, then upload both to the
 # generic Package Registry so the release job can attach them as release assets.
