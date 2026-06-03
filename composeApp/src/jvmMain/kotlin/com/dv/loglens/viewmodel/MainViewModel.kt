@@ -38,24 +38,31 @@ import com.dv.loglens.service.Adb
 import com.dv.loglens.service.DeviceService
 import com.dv.loglens.service.LogcatService
 import com.dv.loglens.service.PackageService
+import com.dv.loglens.service.ProcessTrackerService
 import com.dv.loglens.service.ScreenRecordingService
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.Date
+import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val FLUSH_INTERVAL_MS = 40L
+
+// Polling for a just-started process's name: `ps` reports the zygote fork's final name only
+// after bindApplication renames it, typically well within a second.
+private const val NAME_RESOLVE_ATTEMPTS = 10
+private const val NAME_RESOLVE_DELAY_MS = 200L
 
 private const val SEARCH_HISTORY_LIMIT = 30
 
@@ -239,6 +246,12 @@ class MainViewModel(
     /** Pids that produced at least one visible log entry; gates process-death banners to spam-free. */
     private val pidsSeenInLogs = HashSet<String>()
 
+    /** Pids already bannered by the jdwp tracker, so the slower ps-poll diff doesn't repeat them. */
+    private val trackerBanneredPids = HashSet<String>()
+
+    /** Follows `track-jdwp` while capturing; null when stopped or the adb server refused the stream. */
+    private var trackerJob: Job? = null
+
     /** Package names that produced log entries, for process-start banners after a restart. */
     private val packagesSeenInLogs = HashSet<String>()
 
@@ -318,15 +331,19 @@ class MainViewModel(
     /**
      * Append a synthetic separator-style entry (device/process lifecycle banner) to the log and,
      * filter permitting, the visible view. Live capture only — banners make no sense in a file.
+     * Process banners carry the process's [pid]/[appName] so package/pid filters keep them visible
+     * alongside the process they describe.
      */
-    private fun appendSystemBanner(text: String) {
+    private fun appendSystemBanner(text: String, pid: String = "", appName: String = "") {
         if (_loadedFile.value != null) return
-        val content = "---------------------------- $text ----------------------------"
+        val content = "------------------- $text -------------------"
         val entry = LogEntry(
             id = nextLogId.getAndIncrement(),
             content = content,
             message = content,
-            level = "I",
+            level = "V",
+            pid = pid,
+            appName = appName,
         )
         logs.add(entry)
         if (matches(entry)) filteredLogs.add(entry)
@@ -631,6 +648,7 @@ class MainViewModel(
         expandedIds.clear()
         pidsSeenInLogs.clear()
         packagesSeenInLogs.clear()
+        trackerBanneredPids.clear()
         lastEntryTimestamp = null
     }
 
@@ -660,6 +678,8 @@ class MainViewModel(
                         val name = newMap[entry.pid]
                         if (!name.isNullOrEmpty()) {
                             logs[i] = entry.copy(appName = name)
+                            // The package did log — count it for process-start banners too.
+                            packagesSeenInLogs.add(name)
                             changed = true
                         }
                     }
@@ -678,13 +698,13 @@ class MainViewModel(
     private fun emitProcessBanners(oldMap: Map<String, String>, newMap: Map<String, String>) {
         if (!_isCapturing.value || oldMap.isEmpty()) return
         for ((pid, pkg) in oldMap) {
-            if (pid !in newMap && pid in pidsSeenInLogs) {
-                appendSystemBanner("PROCESS ENDED ($pid) for package $pkg")
+            if (pid !in newMap && pid in pidsSeenInLogs && !trackerBanneredPids.remove(pid)) {
+                appendSystemBanner("PROCESS ENDED ($pid) for package $pkg", pid, pkg)
             }
         }
         for ((pid, pkg) in newMap) {
-            if (pid !in oldMap && pkg in packagesSeenInLogs) {
-                appendSystemBanner("PROCESS STARTED ($pid) for package $pkg")
+            if (pid !in oldMap && pkg in packagesSeenInLogs && !trackerBanneredPids.remove(pid)) {
+                appendSystemBanner("PROCESS STARTED ($pid) for package $pkg", pid, pkg)
             }
         }
     }
@@ -808,6 +828,8 @@ class MainViewModel(
         val gen = ++captureGen
         val channel = Channel<CapturedLine>(Channel.UNLIMITED)
 
+        startProcessTracker()
+
         // Producer: read and detect record headers off the main thread. A null header marks a
         // continuation line (stack frame) the consumer folds into the preceding entry.
         val producer = viewModelScope.launch(Dispatchers.Default) {
@@ -856,7 +878,8 @@ class MainViewModel(
                                 // Continuation (or another line of the same crash dump): grow the
                                 // current record in place. Re-prefixed crash lines contribute only
                                 // their parsed message, not the repeated `E AndroidRuntime:` prefix.
-                                val merged = LogParser.foldContinuation(foldCurrent, cap.raw, header?.message ?: cap.raw)
+                                val merged =
+                                    LogParser.foldContinuation(foldCurrent, cap.raw, header?.message ?: cap.raw)
                                 logs[foldLogsIdx] = merged
                                 if (foldFilteredIdx >= 0) {
                                     filteredLogs[foldFilteredIdx] = merged
@@ -918,9 +941,63 @@ class MainViewModel(
         captureGen++
         captureJob?.cancel()
         captureJob = null
+        trackerJob?.cancel()
+        trackerJob = null
         logcatService.stop()
         _isCapturing.value = false
         _isPaused.value = false
+    }
+
+    /**
+     * Instant process lifecycle banners, the Android Studio way: the adb server's `track-jdwp`
+     * stream pushes the debuggable-pid set on every change, so a restart of the debugged app
+     * banners immediately instead of waiting out the next ps poll (which stays on as a catch-all
+     * for non-debuggable processes — [trackerBanneredPids] keeps the two from double-reporting).
+     */
+    private fun startProcessTracker() {
+        trackerJob?.cancel()
+        val serial = _selectedDevice.value ?: return
+        trackerJob = viewModelScope.launch {
+            var previous: Set<String>? = null
+            ProcessTrackerService.track(serial)
+                .catch { /* adb server gone / stream refused — poll-based banners still apply */ }
+                .collect { pids ->
+                    val prev = previous
+                    previous = pids
+                    if (prev == null) return@collect // baseline, not a change
+                    val ended = prev - pids
+                    val started = pids - prev
+                    withContext(Dispatchers.Main) {
+                        for (pid in ended) {
+                            trackerBanneredPids.add(pid)
+                            val pkg = pidToPackage[pid] ?: "pid $pid"
+                            appendSystemBanner("PROCESS ENDED ($pid) for package $pkg", pid, pkg)
+                        }
+                        started.forEach(trackerBanneredPids::add)
+                    }
+                    // A pid registers with jdwp before `ps` reports its final process name (the
+                    // zygote fork is renamed during bind), so poll briefly for the real name —
+                    // a banner with a placeholder would be invisible under a package: filter.
+                    for (pid in started) {
+                        var pkg: String? = null
+                        var attempt = 0
+                        while (pkg == null && attempt < NAME_RESOLVE_ATTEMPTS) {
+                            pkg = PackageService.fetchPidMap(serial)[pid]
+                                ?.takeUnless { it.startsWith("zygote") || it == "<pre-initialized>" }
+                            if (pkg == null) delay(NAME_RESOLVE_DELAY_MS)
+                            attempt++
+                        }
+                        val resolved = pkg ?: pidToPackage[pid] ?: "pid $pid"
+                        withContext(Dispatchers.Main) {
+                            appendSystemBanner(
+                                "PROCESS STARTED ($pid) for package $resolved",
+                                pid,
+                                resolved,
+                            )
+                        }
+                    }
+                }
+        }
     }
 
     fun toggleCapture() {

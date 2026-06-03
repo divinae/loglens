@@ -6,6 +6,13 @@ All notable changes to LogLens are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+- Process lifecycle banners now come from the adb server's `track-jdwp` stream (the Android
+  Studio mechanism), so a debugged app's restart banners appear immediately instead of on the
+  next `ps` poll; the poll remains as a catch-all for non-debuggable processes. Banners carry
+  the process's pid and package, so `package:`/`pid:` filters keep them visible, and a just
+  started process's name is polled briefly so the banner never shows a placeholder.
+
 ## [1.1.0] - 2026-06-03
 
 ### Added
