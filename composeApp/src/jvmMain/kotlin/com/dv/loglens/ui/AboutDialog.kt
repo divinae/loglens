@@ -30,7 +30,7 @@ import org.jetbrains.jewel.ui.component.Text
 import java.awt.Desktop
 import java.net.URI
 
-private const val REPO_URL = "https://gitlab.com/divinae/logexp"
+private const val REPO_URL = "https://gitlab.com/divinae/loglens"
 
 @Composable
 fun AboutDialog(onDismiss: () -> Unit) {

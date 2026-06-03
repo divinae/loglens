@@ -52,6 +52,23 @@ Current builds are **unsigned**. Until certificates are configured, users will h
 
 ## 4. Publish
 
-Attach the built artifacts (`.deb`, portable `.tar.gz`, `.dmg`, `.msi`) to a GitLab Release for
-the tag (https://gitlab.com/divinae/logexp/-/releases). The CI `release-linux` job already
-uploads the Linux artifacts as job artifacts under `dist/`.
+The tag pipeline handles Linux automatically: `release-linux` uploads the `.deb` and portable
+`.tar.gz` to the generic Package Registry (`loglens/<version>/`), and `release-create` creates
+the GitLab Release for the tag with asset links to those files
+(https://gitlab.com/divinae/loglens/-/releases).
+
+macOS (`.dmg`) and Windows (`.msi`) artifacts are uploaded and linked manually until those
+builds are automated:
+
+```shell
+# Upload to the generic Package Registry (needs a PAT with api scope)
+curl --fail --header "PRIVATE-TOKEN: <token>" --upload-file loglens-X.Y.Z.dmg \
+  "https://gitlab.com/api/v4/projects/<project-id>/packages/generic/loglens/X.Y.Z/loglens-X.Y.Z.dmg"
+
+# Add an asset link to the existing release
+curl --fail --request POST --header "PRIVATE-TOKEN: <token>" \
+  --data "name=loglens-X.Y.Z.dmg" \
+  --data "url=https://gitlab.com/api/v4/projects/<project-id>/packages/generic/loglens/X.Y.Z/loglens-X.Y.Z.dmg" \
+  --data "link_type=package" \
+  "https://gitlab.com/api/v4/projects/<project-id>/releases/vX.Y.Z/assets/links"
+```
