@@ -42,6 +42,48 @@ class LogQueryTest {
     }
 
     @Test
+    fun perFieldRegexOperator() {
+        assertTrue(LogQuery.parse("tag~:Foo.*Bar").matches(log(tag = "FooQuxBar")))
+        assertFalse(LogQuery.parse("tag~:Foo.*Bar").matches(log(tag = "BarFoo")))
+        assertTrue(LogQuery.parse("-msg~:spam\\d+").matches(log(message = "clean")))
+        assertFalse(LogQuery.parse("-msg~:spam\\d+").matches(log(message = "spam42")))
+    }
+
+    @Test
+    fun isCrashAndStacktrace() {
+        val crash = log(tag = "AndroidRuntime", level = "E", message = "FATAL EXCEPTION: main")
+        assertTrue(LogQuery.parse("is:crash").matches(crash))
+        assertFalse(LogQuery.parse("is:crash").matches(log(message = "all fine")))
+
+        val trace = log(message = "boom\n\tat com.foo.Bar.baz(Bar.kt:12)")
+        assertTrue(LogQuery.parse("is:stacktrace").matches(trace))
+        assertFalse(LogQuery.parse("is:stacktrace").matches(log(message = "at noon we eat")))
+        assertTrue(LogQuery.parse("-is:crash").matches(log(message = "ok")))
+    }
+
+    @Test
+    fun ageMatchesRecentEntriesOnly() {
+        val now = java.time.LocalDateTime.now()
+        val fmtDate = java.time.format.DateTimeFormatter.ofPattern("MM-dd")
+        val fmtTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
+        fun at(t: java.time.LocalDateTime) =
+            log(content = "x").copy(date = t.format(fmtDate), time = t.format(fmtTime))
+
+        val q = LogQuery.parse("age:5m")
+        assertNull(q.error)
+        assertTrue(q.matches(at(now.minusMinutes(1))))
+        assertFalse(q.matches(at(now.minusMinutes(10))))
+        // No timestamp (synthetic/banner rows) → never "recent".
+        assertFalse(q.matches(log(content = "no time")))
+    }
+
+    @Test
+    fun invalidAgeFallsBackWithError() {
+        val q = LogQuery.parse("age:soon")
+        assertNotNull(q.error)
+    }
+
+    @Test
     fun pidAndTidAreExact() {
         assertTrue(LogQuery.parse("pid:1234").matches(log(pid = "1234")))
         assertFalse(LogQuery.parse("pid:1234").matches(log(pid = "12345")))

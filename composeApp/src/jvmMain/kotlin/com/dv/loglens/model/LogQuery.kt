@@ -1,5 +1,9 @@
 package com.dv.loglens.model
 
+import com.dv.loglens.parser.CrashDetector
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
 /**
  * Parsed quick-filter query. Supports a small field query language layered over the old
  * "bare substring on content" behaviour, so plain text keeps working unchanged.
@@ -14,6 +18,9 @@ package com.dv.loglens.model
  *   level:E             level == E
  *   level>=W            level severity >= W   (V<D<I<W<E<F, A==F)
  *   tag:/Foo.*Bar/      /regex/ on the field (case-insensitive)
+ *   tag~:Foo.*Bar       ~: treats the value as a regex (same as the /…/ form)
+ *   is:crash            crash/ANR/native-crash records; is:stacktrace = records with a stack trace
+ *   age:5m              records from the last 30s / 5m / 2h / 1d (evaluated against query time)
  *   -tag:Spam           negate any term (also bare: -foobar)
  *
  * Parsed once per query change; [matches] is allocation-free per log line.
@@ -62,8 +69,23 @@ class LogQuery private constructor(
             return LEVEL_RANK[canonical]
         }
 
-        // field, then comparison/colon operator, then the rest.
-        private val TOKEN_REGEX = Regex("^([A-Za-z]+)(>=|<=|!=|>|<|=|:)(.*)$")
+        // field, then comparison/colon operator, then the rest. `~:` marks a regex value.
+        private val TOKEN_REGEX = Regex("^([A-Za-z]+)(~:|>=|<=|!=|>|<|=|:)(.*)$")
+
+        /** Lines like "\tat com.foo.Bar.baz(Bar.kt:12)" — the JVM stack-frame shape. */
+        private val STACK_FRAME = Regex("""(^|\n)\s*at\s+[\w.$<>]+\(""")
+
+        private val AGE_VALUE = Regex("""^(\d+)([smhd])$""")
+
+        /** "MM-dd HH:mm:ss.SSS" — matches the threadtime columns, zero-padded so strings order. */
+        private val AGE_CUTOFF_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss.SSS")
+
+        private const val SECONDS_PER_MINUTE = 60L
+        private const val SECONDS_PER_HOUR = 3_600L
+        private const val SECONDS_PER_DAY = 86_400L
+
+        /** Length of the "MM-dd" date prefix in [AGE_CUTOFF_FORMAT]. */
+        private const val DATE_LENGTH = 5
 
         fun parse(text: String): LogQuery {
             if (text.isBlank()) return EMPTY
@@ -76,14 +98,7 @@ class LogQuery private constructor(
                         negate = true
                         t = t.substring(1)
                     }
-                    val m = TOKEN_REGEX.find(t)
-                    val field = m?.let { FIELDS[it.groupValues[1].lowercase()] }
-                    val term = if (m != null && field != null) {
-                        buildFieldTerm(field, m.groupValues[2], m.groupValues[3])
-                    } else {
-                        // Bare token (or unknown field like "http://x") → substring on content.
-                        substringTerm({ it.content }, t)
-                    }
+                    val term = buildTerm(t)
                     terms.add(if (negate) { log -> !term(log) } else term)
                 }
             } catch (e: Exception) {
@@ -91,6 +106,19 @@ class LogQuery private constructor(
                 return LogQuery(text, e.message ?: "invalid query", listOf(substringTerm({ it.content }, text)))
             }
             return LogQuery(text, null, terms)
+        }
+
+        private fun buildTerm(t: String): (LogEntry) -> Boolean {
+            val m = TOKEN_REGEX.find(t)
+            val key = m?.groupValues?.get(1)?.lowercase()
+            val field = key?.let { FIELDS[it] }
+            return when {
+                m != null && key == "is" -> buildIsTerm(m.groupValues[3])
+                m != null && key == "age" -> buildAgeTerm(m.groupValues[3])
+                m != null && field != null -> buildFieldTerm(field, m.groupValues[2], m.groupValues[3])
+                // Bare token (or unknown field like "http://x") → substring on content.
+                else -> substringTerm({ it.content }, t)
+            }
         }
 
         private fun buildFieldTerm(field: Field, op: String, rawValue: String): (LogEntry) -> Boolean {
@@ -104,9 +132,9 @@ class LogQuery private constructor(
                 Field.TID -> { it -> it.tid }
                 else -> { it -> it.content }
             }
-            // /regex/
-            if (rawValue.length >= 2 && rawValue.first() == '/' && rawValue.last() == '/') {
-                val regex = Regex(rawValue.substring(1, rawValue.length - 1), RegexOption.IGNORE_CASE)
+            val pattern = regexPatternOf(op, rawValue)
+            if (pattern != null) {
+                val regex = Regex(pattern, RegexOption.IGNORE_CASE)
                 return { log -> regex.containsMatchIn(selector(log)) }
             }
             // pid/tid: exact numeric equality; others: substring.
@@ -128,6 +156,46 @@ class LogQuery private constructor(
                     "!=" -> r != target
                     else -> r == target // ":" or "="
                 }
+            }
+        }
+
+        /** `tag~:Foo.*` and a /slash-wrapped/ value both treat it as a regex; null = not a regex term. */
+        private fun regexPatternOf(op: String, rawValue: String): String? = when {
+            op == "~:" -> rawValue
+            rawValue.length >= 2 && rawValue.first() == '/' && rawValue.last() == '/' ->
+                rawValue.substring(1, rawValue.length - 1)
+            else -> null
+        }
+
+        /** `is:crash` (CrashDetector classes) / `is:stacktrace` (record carries JVM stack frames). */
+        private fun buildIsTerm(value: String): (LogEntry) -> Boolean = when (value.lowercase()) {
+            "crash" -> { log -> CrashDetector.isCrash(log) }
+            "stacktrace" -> { log -> STACK_FRAME.containsMatchIn(log.message) }
+            else -> { _ -> true } // unknown class → no-op, like an unknown level word
+        }
+
+        /**
+         * `age:5m` — only records newer than now-minus-duration at parse time. The threadtime
+         * date+time columns are zero-padded, so one cutoff string compares lexicographically;
+         * entries without a timestamp never match. Recomputed whenever the query reparses.
+         */
+        private fun buildAgeTerm(value: String): (LogEntry) -> Boolean {
+            val m = AGE_VALUE.find(value.lowercase())
+                ?: throw IllegalArgumentException("age wants e.g. 30s, 5m, 2h, 1d")
+            val amount = m.groupValues[1].toLong()
+            val unitSeconds = when (m.groupValues[2]) {
+                "s" -> 1L
+                "m" -> SECONDS_PER_MINUTE
+                "h" -> SECONDS_PER_HOUR
+                else -> SECONDS_PER_DAY
+            }
+            val cutoff = LocalDateTime.now().minusSeconds(amount * unitSeconds).format(AGE_CUTOFF_FORMAT)
+            // "MM-dd HH:mm:ss.SSS" → date is the first 5 chars, time starts after the space.
+            val cutoffDate = cutoff.substring(0, DATE_LENGTH)
+            val cutoffTime = cutoff.substring(DATE_LENGTH + 1)
+            return { log ->
+                log.time.isNotEmpty() &&
+                    (log.date > cutoffDate || (log.date == cutoffDate && log.time >= cutoffTime))
             }
         }
 
