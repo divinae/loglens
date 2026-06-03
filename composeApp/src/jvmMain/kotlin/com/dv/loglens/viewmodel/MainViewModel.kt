@@ -94,7 +94,11 @@ class MainViewModel(
     var visibleCrashes by mutableStateOf<List<Int>>(emptyList())
         private set
 
-    /** Ids of multiline entries the user expanded in the list (UI state, not persisted). */
+    /**
+     * Ids of multiline entries the user toggled away from the default fold state (UI state, not
+     * persisted): expanded ids when the default is collapsed, collapsed ids when
+     * [expandMultilineByDefault] is on.
+     */
     val expandedIds = mutableStateSetOf<Int>()
 
     // Cached partition of the active filters, refreshed whenever the filter set changes so per-log
@@ -181,6 +185,9 @@ class MainViewModel(
 
     private val _softWrap = MutableStateFlow(true)
     val softWrap = _softWrap.asStateFlow()
+
+    private val _expandMultilineByDefault = MutableStateFlow(false)
+    val expandMultilineByDefault = _expandMultilineByDefault.asStateFlow()
 
     private val _filtersListWidth = MutableStateFlow(DEFAULT_FILTERS_LIST_WIDTH)
     val filtersListWidth = _filtersListWidth.asStateFlow()
@@ -298,6 +305,7 @@ class MainViewModel(
         _fontFamily.value = config.fontFamily
         _fontWeight.value = config.fontWeight
         _softWrap.value = config.softWrap
+        _expandMultilineByDefault.value = config.expandMultilineByDefault
         _filtersListWidth.value = config.filtersListWidth
         _alwaysShowBookmarks.value = config.alwaysShowBookmarks
         _quickFilterVisible.value = config.quickFilterVisible
@@ -325,6 +333,7 @@ class MainViewModel(
         fontFamily = _fontFamily.value,
         fontWeight = _fontWeight.value,
         softWrap = _softWrap.value,
+        expandMultilineByDefault = _expandMultilineByDefault.value,
         filtersListWidth = _filtersListWidth.value,
         alwaysShowBookmarks = _alwaysShowBookmarks.value,
         quickFilterVisible = _quickFilterVisible.value,
@@ -539,6 +548,19 @@ class MainViewModel(
 
     fun toggleExpand(id: Int) {
         if (!expandedIds.add(id)) expandedIds.remove(id)
+    }
+
+    /** Force [id] expanded regardless of the default — used when navigation lands on a folded match. */
+    fun ensureExpanded(id: Int) {
+        if (_expandMultilineByDefault.value) expandedIds.remove(id) else expandedIds.add(id)
+    }
+
+    fun setExpandMultilineByDefault(value: Boolean) {
+        if (_expandMultilineByDefault.value == value) return
+        _expandMultilineByDefault.value = value
+        // Per-row toggles were relative to the old default; reset so every row adopts the new one.
+        expandedIds.clear()
+        persistConfig()
     }
 
     /** Drop id-keyed derived state when the log set is reset; ids are reused after [nextLogId] resets. */

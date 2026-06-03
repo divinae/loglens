@@ -110,6 +110,7 @@ fun App(
     val fontFamily by viewModel.fontFamily.collectAsState()
     val fontWeight by viewModel.fontWeight.collectAsState()
     val softWrap by viewModel.softWrap.collectAsState()
+    val expandMultilineByDefault by viewModel.expandMultilineByDefault.collectAsState()
     val filtersListWidth by viewModel.filtersListWidth.collectAsState()
     val alwaysShowBookmarks by viewModel.alwaysShowBookmarks.collectAsState()
     val quickFilterVisible by viewModel.quickFilterVisible.collectAsState()
@@ -226,7 +227,7 @@ fun App(
             viewModel.toggleSelection(log.id, multiSelect = false)
             viewModel.setAutoFollow(false)
             // Expand a folded match so the matching line isn't hidden behind the collapsed first line.
-            if ('\n' in log.message) viewModel.expandedIds.add(log.id)
+            if ('\n' in log.message) viewModel.ensureExpanded(log.id)
         }
 
         // Jump to a log by id (used by crash navigation): align its first line to the top of the
@@ -237,7 +238,7 @@ fun App(
             scope.launch { listState.animateScrollToItem(rowIdx) }
             viewModel.toggleSelection(id, multiSelect = false)
             viewModel.setAutoFollow(false)
-            if ('\n' in filteredLogs[rowIdx].message) viewModel.expandedIds.add(id)
+            if ('\n' in filteredLogs[rowIdx].message) viewModel.ensureExpanded(id)
         }
 
         fun jumpToCrash(forward: Boolean) {
@@ -397,6 +398,8 @@ fun App(
                     onSetFontWeight = viewModel::setFontWeight,
                     softWrap = softWrap,
                     onSetSoftWrap = viewModel::setSoftWrap,
+                    expandMultilineByDefault = expandMultilineByDefault,
+                    onSetExpandMultilineByDefault = viewModel::setExpandMultilineByDefault,
                     alwaysShowBookmarks = alwaysShowBookmarks,
                     onSetAlwaysShowBookmarks = viewModel::setAlwaysShowBookmarks,
                     onOpenFind = {
@@ -549,7 +552,7 @@ fun App(
                                     activeCell = null
                                     runCatching { focusRequester.requestFocus() }
                                 },
-                                isExpanded = log.id in viewModel.expandedIds,
+                                isExpanded = (log.id in viewModel.expandedIds) != expandMultilineByDefault,
                                 onToggleExpand = { viewModel.toggleExpand(log.id) },
                                 isCrash = log.id in viewModel.crashIds,
                             )

@@ -48,6 +48,8 @@ fun SettingsMenu(
     onSetFontWeight: (String) -> Unit,
     softWrap: Boolean,
     onSetSoftWrap: (Boolean) -> Unit,
+    expandMultilineByDefault: Boolean,
+    onSetExpandMultilineByDefault: (Boolean) -> Unit,
     alwaysShowBookmarks: Boolean,
     onSetAlwaysShowBookmarks: (Boolean) -> Unit,
     logBuffers: Set<LogBuffer>,
@@ -172,6 +174,15 @@ fun SettingsMenu(
                         text = "Soft wrap",
                         checked = softWrap,
                         onCheckedChange = onSetSoftWrap,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+
+                passiveItem {
+                    CheckboxRow(
+                        text = "Expand multiline logs by default",
+                        checked = expandMultilineByDefault,
+                        onCheckedChange = onSetExpandMultilineByDefault,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }

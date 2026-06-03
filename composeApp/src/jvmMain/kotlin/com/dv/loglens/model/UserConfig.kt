@@ -11,6 +11,8 @@ data class UserConfig(
     val fontFamily: String = DEFAULT_FONT_FAMILY,
     val fontWeight: String = DEFAULT_FONT_WEIGHT,
     val softWrap: Boolean = true,
+    // Foldable multiline records (crash dumps, multiline prints) start expanded instead of collapsed.
+    val expandMultilineByDefault: Boolean = false,
     val filtersListWidth: Float = DEFAULT_FILTERS_LIST_WIDTH,
     val alwaysShowBookmarks: Boolean = true,
     val quickFilterVisible: Boolean = true,
