@@ -678,6 +678,12 @@ class MainViewModel(
         val rebuilt = logs.filter { matches(it) }
         filteredLogs.clear()
         filteredLogs.addAll(rebuilt)
+        // Drop selection on rows the new criteria hide — otherwise shortcuts (B, copy, ↑/↓ anchor)
+        // keep acting on lines the user can no longer see.
+        if (selectedIds.isNotEmpty()) {
+            val visible = rebuilt.mapTo(HashSet()) { it.id }
+            selectedIds.retainAll(visible)
+        }
         visibleCrashes =
             if (crashIds.isEmpty()) emptyList()
             else rebuilt.mapNotNull { log -> log.id.takeIf { it in crashIds } }
