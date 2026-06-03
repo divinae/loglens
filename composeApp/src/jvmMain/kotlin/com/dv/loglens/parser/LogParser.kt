@@ -54,14 +54,22 @@ object LogParser {
 
     /**
      * True when a freshly read line should fold into the current record instead of starting a new
-     * one: a raw continuation line ([header] == null), or another line of the same crash/tombstone
-     * dump (same [foldedTags] tag + pid + tid). Separators never fold.
+     * one: a raw continuation line ([header] == null), another line of the same crash/tombstone
+     * dump (same [foldedTags] tag + pid + tid), or another line of one multiline Log call — logcat
+     * re-prefixes every embedded line with an identical header down to the millisecond, so an
+     * exact header match (date+time+pid+tid+level+tag) is the same print, the way Android Studio
+     * groups it. Identical messages are left to repeat-count coalescing. Separators never fold.
      */
     fun shouldFold(anchor: LogEntry, header: LogEntry?, raw: String): Boolean {
         if (isSeparator(raw)) return false
         if (header == null) return true
-        return anchor.tag in foldedTags &&
-            header.tag == anchor.tag && header.pid == anchor.pid && header.tid == anchor.tid
+        if (header.tag != anchor.tag || header.pid != anchor.pid || header.tid != anchor.tid) return false
+        if (anchor.tag in foldedTags) return true
+        // pid non-empty restricts this to threadtime records; the app-logger format has only
+        // second-resolution timestamps, where an exact match wouldn't imply the same print.
+        return header.pid.isNotEmpty() &&
+            header.level == anchor.level && header.date == anchor.date && header.time == anchor.time &&
+            header.message != anchor.message
     }
 
     /**

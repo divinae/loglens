@@ -105,6 +105,44 @@ class LogParserTest {
     }
 
     @Test
+    fun foldsMultilineLogCallWithIdenticalHeaders() {
+        // One Log call with embedded newlines: logcat gives every line the same header (same ms).
+        val lines = """
+            06-03 12:00:20.585  1234  1234 I HttpClient: RESPONSE: 200
+            06-03 12:00:20.585  1234  1234 I HttpClient: METHOD: GET
+            06-03 12:00:20.585  1234  1234 I HttpClient: FROM: https://example.com/x
+            06-03 12:00:20.586  1234  1234 I HttpClient: next call
+        """.trimIndent().lineSequence()
+
+        val parsed = LogParser.parseLog(lines)
+
+        assertEquals(2, parsed.size)
+        assertEquals("RESPONSE: 200\nMETHOD: GET\nFROM: https://example.com/x", parsed[0].message)
+        assertEquals("next call", parsed[1].message)
+    }
+
+    @Test
+    fun identicalHeaderButDifferentTagOrLevelDoesNotFold() {
+        val lines = """
+            06-03 12:00:20.585  1234  1234 I TagA: one
+            06-03 12:00:20.585  1234  1234 W TagA: two
+            06-03 12:00:20.585  1234  1234 I TagB: three
+        """.trimIndent().lineSequence()
+        assertEquals(3, LogParser.parseLog(lines).size)
+    }
+
+    @Test
+    fun identicalMessageInSameMillisecondStillCoalescesAsRepeat() {
+        val lines = """
+            06-03 12:00:20.585  1234  1234 I Tag: same
+            06-03 12:00:20.585  1234  1234 I Tag: same
+        """.trimIndent().lineSequence()
+        val parsed = LogParser.parseLog(lines)
+        assertEquals(1, parsed.size)
+        assertEquals(2, parsed[0].repeatCount)
+    }
+
+    @Test
     fun nonConsecutiveDuplicatesAreNotCoalesced() {
         val lines = """
             06-02 10:00:00.000  1  1 I Tag: a
