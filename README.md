@@ -78,6 +78,19 @@ Native packages (Deb / Msi / Dmg) with a **bundled JBR runtime** (no JDK needed 
 
 jpackage only builds for the current OS, so build each format on its native platform. The `.deb` step also needs `dpkg` and `fakeroot` on the build host (absent on Arch by default → `Invalid or unsupported type: [deb]`). For a host-agnostic portable build, use `createDistributable` instead — it writes a self-contained app image (launcher + bundled JBR) under `composeApp/build/compose/binaries/main/app/` that you can archive and run directly.
 
+### macOS: "loglens" Not Opened / cannot be opened
+
+The app is not signed or notarized, so Gatekeeper blocks it on first launch ("Apple could not verify that 'loglens' is free of malware"). The app is fine — click **Done** (not "Move to Trash"), then either:
+
+- Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to loglens, or
+- Remove the quarantine flag in Terminal:
+
+  ```shell
+  xattr -dr com.apple.quarantine /Applications/loglens.app
+  ```
+
+This is needed only once per downloaded copy. (On macOS 15+ the old right-click → Open trick no longer bypasses the dialog.)
+
 Icons live in `composeApp/icons/` (`loglens.svg` source → `.png`/`.ico`/`.icns`).
 
 ## Configuration
