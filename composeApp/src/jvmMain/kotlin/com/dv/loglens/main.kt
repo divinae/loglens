@@ -1,8 +1,13 @@
 package com.dv.loglens
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.window.WindowDraggableArea
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.dp
@@ -21,6 +26,10 @@ import org.jetbrains.skia.Image
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+
+// Width reserved left of the toolbar for the macOS traffic-light buttons once the content
+// extends into the (hidden) title bar area.
+private val MAC_TRAFFIC_LIGHTS_INSET = 72.dp
 
 // Packaged apps have no console, so an uncaught exception would vanish silently. Append a
 // timestamped stack trace to ~/.config/loglens/crash.log (same dir ConfigManager uses) so users
@@ -82,7 +91,30 @@ fun main() = application {
                 .distinctUntilChanged()
                 .collect { persistBounds(viewModel, windowState) }
         }
-        App(viewModel)
+        // macOS: no native title bar. JBR/AWT client properties make the content fill the full
+        // window with a transparent, title-less bar (the traffic lights stay); the app's own top
+        // bar takes over as the drag handle below. No-ops on other platforms.
+        val isMac = remember { System.getProperty("os.name").startsWith("Mac") }
+        if (isMac) {
+            LaunchedEffect(Unit) {
+                with(window.rootPane) {
+                    putClientProperty("apple.awt.fullWindowContent", true)
+                    putClientProperty("apple.awt.transparentTitleBar", true)
+                    putClientProperty("apple.awt.windowTitleVisible", false)
+                }
+            }
+        }
+        val topBarDecoration: @Composable (content: @Composable () -> Unit) -> Unit =
+            if (isMac) {
+                { content ->
+                    WindowDraggableArea {
+                        Box(Modifier.padding(start = MAC_TRAFFIC_LIGHTS_INSET)) { content() }
+                    }
+                }
+            } else {
+                { content -> content() }
+            }
+        App(viewModel, topBarDecoration = topBarDecoration)
     }
 }
 

@@ -90,7 +90,12 @@ private val NoScrollBringIntoViewSpec = object : BringIntoViewSpec {
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
+fun App(
+    viewModel: MainViewModel = viewModel { MainViewModel() },
+    // Wraps the top bar; on macOS main() passes a WindowDraggableArea (plus a traffic-lights
+    // inset) so the bar doubles as the title bar when the native one is hidden.
+    topBarDecoration: @Composable (content: @Composable () -> Unit) -> Unit = { it() },
+) {
     val themeMode by viewModel.themeMode.collectAsState()
     val visibleColumns by viewModel.visibleColumns.collectAsState()
     val columnWidths by viewModel.columnWidths.collectAsState()
@@ -233,7 +238,7 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
         }
 
         fun jumpToCrash(forward: Boolean) {
-            if (viewModel.crashIds.isEmpty()) return
+            if (viewModel.visibleCrashes.isEmpty()) return
             val currentId = viewModel.selectedIds.lastOrNull()
                 ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
                 ?: -1
@@ -308,105 +313,109 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                     onRestartCapture = viewModel::restartCapture,
                 )
         ) {
-            TopBar(
-                autoFollow = autoFollow,
-                themeMode = themeMode,
-                devices = devices,
-                selectedDevice = selectedDevice,
-                onSelectDevice = viewModel::selectDevice,
-                onRefreshDevices = viewModel::refreshDevices,
-                onClear = viewModel::clearLogs,
-                isCapturing = isCapturing,
-                onToggleCapture = viewModel::toggleCapture,
-                isRecording = isRecording,
-                onToggleRecording = viewModel::toggleRecording,
-                onTakeScreenshot = {
-                    val serial = selectedDevice
-                    val dir = File(screenshotDir.ifBlank { "${System.getProperty("user.home")}/Pictures/android" })
-                    val stamp = SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date())
-                    val target = File(dir, "scr_$stamp.png")
-                    scope.launch(Dispatchers.IO) {
-                        if (ScreenshotService.capture(serial, target)) {
-                            runCatching { ImageIO.read(target)?.let(::copyToClipboard) }
-                            if (openScreenshotAfterCapture) {
-                                runCatching { ProcessBuilder("xdg-open", target.absolutePath).start() }
+            // Wrapped so main() can turn the bar into the window-drag handle on macOS, where the
+            // native title bar is hidden.
+            topBarDecoration {
+                TopBar(
+                    autoFollow = autoFollow,
+                    themeMode = themeMode,
+                    devices = devices,
+                    selectedDevice = selectedDevice,
+                    onSelectDevice = viewModel::selectDevice,
+                    onRefreshDevices = viewModel::refreshDevices,
+                    onClear = viewModel::clearLogs,
+                    isCapturing = isCapturing,
+                    onToggleCapture = viewModel::toggleCapture,
+                    isRecording = isRecording,
+                    onToggleRecording = viewModel::toggleRecording,
+                    onTakeScreenshot = {
+                        val serial = selectedDevice
+                        val dir = File(screenshotDir.ifBlank { "${System.getProperty("user.home")}/Pictures/android" })
+                        val stamp = SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date())
+                        val target = File(dir, "scr_$stamp.png")
+                        scope.launch(Dispatchers.IO) {
+                            if (ScreenshotService.capture(serial, target)) {
+                                runCatching { ImageIO.read(target)?.let(::copyToClipboard) }
+                                if (openScreenshotAfterCapture) {
+                                    runCatching { ProcessBuilder("xdg-open", target.absolutePath).start() }
+                                }
                             }
                         }
-                    }
-                },
-                onSaveLogs = { filtered, asLogcat ->
-                    // Snapshot now: the source list keeps growing during capture while IO runs.
-                    val snapshot = (if (filtered) filteredLogs else logs).toList()
-                    val ext = if (asLogcat) "logcat" else "txt"
-                    val base = if (filtered) "logs-filtered" else "logs"
-                    // No ':' — illegal in filenames on some filesystems.
-                    val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm").format(Date())
-                    scope.launch(Dispatchers.IO) {
-                        val target = FilePicker.saveFile(
-                            if (filtered) "Save filtered logs" else "Save all logs",
-                            "$base-$stamp.$ext",
-                        )
-                        if (target != null) {
-                            val payload = if (asLogcat) {
-                                LogcatExporter.toJson(snapshot)
-                            } else {
-                                snapshot.joinToString("\n") { it.content }
+                    },
+                    onSaveLogs = { filtered, asLogcat ->
+                        // Snapshot now: the source list keeps growing during capture while IO runs.
+                        val snapshot = (if (filtered) filteredLogs else logs).toList()
+                        val ext = if (asLogcat) "logcat" else "txt"
+                        val base = if (filtered) "logs-filtered" else "logs"
+                        // No ':' — illegal in filenames on some filesystems.
+                        val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm").format(Date())
+                        scope.launch(Dispatchers.IO) {
+                            val target = FilePicker.saveFile(
+                                if (filtered) "Save filtered logs" else "Save all logs",
+                                "$base-$stamp.$ext",
+                            )
+                            if (target != null) {
+                                val payload = if (asLogcat) {
+                                    LogcatExporter.toJson(snapshot)
+                                } else {
+                                    snapshot.joinToString("\n") { it.content }
+                                }
+                                target.writeText(payload)
                             }
-                            target.writeText(payload)
                         }
-                    }
-                },
-                onOpenLogs = {
-                    scope.launch(Dispatchers.IO) {
-                        FilePicker.openFile("Open logs")?.let(viewModel::loadLogsFromFile)
-                    }
-                },
-                recentFiles = recentFiles,
-                onOpenRecent = viewModel::openRecentFile,
-                onClearRecent = viewModel::clearRecentFiles,
-                loadedFile = loadedFile,
-                onToggleAutoFollow = viewModel::toggleAutoFollow,
-                onSetTheme = viewModel::setTheme,
-                fontSize = fontSize,
-                onSetFontSize = viewModel::setFontSize,
-                fontFamily = fontFamily,
-                onSetFontFamily = viewModel::setFontFamily,
-                fontWeight = fontWeight,
-                onSetFontWeight = viewModel::setFontWeight,
-                softWrap = softWrap,
-                onSetSoftWrap = viewModel::setSoftWrap,
-                alwaysShowBookmarks = alwaysShowBookmarks,
-                onSetAlwaysShowBookmarks = viewModel::setAlwaysShowBookmarks,
-                onOpenFind = {
-                    if (findVisible) {
-                        findVisible = false
-                        findQuery = ""
-                    } else {
-                        findVisible = true
-                        runCatching { findFocusRequester.requestFocus() }
-                    }
-                },
-                findActive = findVisible,
-                logCount = filteredLogs.size,
-                totalLogCount = logs.size,
-                logBuffers = logBuffers,
-                onToggleLogBuffer = viewModel::toggleLogBuffer,
-                screenshotDir = screenshotDir,
-                onSetScreenshotDir = viewModel::setScreenshotDir,
-                openScreenshotAfterCapture = openScreenshotAfterCapture,
-                onSetOpenScreenshotAfterCapture = viewModel::setOpenScreenshotAfterCapture,
-                adbPath = adbPath,
-                onSetAdbPath = viewModel::setAdbPath,
-                recordingDir = recordingDir,
-                onSetRecordingDir = viewModel::setRecordingDir,
-                recordingShowTaps = recordingShowTaps,
-                onSetRecordingShowTaps = viewModel::setRecordingShowTaps,
-                recordingBitrateMbps = recordingBitrateMbps,
-                onSetRecordingBitrateMbps = viewModel::setRecordingBitrateMbps,
-                recordingSize = recordingSize,
-                onSetRecordingSize = viewModel::setRecordingSize,
-                onShowShortcuts = { showShortcutsDialog = true },
-            )
+                    },
+                    onOpenLogs = {
+                        scope.launch(Dispatchers.IO) {
+                            FilePicker.openFile("Open logs")?.let(viewModel::loadLogsFromFile)
+                        }
+                    },
+                    recentFiles = recentFiles,
+                    onOpenRecent = viewModel::openRecentFile,
+                    onClearRecent = viewModel::clearRecentFiles,
+                    loadedFile = loadedFile,
+                    onToggleAutoFollow = viewModel::toggleAutoFollow,
+                    onSetTheme = viewModel::setTheme,
+                    fontSize = fontSize,
+                    onSetFontSize = viewModel::setFontSize,
+                    fontFamily = fontFamily,
+                    onSetFontFamily = viewModel::setFontFamily,
+                    fontWeight = fontWeight,
+                    onSetFontWeight = viewModel::setFontWeight,
+                    softWrap = softWrap,
+                    onSetSoftWrap = viewModel::setSoftWrap,
+                    alwaysShowBookmarks = alwaysShowBookmarks,
+                    onSetAlwaysShowBookmarks = viewModel::setAlwaysShowBookmarks,
+                    onOpenFind = {
+                        if (findVisible) {
+                            findVisible = false
+                            findQuery = ""
+                        } else {
+                            findVisible = true
+                            runCatching { findFocusRequester.requestFocus() }
+                        }
+                    },
+                    findActive = findVisible,
+                    logCount = filteredLogs.size,
+                    totalLogCount = logs.size,
+                    logBuffers = logBuffers,
+                    onToggleLogBuffer = viewModel::toggleLogBuffer,
+                    screenshotDir = screenshotDir,
+                    onSetScreenshotDir = viewModel::setScreenshotDir,
+                    openScreenshotAfterCapture = openScreenshotAfterCapture,
+                    onSetOpenScreenshotAfterCapture = viewModel::setOpenScreenshotAfterCapture,
+                    adbPath = adbPath,
+                    onSetAdbPath = viewModel::setAdbPath,
+                    recordingDir = recordingDir,
+                    onSetRecordingDir = viewModel::setRecordingDir,
+                    recordingShowTaps = recordingShowTaps,
+                    onSetRecordingShowTaps = viewModel::setRecordingShowTaps,
+                    recordingBitrateMbps = recordingBitrateMbps,
+                    onSetRecordingBitrateMbps = viewModel::setRecordingBitrateMbps,
+                    recordingSize = recordingSize,
+                    onSetRecordingSize = viewModel::setRecordingSize,
+                    onShowShortcuts = { showShortcutsDialog = true },
+                )
+            }
 
             Box(modifier = Modifier.weight(1f)) {
                 val thumbBase = if (isDark) Color.White else Color.Black
@@ -581,10 +590,11 @@ fun App(viewModel: MainViewModel = viewModel { MainViewModel() }) {
                 }
 
                 // Floating crash/ANR navigator, top-right over the logs; drops below the find bar
-                // when that's open so the two don't overlap.
-                if (viewModel.crashIds.isNotEmpty()) {
+                // when that's open so the two don't overlap. Counts and walks only crashes that
+                // survive the current filters — hidden ones are skipped.
+                if (viewModel.visibleCrashes.isNotEmpty()) {
                     CrashNavigator(
-                        count = viewModel.crashIds.size,
+                        count = viewModel.visibleCrashes.size,
                         current = viewModel.crashOrdinal(selectedIds.lastOrNull() ?: -1),
                         onPrev = { jumpToCrash(forward = false) },
                         onNext = { jumpToCrash(forward = true) },
