@@ -61,6 +61,8 @@ import com.dv.loglens.model.FontWeightPreset
 import com.dv.loglens.model.LogColumn
 import com.dv.loglens.model.LogEntry
 import com.dv.loglens.model.cell
+import com.dv.loglens.ui.theme.IslandsDark
+import com.dv.loglens.ui.theme.IslandsLight
 import com.dv.loglens.ui.theme.ROW_SELECTED_DARK
 import com.dv.loglens.ui.theme.ROW_SELECTED_LIGHT
 import com.dv.loglens.ui.theme.islandsPopup
@@ -292,7 +294,7 @@ fun LogRow(
                                 findColor = findHighlightColor,
                                 // Only the message column gets clickable URLs; other columns skip
                                 // the scan entirely.
-                                linkColor = if (column == LogColumn.MESSAGE) linkColor(isDarkMode) else null,
+                                linkColor = if (column == LogColumn.MESSAGE) urlLinkColor(isDarkMode) else null,
                                 onTextLayout = if (column == LogColumn.MESSAGE) {
                                     { result -> messageOverflows = result.hasVisualOverflow }
                                 } else null,
@@ -452,6 +454,10 @@ private const val COLLAPSE_PREVIEW_MAX_CHARS = 500
 /** Colour of the crash/ANR marker glyph; a saturated red that reads on both themes. */
 private fun crashColor(isDarkMode: Boolean): Color =
     if (isDarkMode) Color(0xFFFF6B68) else Color(0xFFCC0000)
+
+/** URLs inside messages follow the debug-level palette colour; the underline marks the link. */
+private fun urlLinkColor(isDarkMode: Boolean): Color =
+    if (isDarkMode) IslandsDark.logDebug else IslandsLight.logDebug
 
 /** Standard hyperlink blue, tuned per theme for the expand/collapse link and message URLs. */
 private fun linkColor(isDarkMode: Boolean): Color =
