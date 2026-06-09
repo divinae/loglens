@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -146,24 +145,11 @@ fun LogRow(
         (windowInfo.containerSize.width.toDp() - 60.dp).coerceAtLeast(200.dp)
     }
 
-    Tooltip(
-        enabled = !softWrap && messageOverflows,
-        style = tooltipStyle,
-        tooltip = {
-            Text(
-                log.message,
-                fontFamily = FontFamily.Monospace,
-                fontSize = fontSize,
-                modifier = Modifier.widthIn(max = tooltipMaxWidth),
-            )
-        },
-    ) {
+    @Composable
+    fun rowBody() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // Min intrinsic height lets each cell fillMaxHeight() to the row's full height, so a
-                // right-click anywhere in a column (not just on the text) still hits its cell.
-                .height(IntrinsicSize.Min)
                 .background(backgroundColor)
                 .onPointerEvent(PointerEventType.Press) {
                     // Right-click always selects the row (even when a cell consumed the press to show
@@ -362,6 +348,25 @@ fun LogRow(
                     }
                 }
             }
+        }
+    }
+
+    if (softWrap) {
+        rowBody()
+    } else {
+        Tooltip(
+            enabled = messageOverflows,
+            style = tooltipStyle,
+            tooltip = {
+                Text(
+                    log.message,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = fontSize,
+                    modifier = Modifier.widthIn(max = tooltipMaxWidth),
+                )
+            },
+        ) {
+            rowBody()
         }
     }
 }
