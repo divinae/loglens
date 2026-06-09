@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -95,6 +96,14 @@ class MainViewModel(
      */
     val filteredLogs = mutableStateListOf<LogEntry>()
 
+    /**
+     * Bumped on every [recomputeFiltered] rebuild. The UI watches this to tell a filter-driven
+     * scroll reset (clear + refill drops the scroll position) apart from a genuine user scroll-up,
+     * so tail-follow isn't cancelled just because the filter criteria changed.
+     */
+    private val _recomputeTick = mutableStateOf(0)
+    val recomputeTick: Int get() = _recomputeTick.value
+
     val selectedIds = mutableStateSetOf<Int>()
     val bookmarkedIds = mutableStateSetOf<Int>()
     val pidToPackage = mutableStateMapOf<String, String>()
@@ -125,61 +134,13 @@ class MainViewModel(
     // Bookmarks kept pre-sorted so next/prev navigation doesn't sort the whole set on each keypress.
     private var sortedBookmarks: List<Int> = emptyList()
 
-    private val _isCapturing = MutableStateFlow(false)
-    val isCapturing = _isCapturing.asStateFlow()
+    /** The single screen-state object the UI collects; see [ScreenState] for per-field docs. */
+    private val _state = MutableStateFlow(ScreenState())
+    val state = _state.asStateFlow()
 
-    /**
-     * Display pause: the adb stream keeps running and lines keep buffering in the capture channel,
-     * only the UI stops appending. Resuming flushes the backlog, so nothing is lost — unlike
-     * stop/start, which re-reads the device ring buffer.
-     */
-    private val _isPaused = MutableStateFlow(false)
-    val isPaused = _isPaused.asStateFlow()
-
-    private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
-    val themeMode = _themeMode.asStateFlow()
-
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery = _searchQuery.asStateFlow()
-
-    /** Non-null when the current query has a syntax/regex error (UI shows an error outline). */
-    private val _searchQueryError = MutableStateFlow<String?>(null)
-    val searchQueryError = _searchQueryError.asStateFlow()
-
-    /** Parsed form of [_searchQuery]; rebuilt only when the text changes, not per log line. */
+    /** Parsed form of [ScreenState.searchQuery]; rebuilt only when the text changes, not per log line. */
     @Volatile
     private var parsedQuery: LogQuery = LogQuery.EMPTY
-
-    /** Recently committed quick-filter queries, most-recent first. */
-    private val _searchHistory = MutableStateFlow<List<String>>(emptyList())
-    val searchHistory = _searchHistory.asStateFlow()
-
-    /** Directory device screenshots are saved to; blank means the default (~/Pictures/android). */
-    private val _screenshotDir = MutableStateFlow("")
-    val screenshotDir = _screenshotDir.asStateFlow()
-
-    /** Whether to open the screenshot in the default image viewer after capture. */
-    private val _openScreenshotAfterCapture = MutableStateFlow(true)
-    val openScreenshotAfterCapture = _openScreenshotAfterCapture.asStateFlow()
-
-    /** Path to the adb executable; blank means "adb" from PATH. */
-    private val _adbPath = MutableStateFlow("")
-    val adbPath = _adbPath.asStateFlow()
-
-    /** Directory device screen recordings are saved to; blank means the default (~/Videos/android). */
-    private val _recordingDir = MutableStateFlow("")
-    val recordingDir = _recordingDir.asStateFlow()
-
-    private val _isRecording = MutableStateFlow(false)
-    val isRecording = _isRecording.asStateFlow()
-
-    /** Recording options (parity with Android Studio's recorder). */
-    private val _recordingShowTaps = MutableStateFlow(false)
-    val recordingShowTaps = _recordingShowTaps.asStateFlow()
-    private val _recordingBitrateMbps = MutableStateFlow(0)
-    val recordingBitrateMbps = _recordingBitrateMbps.asStateFlow()
-    private val _recordingSize = MutableStateFlow("")
-    val recordingSize = _recordingSize.asStateFlow()
 
     /** Emits the saved file when a recording finishes successfully, so the UI can open it. */
     private val _recordingSaved = MutableSharedFlow<File>(extraBufferCapacity = 1)
@@ -196,59 +157,6 @@ class MainViewModel(
     @Volatile
     private var recordingProcess: Process? = null
     private var recordingJob: Job? = null
-
-    private val _autoFollow = MutableStateFlow(true)
-    val autoFollow = _autoFollow.asStateFlow()
-
-    private val _visibleColumns = MutableStateFlow(DEFAULT_VISIBLE_COLUMNS)
-    val visibleColumns = _visibleColumns.asStateFlow()
-
-    private val _columnWidths = MutableStateFlow(DEFAULT_COLUMN_WIDTHS)
-    val columnWidths = _columnWidths.asStateFlow()
-
-    private val _fontSize = MutableStateFlow(DEFAULT_FONT_SIZE)
-    val fontSize = _fontSize.asStateFlow()
-
-    private val _fontFamily = MutableStateFlow(DEFAULT_FONT_FAMILY)
-    val fontFamily = _fontFamily.asStateFlow()
-
-    private val _fontWeight = MutableStateFlow(DEFAULT_FONT_WEIGHT)
-    val fontWeight = _fontWeight.asStateFlow()
-
-    private val _softWrap = MutableStateFlow(true)
-    val softWrap = _softWrap.asStateFlow()
-
-    private val _expandMultilineByDefault = MutableStateFlow(false)
-    val expandMultilineByDefault = _expandMultilineByDefault.asStateFlow()
-
-    private val _filtersListWidth = MutableStateFlow(DEFAULT_FILTERS_LIST_WIDTH)
-    val filtersListWidth = _filtersListWidth.asStateFlow()
-
-    private val _alwaysShowBookmarks = MutableStateFlow(true)
-    val alwaysShowBookmarks = _alwaysShowBookmarks.asStateFlow()
-
-    private val _quickFilterVisible = MutableStateFlow(true)
-    val quickFilterVisible = _quickFilterVisible.asStateFlow()
-
-    private val _logBuffers = MutableStateFlow(DEFAULT_LOG_BUFFERS)
-    val logBuffers = _logBuffers.asStateFlow()
-
-    private val _filters = MutableStateFlow<List<FilterRule>>(emptyList())
-    val filters = _filters.asStateFlow()
-
-    private val _devices = MutableStateFlow<List<Device>>(emptyList())
-    val devices = _devices.asStateFlow()
-
-    private val _selectedDevice = MutableStateFlow<String?>(null)
-    val selectedDevice = _selectedDevice.asStateFlow()
-
-    /** Name of the file currently loaded as the log source, or null when reading a live device. */
-    private val _loadedFile = MutableStateFlow<String?>(null)
-    val loadedFile = _loadedFile.asStateFlow()
-
-    /** Absolute paths of recently opened log files, most-recent first. */
-    private val _recentFiles = MutableStateFlow<List<String>>(emptyList())
-    val recentFiles = _recentFiles.asStateFlow()
 
     private var captureJob: Job? = null
     private var captureGen: Long = 0
@@ -284,8 +192,8 @@ class MainViewModel(
 
     init {
         applyConfig(configManager.load())
-        _filters.value = filterStore.load()
-        _searchHistory.value = searchHistoryStore.load()
+        _state.update { it.copy(filters = filterStore.load()) }
+        _state.update { it.copy(searchHistory = searchHistoryStore.load()) }
         recomputeFiltered()
 
         viewModelScope.launch {
@@ -314,13 +222,13 @@ class MainViewModel(
         viewModelScope.launch {
             val list = DeviceService.list()
             withContext(Dispatchers.Main) {
-                _devices.value = list
-                val current = _selectedDevice.value
+                _state.update { it.copy(devices = list) }
+                val current = _state.value.selectedDevice
                 if (current != null && list.none { it.serial == current }) {
                     // Device dropped: remember it for auto-reconnect and stop the dead stream
                     // instead of restarting against no device (which only spews adb errors).
                     lastLiveSerial = current
-                    _selectedDevice.value = null
+                    _state.update { it.copy(selectedDevice = null) }
                     stopCapture()
                     appendSystemBanner("DEVICE DISCONNECTED ($current)")
                 } else if (current == null) {
@@ -329,7 +237,7 @@ class MainViewModel(
                     val sole = list.singleOrNull()?.takeIf { it.isOnline }
                     val pick = returned ?: sole ?: return@withContext
                     val isReconnect = pick.serial == lastLiveSerial
-                    _selectedDevice.value = pick.serial
+                    _state.update { it.copy(selectedDevice = pick.serial) }
                     if (isReconnect) {
                         // Resume from the last seen line so the kept logs aren't duplicated and
                         // lines buffered on the device while unplugged still arrive.
@@ -352,7 +260,7 @@ class MainViewModel(
      * alongside the process they describe.
      */
     private fun appendSystemBanner(text: String, pid: String = "", appName: String = "") {
-        if (_loadedFile.value != null) return
+        if (_state.value.loadedFile != null) return
         val content = "------------------- $text -------------------"
         val entry = LogEntry(
             id = nextLogId.getAndIncrement(),
@@ -368,8 +276,8 @@ class MainViewModel(
 
     fun selectDevice(serial: String?) {
         // Re-selecting the same device must still switch back to live when a file is loaded.
-        if (_selectedDevice.value == serial && _loadedFile.value == null) return
-        _selectedDevice.value = serial
+        if (_state.value.selectedDevice == serial && _state.value.loadedFile == null) return
+        _state.update { it.copy(selectedDevice = serial) }
         restartCapture(clearLogs = true)
         if (serial != null) refreshPackages()
     }
@@ -378,7 +286,7 @@ class MainViewModel(
         captureJob?.cancel()
         captureJob = null
         logcatService.stop()
-        _isCapturing.value = false
+        _state.update { it.copy(isCapturing = false) }
         if (clearLogs) {
             logs.clear()
             filteredLogs.clear()
@@ -390,55 +298,55 @@ class MainViewModel(
     }
 
     private fun applyConfig(config: UserConfig) {
-        _visibleColumns.value = config.visibleColumns
-        _columnWidths.value = config.columnWidths
-        _themeMode.value = config.themeMode
-        _fontSize.value = config.fontSize.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
-        _fontFamily.value = config.fontFamily
-        _fontWeight.value = config.fontWeight
-        _softWrap.value = config.softWrap
-        _expandMultilineByDefault.value = config.expandMultilineByDefault
-        _filtersListWidth.value = config.filtersListWidth
-        _alwaysShowBookmarks.value = config.alwaysShowBookmarks
-        _quickFilterVisible.value = config.quickFilterVisible
-        _logBuffers.value = config.logBuffers
-        _searchQuery.value = config.searchQuery
+        _state.update { it.copy(visibleColumns = config.visibleColumns) }
+        _state.update { it.copy(columnWidths = config.columnWidths) }
+        _state.update { it.copy(themeMode = config.themeMode) }
+        _state.update { it.copy(fontSize = config.fontSize.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)) }
+        _state.update { it.copy(fontFamily = config.fontFamily) }
+        _state.update { it.copy(fontWeight = config.fontWeight) }
+        _state.update { it.copy(softWrap = config.softWrap) }
+        _state.update { it.copy(expandMultilineByDefault = config.expandMultilineByDefault) }
+        _state.update { it.copy(filtersListWidth = config.filtersListWidth) }
+        _state.update { it.copy(alwaysShowBookmarks = config.alwaysShowBookmarks) }
+        _state.update { it.copy(quickFilterVisible = config.quickFilterVisible) }
+        _state.update { it.copy(logBuffers = config.logBuffers) }
+        _state.update { it.copy(searchQuery = config.searchQuery) }
         parsedQuery = LogQuery.parse(config.searchQuery)
-        _searchQueryError.value = parsedQuery.error
-        _screenshotDir.value = config.screenshotDir
-        _openScreenshotAfterCapture.value = config.openScreenshotAfterCapture
-        _adbPath.value = config.adbPath
+        _state.update { it.copy(searchQueryError = parsedQuery.error) }
+        _state.update { it.copy(screenshotDir = config.screenshotDir) }
+        _state.update { it.copy(openScreenshotAfterCapture = config.openScreenshotAfterCapture) }
+        _state.update { it.copy(adbPath = config.adbPath) }
         Adb.path = config.adbPath
-        _recordingDir.value = config.recordingDir
-        _recordingShowTaps.value = config.recordingShowTaps
-        _recordingBitrateMbps.value = config.recordingBitrateMbps
-        _recordingSize.value = config.recordingSize
+        _state.update { it.copy(recordingDir = config.recordingDir) }
+        _state.update { it.copy(recordingShowTaps = config.recordingShowTaps) }
+        _state.update { it.copy(recordingBitrateMbps = config.recordingBitrateMbps) }
+        _state.update { it.copy(recordingSize = config.recordingSize) }
         windowBounds = WindowBounds(config.windowX, config.windowY, config.windowWidth, config.windowHeight)
-        _recentFiles.value = config.recentFiles
+        _state.update { it.copy(recentFiles = config.recentFiles) }
     }
 
     private fun currentConfig(): UserConfig = UserConfig(
-        visibleColumns = _visibleColumns.value,
-        columnWidths = _columnWidths.value,
-        themeMode = _themeMode.value,
-        fontSize = _fontSize.value,
-        fontFamily = _fontFamily.value,
-        fontWeight = _fontWeight.value,
-        softWrap = _softWrap.value,
-        expandMultilineByDefault = _expandMultilineByDefault.value,
-        filtersListWidth = _filtersListWidth.value,
-        alwaysShowBookmarks = _alwaysShowBookmarks.value,
-        quickFilterVisible = _quickFilterVisible.value,
-        logBuffers = _logBuffers.value,
-        searchQuery = _searchQuery.value,
-        screenshotDir = _screenshotDir.value,
-        openScreenshotAfterCapture = _openScreenshotAfterCapture.value,
-        adbPath = _adbPath.value,
-        recordingDir = _recordingDir.value,
-        recordingShowTaps = _recordingShowTaps.value,
-        recordingBitrateMbps = _recordingBitrateMbps.value,
-        recordingSize = _recordingSize.value,
-        recentFiles = _recentFiles.value,
+        visibleColumns = _state.value.visibleColumns,
+        columnWidths = _state.value.columnWidths,
+        themeMode = _state.value.themeMode,
+        fontSize = _state.value.fontSize,
+        fontFamily = _state.value.fontFamily,
+        fontWeight = _state.value.fontWeight,
+        softWrap = _state.value.softWrap,
+        expandMultilineByDefault = _state.value.expandMultilineByDefault,
+        filtersListWidth = _state.value.filtersListWidth,
+        alwaysShowBookmarks = _state.value.alwaysShowBookmarks,
+        quickFilterVisible = _state.value.quickFilterVisible,
+        logBuffers = _state.value.logBuffers,
+        searchQuery = _state.value.searchQuery,
+        screenshotDir = _state.value.screenshotDir,
+        openScreenshotAfterCapture = _state.value.openScreenshotAfterCapture,
+        adbPath = _state.value.adbPath,
+        recordingDir = _state.value.recordingDir,
+        recordingShowTaps = _state.value.recordingShowTaps,
+        recordingBitrateMbps = _state.value.recordingBitrateMbps,
+        recordingSize = _state.value.recordingSize,
+        recentFiles = _state.value.recentFiles,
         windowX = windowBounds.x,
         windowY = windowBounds.y,
         windowWidth = windowBounds.width,
@@ -461,39 +369,39 @@ class MainViewModel(
     }
 
     fun setFiltersListWidth(width: Float) {
-        if (_filtersListWidth.value == width) return
-        _filtersListWidth.value = width
+        if (_state.value.filtersListWidth == width) return
+        _state.update { it.copy(filtersListWidth = width) }
         persistConfig()
     }
 
     fun setAlwaysShowBookmarks(value: Boolean) {
-        if (_alwaysShowBookmarks.value == value) return
-        _alwaysShowBookmarks.value = value
+        if (_state.value.alwaysShowBookmarks == value) return
+        _state.update { it.copy(alwaysShowBookmarks = value) }
         recomputeFiltered()
         persistConfig()
     }
 
     fun setQuickFilterVisible(value: Boolean) {
-        if (_quickFilterVisible.value == value) return
-        _quickFilterVisible.value = value
+        if (_state.value.quickFilterVisible == value) return
+        _state.update { it.copy(quickFilterVisible = value) }
         persistConfig()
     }
 
     fun setScreenshotDir(path: String) {
-        if (_screenshotDir.value == path) return
-        _screenshotDir.value = path
+        if (_state.value.screenshotDir == path) return
+        _state.update { it.copy(screenshotDir = path) }
         persistConfig()
     }
 
     fun setOpenScreenshotAfterCapture(value: Boolean) {
-        if (_openScreenshotAfterCapture.value == value) return
-        _openScreenshotAfterCapture.value = value
+        if (_state.value.openScreenshotAfterCapture == value) return
+        _state.update { it.copy(openScreenshotAfterCapture = value) }
         persistConfig()
     }
 
     fun setAdbPath(path: String) {
-        if (_adbPath.value == path) return
-        _adbPath.value = path
+        if (_state.value.adbPath == path) return
+        _state.update { it.copy(adbPath = path) }
         Adb.path = path
         persistConfig()
         // The 5s device-poll loop picks up the new binary on its own; no forced restart here so
@@ -501,46 +409,46 @@ class MainViewModel(
     }
 
     fun setRecordingDir(path: String) {
-        if (_recordingDir.value == path) return
-        _recordingDir.value = path
+        if (_state.value.recordingDir == path) return
+        _state.update { it.copy(recordingDir = path) }
         persistConfig()
     }
 
     fun setRecordingShowTaps(value: Boolean) {
-        if (_recordingShowTaps.value == value) return
-        _recordingShowTaps.value = value
+        if (_state.value.recordingShowTaps == value) return
+        _state.update { it.copy(recordingShowTaps = value) }
         persistConfig()
     }
 
     fun setRecordingBitrateMbps(value: Int) {
-        if (_recordingBitrateMbps.value == value) return
-        _recordingBitrateMbps.value = value
+        if (_state.value.recordingBitrateMbps == value) return
+        _state.update { it.copy(recordingBitrateMbps = value) }
         persistConfig()
     }
 
     fun setRecordingSize(value: String) {
-        if (_recordingSize.value == value) return
-        _recordingSize.value = value
+        if (_state.value.recordingSize == value) return
+        _state.update { it.copy(recordingSize = value) }
         persistConfig()
     }
 
     fun toggleRecording() {
-        if (_isRecording.value) stopRecording() else startRecording()
+        if (_state.value.isRecording) stopRecording() else startRecording()
     }
 
     private fun startRecording() {
-        val serial = _selectedDevice.value
-        if (_isRecording.value || serial == null || _loadedFile.value != null) return
-        _isRecording.value = true
+        val serial = _state.value.selectedDevice
+        if (_state.value.isRecording || serial == null || _state.value.loadedFile != null) return
+        _state.update { it.copy(isRecording = true) }
         showToast("Recording started")
         // No ':' — illegal in sdcard (FAT/sdcardfs) filenames, screenrecord would fail to create the file.
         val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(Date())
         val devicePath = "/sdcard/loglens-rec-$stamp.mp4"
-        val dir = File(_recordingDir.value.ifBlank { "${System.getProperty("user.home")}/Videos/android" })
+        val dir = File(_state.value.recordingDir.ifBlank { "${System.getProperty("user.home")}/Videos/android" })
         val target = File(dir, "rec_$stamp.mp4")
-        val showTaps = _recordingShowTaps.value
-        val bitrate = _recordingBitrateMbps.value
-        val size = _recordingSize.value
+        val showTaps = _state.value.recordingShowTaps
+        val bitrate = _state.value.recordingBitrateMbps
+        val size = _state.value.recordingSize
         recordingJob = viewModelScope.launch(Dispatchers.IO) {
             var priorTaps: String? = null
             try {
@@ -566,13 +474,13 @@ class MainViewModel(
                 // Restore the device's prior show-touches setting (don't clobber the user's choice).
                 if (showTaps) runCatching { ScreenRecordingService.setShowTouches(serial, priorTaps == "1") }
                 recordingProcess = null
-                _isRecording.value = false
+                _state.update { it.copy(isRecording = false) }
             }
         }
     }
 
     private fun stopRecording() {
-        val serial = _selectedDevice.value
+        val serial = _state.value.selectedDevice
         // SIGINT the on-device process so the mp4 is finalized; destroy() is only a backstop.
         viewModelScope.launch(Dispatchers.IO) { ScreenRecordingService.signalStop(serial) }
         recordingProcess?.destroy()
@@ -580,36 +488,36 @@ class MainViewModel(
 
     /** Toggle one adb buffer. Refuses to clear the last one, then restarts capture from the new source. */
     fun toggleLogBuffer(buffer: LogBuffer) {
-        val current = _logBuffers.value
+        val current = _state.value.logBuffers
         val next = if (buffer in current) current - buffer else current + buffer
         if (next.isEmpty() || next == current) return
-        _logBuffers.value = next
+        _state.update { it.copy(logBuffers = next) }
         persistConfig()
         restartCapture(clearLogs = true)
     }
 
     fun setFontSize(size: Float) {
         val clamped = size.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
-        if (_fontSize.value == clamped) return
-        _fontSize.value = clamped
+        if (_state.value.fontSize == clamped) return
+        _state.update { it.copy(fontSize = clamped) }
         persistConfig()
     }
 
     fun setFontFamily(family: String) {
-        if (_fontFamily.value == family) return
-        _fontFamily.value = family
+        if (_state.value.fontFamily == family) return
+        _state.update { it.copy(fontFamily = family) }
         persistConfig()
     }
 
     fun setFontWeight(weight: String) {
-        if (_fontWeight.value == weight) return
-        _fontWeight.value = weight
+        if (_state.value.fontWeight == weight) return
+        _state.update { it.copy(fontWeight = weight) }
         persistConfig()
     }
 
     fun setSoftWrap(enabled: Boolean) {
-        if (_softWrap.value == enabled) return
-        _softWrap.value = enabled
+        if (_state.value.softWrap == enabled) return
+        _state.update { it.copy(softWrap = enabled) }
         persistConfig()
     }
 
@@ -623,7 +531,7 @@ class MainViewModel(
         if (!bookmarkedIds.add(id)) bookmarkedIds.remove(id)
         sortedBookmarks = bookmarkedIds.sorted()
         // When bookmarks are pinned past the filters, toggling changes which rows are shown.
-        if (_alwaysShowBookmarks.value) recomputeFiltered()
+        if (_state.value.alwaysShowBookmarks) recomputeFiltered()
     }
 
     /** 0-based position of [id] among bookmarks in log order, or -1 if it isn't one. */
@@ -649,12 +557,12 @@ class MainViewModel(
 
     /** Force [id] expanded regardless of the default — used when navigation lands on a folded match. */
     fun ensureExpanded(id: Int) {
-        if (_expandMultilineByDefault.value) expandedIds.remove(id) else expandedIds.add(id)
+        if (_state.value.expandMultilineByDefault) expandedIds.remove(id) else expandedIds.add(id)
     }
 
     fun setExpandMultilineByDefault(value: Boolean) {
-        if (_expandMultilineByDefault.value == value) return
-        _expandMultilineByDefault.value = value
+        if (_state.value.expandMultilineByDefault == value) return
+        _state.update { it.copy(expandMultilineByDefault = value) }
         // Per-row toggles were relative to the old default; reset so every row adopts the new one.
         expandedIds.clear()
         persistConfig()
@@ -672,16 +580,16 @@ class MainViewModel(
     }
 
     fun setAutoFollow(enabled: Boolean) {
-        _autoFollow.value = enabled
+        _state.update { it.copy(autoFollow = enabled) }
     }
 
     fun toggleAutoFollow() {
-        _autoFollow.value = !_autoFollow.value
+        _state.update { it.copy(autoFollow = !_state.value.autoFollow) }
     }
 
     fun refreshPackages() {
         viewModelScope.launch {
-            val newMap = PackageService.fetchPidMap(_selectedDevice.value)
+            val newMap = PackageService.fetchPidMap(_state.value.selectedDevice)
             if (newMap.isEmpty() || newMap == pidToPackage) return@launch
             withContext(Dispatchers.Main) {
                 emitProcessBanners(oldMap = pidSnapshot, newMap = newMap)
@@ -715,7 +623,7 @@ class MainViewModel(
      * [packagesSeenInLogs]) — unrelated system process churn stays silent.
      */
     private fun emitProcessBanners(oldMap: Map<String, String>, newMap: Map<String, String>) {
-        if (!_isCapturing.value || oldMap.isEmpty()) return
+        if (!_state.value.isCapturing || oldMap.isEmpty()) return
         for ((pid, pkg) in oldMap) {
             if (pid !in newMap && pid in pidsSeenInLogs && !trackerBanneredPids.remove(pid)) {
                 appendSystemBanner("PROCESS ENDED ($pid) for package $pkg", pid, pkg)
@@ -753,29 +661,29 @@ class MainViewModel(
     }
 
     fun toggleColumn(column: LogColumn) {
-        val current = _visibleColumns.value
-        _visibleColumns.value = if (column in current) current - column else current + column
+        val current = _state.value.visibleColumns
+        _state.update { it.copy(visibleColumns = if (column in current) current - column else current + column) }
         persistConfig()
     }
 
     fun updateColumnWidth(column: LogColumn, width: Float) {
-        _columnWidths.value = _columnWidths.value.toMutableMap().apply {
-            this[column] = width.coerceAtLeast(10f)
+        _state.update {
+            it.copy(columnWidths = it.columnWidths.toMutableMap().apply { this[column] = width.coerceAtLeast(10f) })
         }
         persistConfig()
     }
 
     fun setTheme(mode: ThemeMode) {
-        if (_themeMode.value == mode) return
-        _themeMode.value = mode
+        if (_state.value.themeMode == mode) return
+        _state.update { it.copy(themeMode = mode) }
         persistConfig()
     }
 
     fun updateSearchQuery(query: String) {
-        if (_searchQuery.value == query) return
-        _searchQuery.value = query
+        if (_state.value.searchQuery == query) return
+        _state.update { it.copy(searchQuery = query) }
         parsedQuery = LogQuery.parse(query)
-        _searchQueryError.value = parsedQuery.error
+        _state.update { it.copy(searchQueryError = parsedQuery.error) }
         recomputeFiltered()
     }
 
@@ -784,24 +692,24 @@ class MainViewModel(
      * Saved synchronously (history is tiny) so it survives an immediate app exit.
      */
     fun commitSearchQuery() {
-        val query = _searchQuery.value.trim()
+        val query = _state.value.searchQuery.trim()
         if (query.isEmpty() || parsedQuery.error != null) return
         // Move an existing identical entry to the front; cap the list.
-        val updated = (listOf(query) + _searchHistory.value.filterNot { it == query }).take(SEARCH_HISTORY_LIMIT)
-        if (updated == _searchHistory.value) return
-        _searchHistory.value = updated
+        val updated = (listOf(query) + _state.value.searchHistory.filterNot { it == query }).take(SEARCH_HISTORY_LIMIT)
+        if (updated == _state.value.searchHistory) return
+        _state.update { it.copy(searchHistory = updated) }
         searchHistoryStore.save(updated)
     }
 
     fun clearSearchHistory() {
-        if (_searchHistory.value.isEmpty()) return
-        _searchHistory.value = emptyList()
+        if (_state.value.searchHistory.isEmpty()) return
+        _state.update { it.copy(searchHistory = emptyList()) }
         searchHistoryStore.save(emptyList())
     }
 
     /** True if [log] should appear in [filteredLogs] under the current criteria. */
     private fun matches(log: LogEntry): Boolean {
-        if (_alwaysShowBookmarks.value && log.id in bookmarkedIds) return true
+        if (_state.value.alwaysShowBookmarks && log.id in bookmarkedIds) return true
         if (!parsedQuery.matches(log)) return false
         if (hideFilters.any { it.matches(log) }) return false
         if (showFilters.isNotEmpty() && showFilters.none { it.matches(log) }) return false
@@ -810,7 +718,7 @@ class MainViewModel(
 
     /** Refresh the cached active-filter partition; call before any (re)filtering pass. */
     private fun refreshFilterPartition() {
-        val active = _filters.value.filter { it.enabled }
+        val active = _state.value.filters.filter { it.enabled }
         showFilters = active.filter {
             it.mode == FilterMode.SHOW || it.mode == FilterMode.SHOW_AND_HIGHLIGHT
         }
@@ -832,15 +740,16 @@ class MainViewModel(
         visibleCrashes =
             if (crashIds.isEmpty()) emptyList()
             else rebuilt.mapNotNull { log -> log.id.takeIf { it in crashIds } }
+        _recomputeTick.value++
     }
 
     fun startCapture() {
-        if (_isCapturing.value) return
+        if (_state.value.isCapturing) return
         // Going live: we are no longer reading from a file.
-        _loadedFile.value = null
-        _isCapturing.value = true
-        _isPaused.value = false
-        _selectedDevice.value?.let { lastLiveSerial = it }
+        _state.update { it.copy(loadedFile = null) }
+        _state.update { it.copy(isCapturing = true) }
+        _state.update { it.copy(isPaused = false) }
+        _state.value.selectedDevice?.let { lastLiveSerial = it }
         // One-shot resume point from an auto-reconnect; a normal start reads the whole buffer.
         val sinceTime = resumeSinceTimestamp
         resumeSinceTimestamp = null
@@ -853,7 +762,7 @@ class MainViewModel(
         // continuation line (stack frame) the consumer folds into the preceding entry.
         val producer = viewModelScope.launch(Dispatchers.Default) {
             try {
-                logcatService.stream(_selectedDevice.value, _logBuffers.value, sinceTime).collect { line ->
+                logcatService.stream(_state.value.selectedDevice, _state.value.logBuffers, sinceTime).collect { line ->
                     channel.send(CapturedLine(line, LogParser.parseLine(line, pidSnapshot)))
                 }
             } finally {
@@ -874,7 +783,7 @@ class MainViewModel(
                 while (isActive) {
                     // Display pause: stop draining; the unbounded channel keeps buffering the
                     // stream, so resuming flushes everything that arrived in the meantime.
-                    if (_isPaused.value) {
+                    if (_state.value.isPaused) {
                         delay(FLUSH_INTERVAL_MS)
                         continue
                     }
@@ -954,7 +863,7 @@ class MainViewModel(
                 }
             } finally {
                 producer.cancel()
-                if (gen == captureGen) _isCapturing.value = false
+                if (gen == captureGen) _state.update { it.copy(isCapturing = false) }
             }
         }
     }
@@ -969,8 +878,8 @@ class MainViewModel(
         trackerJob?.cancel()
         trackerJob = null
         logcatService.stop()
-        _isCapturing.value = false
-        _isPaused.value = false
+        _state.update { it.copy(isCapturing = false) }
+        _state.update { it.copy(isPaused = false) }
     }
 
     /**
@@ -981,7 +890,7 @@ class MainViewModel(
      */
     private fun startProcessTracker() {
         trackerJob?.cancel()
-        val serial = _selectedDevice.value ?: return
+        val serial = _state.value.selectedDevice ?: return
         trackerJob = viewModelScope.launch {
             var previous: Set<String>? = null
             ProcessTrackerService.track(serial)
@@ -1026,12 +935,12 @@ class MainViewModel(
     }
 
     fun toggleCapture() {
-        if (_isCapturing.value) stopCapture() else startCapture()
+        if (_state.value.isCapturing) stopCapture() else startCapture()
     }
 
     /** Pause/resume the display while the stream keeps buffering; see [isPaused]. */
     fun togglePause() {
-        if (_isCapturing.value) _isPaused.value = !_isPaused.value
+        if (_state.value.isCapturing) _state.update { it.copy(isPaused = !_state.value.isPaused) }
     }
 
     fun clearLogs() {
@@ -1044,10 +953,10 @@ class MainViewModel(
         // For a live device, also wipe the on-device logcat buffer so cleared lines never reappear.
         // `logcat -c` kills a concurrently running logcat reader (EOF), which would end the capture,
         // so stop the stream first, clear, then resume.
-        if (_loadedFile.value == null && _selectedDevice.value != null) {
-            val serial = _selectedDevice.value
-            val buffers = _logBuffers.value
-            val wasCapturing = _isCapturing.value
+        if (_state.value.loadedFile == null && _state.value.selectedDevice != null) {
+            val serial = _state.value.selectedDevice
+            val buffers = _state.value.logBuffers
+            val wasCapturing = _state.value.isCapturing
             if (wasCapturing) stopCapture()
             viewModelScope.launch {
                 logcatService.clearBuffers(serial, buffers)
@@ -1084,8 +993,8 @@ class MainViewModel(
             nextLogId.set(parsed.size)
             // visibleCrashes is derived from these in recomputeFiltered() below.
             parsed.forEach { if (CrashDetector.isCrash(it)) crashIds.add(it.id) }
-            _autoFollow.value = false
-            _loadedFile.value = file.name
+            _state.update { it.copy(autoFollow = false) }
+            _state.update { it.copy(loadedFile = file.name) }
             recomputeFiltered()
             rememberRecentFile(file)
         }
@@ -1095,61 +1004,61 @@ class MainViewModel(
     fun openRecentFile(path: String) {
         val file = File(path)
         if (file.exists()) loadLogsFromFile(file)
-        else _recentFiles.value = _recentFiles.value.filterNot { it == path }.also { persistConfig() }
+        else _state.update { it.copy(recentFiles = _state.value.recentFiles.filterNot { it == path }.also { persistConfig() }) }
     }
 
     fun clearRecentFiles() {
-        if (_recentFiles.value.isEmpty()) return
-        _recentFiles.value = emptyList()
+        if (_state.value.recentFiles.isEmpty()) return
+        _state.update { it.copy(recentFiles = emptyList()) }
         persistConfig()
     }
 
     private fun rememberRecentFile(file: File) {
         val path = file.absolutePath
         // Most-recent first, de-duplicated, capped so the list (and config) stays small.
-        _recentFiles.value = (listOf(path) + _recentFiles.value.filterNot { it == path }).take(MAX_RECENT_FILES)
+        _state.update { it.copy(recentFiles = (listOf(path) + _state.value.recentFiles.filterNot { it == path }).take(MAX_RECENT_FILES)) }
         persistConfig()
     }
 
     fun replaceFilters(newFilters: List<FilterRule>) {
-        _filters.value = newFilters
+        _state.update { it.copy(filters = newFilters) }
         recomputeFiltered()
         persistFilters()
     }
 
     fun addFilter(rule: FilterRule) {
-        _filters.value = _filters.value + rule
+        _state.update { it.copy(filters = _state.value.filters + rule) }
         recomputeFiltered()
         persistFilters()
     }
 
     fun removeFilter(id: String) {
-        val current = _filters.value
+        val current = _state.value.filters
         if (current.none { it.id == id }) return
-        _filters.value = current.filterNot { it.id == id }
+        _state.update { it.copy(filters = current.filterNot { it.id == id }) }
         recomputeFiltered()
         persistFilters()
     }
 
     fun reorderFilters(from: Int, to: Int) {
-        val current = _filters.value
+        val current = _state.value.filters
         if (from == to || from !in current.indices || to !in current.indices) return
-        _filters.value = current.toMutableList().apply { add(to, removeAt(from)) }
+        _state.update { it.copy(filters = current.toMutableList().apply { add(to, removeAt(from)) }) }
         // Order can change which SHOW/HIDE rule wins, so the visible set may shift.
         recomputeFiltered()
         persistFilters()
     }
 
     fun setFilterEnabled(id: String, enabled: Boolean) {
-        val current = _filters.value
+        val current = _state.value.filters
         if (current.none { it.id == id && it.enabled != enabled }) return
-        _filters.value = current.map { if (it.id == id) it.copy(enabled = enabled) else it }
+        _state.update { it.copy(filters = current.map { if (it.id == id) it.copy(enabled = enabled) else it }) }
         recomputeFiltered()
         persistFilters()
     }
 
     private fun persistFilters() {
-        val snapshot = _filters.value
+        val snapshot = _state.value.filters
         viewModelScope.launch(Dispatchers.IO) { filterStore.save(snapshot) }
     }
 
@@ -1158,3 +1067,46 @@ class MainViewModel(
         super.onCleared()
     }
 }
+
+/**
+ * The complete screen state the UI renders, collected as one object instead of ~30 separate flows.
+ * Field notes that used to live on the individual flows:
+ *  - [isPaused]: display pause — the adb stream keeps buffering, only UI appending stops.
+ *  - [searchQueryError]: non-null when the current query has a syntax/regex error.
+ *  - [screenshotDir] / [recordingDir]: blank means the platform default directory.
+ *  - [adbPath]: blank means "adb" from PATH.  [loadedFile]: null while reading a live device.
+ *  - [searchHistory] / [recentFiles]: most-recent first.
+ */
+data class ScreenState(
+    val isCapturing: Boolean = false,
+    val isPaused: Boolean = false,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val searchQuery: String = "",
+    val searchQueryError: String? = null,
+    val searchHistory: List<String> = emptyList(),
+    val screenshotDir: String = "",
+    val openScreenshotAfterCapture: Boolean = true,
+    val adbPath: String = "",
+    val recordingDir: String = "",
+    val isRecording: Boolean = false,
+    val recordingShowTaps: Boolean = false,
+    val recordingBitrateMbps: Int = 0,
+    val recordingSize: String = "",
+    val autoFollow: Boolean = true,
+    val visibleColumns: Set<LogColumn> = DEFAULT_VISIBLE_COLUMNS,
+    val columnWidths: Map<LogColumn, Float> = DEFAULT_COLUMN_WIDTHS,
+    val fontSize: Float = DEFAULT_FONT_SIZE,
+    val fontFamily: String = DEFAULT_FONT_FAMILY,
+    val fontWeight: String = DEFAULT_FONT_WEIGHT,
+    val softWrap: Boolean = true,
+    val expandMultilineByDefault: Boolean = false,
+    val filtersListWidth: Float = DEFAULT_FILTERS_LIST_WIDTH,
+    val alwaysShowBookmarks: Boolean = true,
+    val quickFilterVisible: Boolean = true,
+    val logBuffers: Set<LogBuffer> = DEFAULT_LOG_BUFFERS,
+    val filters: List<FilterRule> = emptyList(),
+    val devices: List<Device> = emptyList(),
+    val selectedDevice: String? = null,
+    val loadedFile: String? = null,
+    val recentFiles: List<String> = emptyList(),
+)

@@ -48,7 +48,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dv.loglens.model.FilterMode
+import com.dv.loglens.model.FilterRule
 import com.dv.loglens.model.FontWeightPreset
+import com.dv.loglens.model.LogBuffer
 import com.dv.loglens.model.LogColumn
 import com.dv.loglens.model.ThemeMode
 import com.dv.loglens.model.cell
@@ -77,8 +79,11 @@ import com.dv.loglens.ui.theme.islandsComponentStyling
 import com.dv.loglens.ui.theme.islandsEditor
 import com.dv.loglens.ui.theme.islandsPanel
 import com.dv.loglens.ui.theme.islandsThemeDefinition
+import com.dv.loglens.model.LogEntry
 import com.dv.loglens.viewmodel.MainViewModel
+import com.dv.loglens.viewmodel.ScreenState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -94,47 +99,29 @@ private val NoScrollBringIntoViewSpec = object : BringIntoViewSpec {
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun App(
-    viewModel: MainViewModel = viewModel { MainViewModel() },
+fun AppContent(
+    state: ScreenState,
+    logs: List<LogEntry>,
+    filteredLogs: List<LogEntry>,
+    selectedIds: Set<Int>,
+    bookmarkedIds: Set<Int>,
+    crashIds: Set<Int>,
+    expandedIds: Set<Int>,
+    pidToPackage: Map<String, String>,
+    visibleCrashes: List<Int>,
+    recomputeTick: () -> Int,
+    recordingSaved: Flow<File>,
+    toast: Flow<String>,
+    callbacks: AppCallbacks,
     // Wraps the top bar; on macOS main() passes a WindowDraggableArea (plus a traffic-lights
     // inset) so the bar doubles as the title bar when the native one is hidden.
     topBarDecoration: @Composable (content: @Composable () -> Unit) -> Unit = { it() },
 ) {
-    val themeMode by viewModel.themeMode.collectAsState()
-    val visibleColumns by viewModel.visibleColumns.collectAsState()
-    val columnWidths by viewModel.columnWidths.collectAsState()
-    val autoFollow by viewModel.autoFollow.collectAsState()
-    val isCapturing by viewModel.isCapturing.collectAsState()
-    val isPaused by viewModel.isPaused.collectAsState()
-    val filters by viewModel.filters.collectAsState()
-    val devices by viewModel.devices.collectAsState()
-    val selectedDevice by viewModel.selectedDevice.collectAsState()
-    val loadedFile by viewModel.loadedFile.collectAsState()
-    val recentFiles by viewModel.recentFiles.collectAsState()
-    val fontSize by viewModel.fontSize.collectAsState()
-    val fontFamily by viewModel.fontFamily.collectAsState()
-    val fontWeight by viewModel.fontWeight.collectAsState()
-    val softWrap by viewModel.softWrap.collectAsState()
-    val expandMultilineByDefault by viewModel.expandMultilineByDefault.collectAsState()
-    val filtersListWidth by viewModel.filtersListWidth.collectAsState()
-    val alwaysShowBookmarks by viewModel.alwaysShowBookmarks.collectAsState()
-    val quickFilterVisible by viewModel.quickFilterVisible.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val searchQueryError by viewModel.searchQueryError.collectAsState()
-    val searchHistory by viewModel.searchHistory.collectAsState()
-    val screenshotDir by viewModel.screenshotDir.collectAsState()
-    val openScreenshotAfterCapture by viewModel.openScreenshotAfterCapture.collectAsState()
-    val adbPath by viewModel.adbPath.collectAsState()
-    val recordingDir by viewModel.recordingDir.collectAsState()
-    val isRecording by viewModel.isRecording.collectAsState()
-    val recordingShowTaps by viewModel.recordingShowTaps.collectAsState()
-    val recordingBitrateMbps by viewModel.recordingBitrateMbps.collectAsState()
-    val recordingSize by viewModel.recordingSize.collectAsState()
 
     // Open a finished recording in the default player, reusing the screenshot "open after capture" toggle.
     LaunchedEffect(Unit) {
-        viewModel.recordingSaved.collect { file ->
-            if (openScreenshotAfterCapture) {
+        recordingSaved.collect { file ->
+            if (state.openScreenshotAfterCapture) {
                 runCatching { ProcessBuilder("xdg-open", file.absolutePath).start() }
             }
         }
@@ -143,7 +130,7 @@ fun App(
     var toastText by remember { mutableStateOf<String?>(null) }
     var toastSeq by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
-        viewModel.toast.collect { msg ->
+        toast.collect { msg ->
             toastText = msg
             toastSeq++
         }
@@ -154,14 +141,9 @@ fun App(
             toastText = null
         }
     }
-    val logBuffers by viewModel.logBuffers.collectAsState()
-    val resolvedFontFamily = remember(fontFamily, fontWeight) {
-        SystemFonts.resolve(fontFamily, FontWeightPreset.fromName(fontWeight).weight)
+    val resolvedFontFamily = remember(state.fontFamily, state.fontWeight) {
+        SystemFonts.resolve(state.fontFamily, FontWeightPreset.fromName(state.fontWeight).weight)
     }
-    val selectedIds = viewModel.selectedIds
-    val bookmarkedIds = viewModel.bookmarkedIds
-    val logs = viewModel.logs
-    val pidToPackage = viewModel.pidToPackage
     // Distinct running process/app names, offered as pick-list options in the filter dialog.
     val appOptions = remember(pidToPackage.size) { pidToPackage.values.distinct().sorted() }
 
@@ -177,14 +159,14 @@ fun App(
 
     val copySelected: () -> Unit = remember {
         {
-            val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
+            val text = logs.filter { it.id in selectedIds }
                 .joinToString("\n") { it.content }
             copyToClipboard(text)
         }
     }
     val copyColumnSelected: (LogColumn) -> Unit = remember {
         { column ->
-            val text = viewModel.logs.filter { it.id in viewModel.selectedIds }
+            val text = logs.filter { it.id in selectedIds }
                 .joinToString("\n") { it.cell(column) }
             copyToClipboard(text)
         }
@@ -196,7 +178,7 @@ fun App(
     // fire then — the field consumes the typed character but the key event still bubbles up.
     var textInputFocused by remember { mutableStateOf(false) }
 
-    val isDark = when (themeMode) {
+    val isDark = when (state.themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
@@ -208,19 +190,18 @@ fun App(
 
         // Maintained incrementally in the ViewModel (filtered per-batch during capture) instead of
         // re-scanning the whole log list on every recomposition.
-        val filteredLogs = viewModel.filteredLogs
 
-        val highlightFilters = remember(filters) {
-            filters.filter {
+        val highlightFilters = remember(state.filters) {
+            state.filters.filter {
                 it.enabled && (it.mode == FilterMode.HIGHLIGHT || it.mode == FilterMode.SHOW_AND_HIGHLIGHT)
             }
         }
         // Resolved highlight colour per log id. Lives outside the LazyColumn items (which recompose
         // from scratch on every scroll-in) so scrolling back over rows already seen doesn't re-run
         // each highlight filter's matches() — that message scan per visible row is what makes scroll
-        // drag once highlight filters are on. Color.Unspecified is the "no highlight" sentinel so the
+        // drag once highlight state.filters are on. Color.Unspecified is the "no highlight" sentinel so the
         // common no-match rows are cached too (HashMap.getOrPut treats a null value as absent). Keyed
-        // on the filter set, so it's rebuilt whenever the highlight filters change.
+        // on the filter set, so it's rebuilt whenever the highlight state.filters change.
         val highlightColors = remember(highlightFilters) { HashMap<Int, Color>() }
 
         val findMatchIndices = remember(filteredLogs.size, findQuery) {
@@ -251,10 +232,10 @@ fun App(
                 scope.launch { listState.animateScrollToItem(rowIdx, centerOffset) }
             }
             val log = filteredLogs[rowIdx]
-            viewModel.toggleSelection(log.id, multiSelect = false)
-            viewModel.setAutoFollow(false)
+            callbacks.toggleSelection(log.id, false)
+            callbacks.setAutoFollow(false)
             // Expand a folded match so the matching line isn't hidden behind the collapsed first line.
-            if ('\n' in log.message) viewModel.ensureExpanded(log.id)
+            if ('\n' in log.message) callbacks.ensureExpanded(log.id)
         }
 
         // Jump to a log by id (used by crash navigation): align its first line to the top of the
@@ -263,27 +244,27 @@ fun App(
             val rowIdx = filteredLogs.indexOfFirst { it.id == id }
             if (rowIdx < 0) return
             scope.launch { listState.animateScrollToItem(rowIdx) }
-            viewModel.toggleSelection(id, multiSelect = false)
-            viewModel.setAutoFollow(false)
-            if ('\n' in filteredLogs[rowIdx].message) viewModel.ensureExpanded(id)
+            callbacks.toggleSelection(id, false)
+            callbacks.setAutoFollow(false)
+            if ('\n' in filteredLogs[rowIdx].message) callbacks.ensureExpanded(id)
         }
 
         fun jumpToCrash(forward: Boolean) {
-            if (viewModel.visibleCrashes.isEmpty()) return
-            val currentId = viewModel.selectedIds.lastOrNull()
+            if (visibleCrashes.isEmpty()) return
+            val currentId = selectedIds.lastOrNull()
                 ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
                 ?: -1
-            val target = if (forward) viewModel.findNextCrash(currentId) else viewModel.findPreviousCrash(currentId)
+            val target = if (forward) callbacks.findNextCrash(currentId) else callbacks.findPreviousCrash(currentId)
             target?.let { jumpToLogId(it) }
         }
 
         fun jumpToBookmark(forward: Boolean) {
-            if (viewModel.bookmarkedIds.isEmpty()) return
-            val currentId = viewModel.selectedIds.lastOrNull()
+            if (bookmarkedIds.isEmpty()) return
+            val currentId = selectedIds.lastOrNull()
                 ?: filteredLogs.getOrNull(listState.firstVisibleItemIndex)?.id
                 ?: -1
             val target =
-                if (forward) viewModel.findNextBookmark(currentId) else viewModel.findPreviousBookmark(currentId)
+                if (forward) callbacks.findNextBookmark(currentId) else callbacks.findPreviousBookmark(currentId)
             target?.let { jumpToLogId(it) }
         }
 
@@ -302,15 +283,15 @@ fun App(
             }
         }
 
-        LaunchedEffect(quickFilterVisible) {
+        LaunchedEffect(state.quickFilterVisible) {
             // Same as above: hiding the quick-filter bar disposes its field without a focus event.
-            if (!quickFilterVisible && !findVisible) textInputFocused = false
+            if (!state.quickFilterVisible && !findVisible) textInputFocused = false
         }
 
         var isAutoScrolling by remember { mutableStateOf(false) }
 
-        LaunchedEffect(filteredLogs.size, autoFollow) {
-            if (autoFollow && filteredLogs.isNotEmpty() && !listState.isScrollInProgress) {
+        LaunchedEffect(filteredLogs.size, state.autoFollow) {
+            if (state.autoFollow && filteredLogs.isNotEmpty() && !listState.isScrollInProgress) {
                 isAutoScrolling = true
                 listState.scrollToItem(filteredLogs.size - 1)
                 isAutoScrolling = false
@@ -320,18 +301,28 @@ fun App(
         LaunchedEffect(listState) {
             var prevIndex = listState.firstVisibleItemIndex
             var prevOffset = listState.firstVisibleItemScrollOffset
-            snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-                .collect { (idx, off) ->
+            var prevTick = recomputeTick()
+            snapshotFlow {
+                Triple(
+                    listState.firstVisibleItemIndex,
+                    listState.firstVisibleItemScrollOffset,
+                    recomputeTick(),
+                )
+            }
+                .collect { (idx, off, tick) ->
+                    val recomputed = tick != prevTick
                     val scrolledUp = idx < prevIndex || (idx == prevIndex && off < prevOffset)
-                    // Only a real user gesture (isScrollInProgress) cancels auto-follow. A filter
-                    // recompute shrinks the list and drops the index too, but that is not a scroll.
-                    if (scrolledUp && viewModel.autoFollow.value && !isAutoScrolling &&
-                        listState.isScrollInProgress
-                    ) {
-                        viewModel.setAutoFollow(false)
+                    // Any scroll-up cancels auto-follow. We don't gate on isScrollInProgress —
+                    // it's false between mouse-wheel ticks during capture, so a wheel scroll-up was
+                    // often missed and the next captured line yanked the view back to the tail. A
+                    // filter recompute rebuilds the list and resets the scroll position; that index
+                    // drop (flagged by recomputeTick) is not a user scroll, so skip it.
+                    if (scrolledUp && !recomputed && state.autoFollow && !isAutoScrolling) {
+                        callbacks.setAutoFollow(false)
                     }
                     prevIndex = idx
                     prevOffset = off
+                    prevTick = tick
                 }
         }
 
@@ -347,11 +338,11 @@ fun App(
                     selectedIds = selectedIds,
                     listState = listState,
                     scope = scope,
-                    onToggleBookmark = viewModel::toggleBookmark,
-                    findNextBookmark = viewModel::findNextBookmark,
-                    findPreviousBookmark = viewModel::findPreviousBookmark,
-                    onSelect = { id -> viewModel.toggleSelection(id, multiSelect = false) },
-                    onDisableAutoFollow = { viewModel.setAutoFollow(false) },
+                    onToggleBookmark = callbacks.toggleBookmark,
+                    findNextBookmark = callbacks.findNextBookmark,
+                    findPreviousBookmark = callbacks.findPreviousBookmark,
+                    onSelect = { id -> callbacks.toggleSelection(id, false) },
+                    onDisableAutoFollow = { callbacks.setAutoFollow(false) },
                     onFocusSearch = {
                         findVisible = true
                         runCatching { findFocusRequester.requestFocus() }
@@ -361,7 +352,7 @@ fun App(
                     onFindPrev = { jumpToMatch(currentMatchIdx - 1) },
                     onCloseFind = { findVisible = false; findQuery = "" },
                     onCopySelected = copySelected,
-                    onClearLogs = viewModel::clearLogs,
+                    onClearLogs = callbacks.clearLogs,
                     textInputFocused = textInputFocused,
                 )
         ) {
@@ -369,29 +360,29 @@ fun App(
             // native title bar is hidden.
             topBarDecoration {
                 TopBar(
-                    autoFollow = autoFollow,
-                    themeMode = themeMode,
-                    devices = devices,
-                    selectedDevice = selectedDevice,
-                    onSelectDevice = viewModel::selectDevice,
-                    onRefreshDevices = viewModel::refreshDevices,
-                    onClear = viewModel::clearLogs,
-                    isCapturing = isCapturing,
-                    onToggleCapture = viewModel::toggleCapture,
-                    isPaused = isPaused,
-                    onTogglePause = viewModel::togglePause,
-                    isRecording = isRecording,
-                    onToggleRecording = viewModel::toggleRecording,
+                    autoFollow = state.autoFollow,
+                    themeMode = state.themeMode,
+                    devices = state.devices,
+                    selectedDevice = state.selectedDevice,
+                    onSelectDevice = callbacks.selectDevice,
+                    onRefreshDevices = callbacks.refreshDevices,
+                    onClear = callbacks.clearLogs,
+                    isCapturing = state.isCapturing,
+                    onToggleCapture = callbacks.toggleCapture,
+                    isPaused = state.isPaused,
+                    onTogglePause = callbacks.togglePause,
+                    isRecording = state.isRecording,
+                    onToggleRecording = callbacks.toggleRecording,
                     onTakeScreenshot = {
-                        val serial = selectedDevice
-                        val dir = File(screenshotDir.ifBlank { "${System.getProperty("user.home")}/Pictures/android" })
+                        val serial = state.selectedDevice
+                        val dir = File(state.screenshotDir.ifBlank { "${System.getProperty("user.home")}/Pictures/android" })
                         val stamp = SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(Date())
                         val target = File(dir, "scr_$stamp.png")
                         scope.launch(Dispatchers.IO) {
                             if (ScreenshotService.capture(serial, target)) {
                                 runCatching { ImageIO.read(target)?.let(::copyToClipboard) }
-                                viewModel.showToast("Screenshot saved → ${target.name}")
-                                if (openScreenshotAfterCapture) {
+                                callbacks.showToast("Screenshot saved → ${target.name}")
+                                if (state.openScreenshotAfterCapture) {
                                     runCatching { ProcessBuilder("xdg-open", target.absolutePath).start() }
                                 }
                             }
@@ -421,27 +412,27 @@ fun App(
                     },
                     onOpenLogs = {
                         scope.launch(Dispatchers.IO) {
-                            FilePicker.openFile("Open logs")?.let(viewModel::loadLogsFromFile)
+                            FilePicker.openFile("Open logs")?.let(callbacks.loadLogsFromFile)
                         }
                     },
-                    recentFiles = recentFiles,
-                    onOpenRecent = viewModel::openRecentFile,
-                    onClearRecent = viewModel::clearRecentFiles,
-                    loadedFile = loadedFile,
-                    onToggleAutoFollow = viewModel::toggleAutoFollow,
-                    onSetTheme = viewModel::setTheme,
-                    fontSize = fontSize,
-                    onSetFontSize = viewModel::setFontSize,
-                    fontFamily = fontFamily,
-                    onSetFontFamily = viewModel::setFontFamily,
-                    fontWeight = fontWeight,
-                    onSetFontWeight = viewModel::setFontWeight,
-                    softWrap = softWrap,
-                    onSetSoftWrap = viewModel::setSoftWrap,
-                    expandMultilineByDefault = expandMultilineByDefault,
-                    onSetExpandMultilineByDefault = viewModel::setExpandMultilineByDefault,
-                    alwaysShowBookmarks = alwaysShowBookmarks,
-                    onSetAlwaysShowBookmarks = viewModel::setAlwaysShowBookmarks,
+                    recentFiles = state.recentFiles,
+                    onOpenRecent = callbacks.openRecentFile,
+                    onClearRecent = callbacks.clearRecentFiles,
+                    loadedFile = state.loadedFile,
+                    onToggleAutoFollow = callbacks.toggleAutoFollow,
+                    onSetTheme = callbacks.setTheme,
+                    fontSize = state.fontSize,
+                    onSetFontSize = callbacks.setFontSize,
+                    fontFamily = state.fontFamily,
+                    onSetFontFamily = callbacks.setFontFamily,
+                    fontWeight = state.fontWeight,
+                    onSetFontWeight = callbacks.setFontWeight,
+                    softWrap = state.softWrap,
+                    onSetSoftWrap = callbacks.setSoftWrap,
+                    expandMultilineByDefault = state.expandMultilineByDefault,
+                    onSetExpandMultilineByDefault = callbacks.setExpandMultilineByDefault,
+                    alwaysShowBookmarks = state.alwaysShowBookmarks,
+                    onSetAlwaysShowBookmarks = callbacks.setAlwaysShowBookmarks,
                     onOpenFind = {
                         if (findVisible) {
                             findVisible = false
@@ -454,22 +445,22 @@ fun App(
                     findActive = findVisible,
                     logCount = filteredLogs.size,
                     totalLogCount = logs.size,
-                    logBuffers = logBuffers,
-                    onToggleLogBuffer = viewModel::toggleLogBuffer,
-                    screenshotDir = screenshotDir,
-                    onSetScreenshotDir = viewModel::setScreenshotDir,
-                    openScreenshotAfterCapture = openScreenshotAfterCapture,
-                    onSetOpenScreenshotAfterCapture = viewModel::setOpenScreenshotAfterCapture,
-                    adbPath = adbPath,
-                    onSetAdbPath = viewModel::setAdbPath,
-                    recordingDir = recordingDir,
-                    onSetRecordingDir = viewModel::setRecordingDir,
-                    recordingShowTaps = recordingShowTaps,
-                    onSetRecordingShowTaps = viewModel::setRecordingShowTaps,
-                    recordingBitrateMbps = recordingBitrateMbps,
-                    onSetRecordingBitrateMbps = viewModel::setRecordingBitrateMbps,
-                    recordingSize = recordingSize,
-                    onSetRecordingSize = viewModel::setRecordingSize,
+                    logBuffers = state.logBuffers,
+                    onToggleLogBuffer = callbacks.toggleLogBuffer,
+                    screenshotDir = state.screenshotDir,
+                    onSetScreenshotDir = callbacks.setScreenshotDir,
+                    openScreenshotAfterCapture = state.openScreenshotAfterCapture,
+                    onSetOpenScreenshotAfterCapture = callbacks.setOpenScreenshotAfterCapture,
+                    adbPath = state.adbPath,
+                    onSetAdbPath = callbacks.setAdbPath,
+                    recordingDir = state.recordingDir,
+                    onSetRecordingDir = callbacks.setRecordingDir,
+                    recordingShowTaps = state.recordingShowTaps,
+                    onSetRecordingShowTaps = callbacks.setRecordingShowTaps,
+                    recordingBitrateMbps = state.recordingBitrateMbps,
+                    onSetRecordingBitrateMbps = callbacks.setRecordingBitrateMbps,
+                    recordingSize = state.recordingSize,
+                    onSetRecordingSize = callbacks.setRecordingSize,
                     onShowShortcuts = { showShortcutsDialog = true },
                 )
             }
@@ -495,12 +486,12 @@ fun App(
                 ) {
                     Column(Modifier.fillMaxSize()) {
                     LogHeaders(
-                        visibleColumns = visibleColumns,
-                        columnWidths = columnWidths,
+                        visibleColumns = state.visibleColumns,
+                        columnWidths = state.columnWidths,
                         isDarkMode = isDark,
-                        onResize = viewModel::updateColumnWidth,
-                        onToggleColumn = viewModel::toggleColumn,
-                        currentWidthOf = { col -> viewModel.columnWidths.value[col] ?: 100f },
+                        onResize = callbacks.updateColumnWidth,
+                        onToggleColumn = callbacks.toggleColumn,
+                        currentWidthOf = { col -> state.columnWidths[col] ?: 100f },
                     )
                     Divider(
                         orientation = Orientation.Horizontal,
@@ -527,8 +518,8 @@ fun App(
                                         val (lo, hi) = if (anchor <= idx) anchor to idx else idx to anchor
                                         val hiSafe = (hi + 1).coerceAtMost(logsNow.size)
                                         if (lo >= logsNow.size) return@detectDragGestures
-                                        viewModel.selectRange(logsNow.subList(lo, hiSafe).map { it.id })
-                                        viewModel.setAutoFollow(false)
+                                        callbacks.selectRange(logsNow.subList(lo, hiSafe).map { it.id })
+                                        callbacks.setAutoFollow(false)
                                     },
                                 )
                             },
@@ -549,42 +540,42 @@ fun App(
                             }
                             LogRow(
                                 log = log,
-                                visibleColumns = visibleColumns,
-                                columnWidths = columnWidths,
+                                visibleColumns = state.visibleColumns,
+                                columnWidths = state.columnWidths,
                                 isDarkMode = isDark,
                                 isSelected = log.id in selectedIds,
                                 isBookmarked = log.id in bookmarkedIds,
                                 findQuery = findQuery,
                                 highlightColor = highlightColor,
-                                fontSize = fontSize.sp,
+                                fontSize = state.fontSize.sp,
                                 fontFamily = resolvedFontFamily,
-                                fontWeight = fontWeight,
-                                softWrap = softWrap,
+                                fontWeight = state.fontWeight,
+                                softWrap = state.softWrap,
                                 onSelect = { multi, range ->
                                     activeCell = null
                                     runCatching { focusRequester.requestFocus() }
                                     if (range) {
-                                        val anchor = viewModel.selectionAnchor
+                                        val anchor = callbacks.getSelectionAnchor()
                                         val ids = filteredLogs.map { it.id }
                                         val a = anchor?.let { ids.indexOf(it) } ?: -1
                                         val b = ids.indexOf(log.id)
                                         if (a < 0 || b < 0) {
-                                            viewModel.toggleSelection(log.id, multi)
+                                            callbacks.toggleSelection(log.id, multi)
                                         } else {
                                             val (lo, hi) = if (a <= b) a to b else b to a
-                                            viewModel.selectRange(ids.subList(lo, hi + 1))
+                                            callbacks.selectRange(ids.subList(lo, hi + 1))
                                         }
                                     } else {
-                                        viewModel.toggleSelection(log.id, multi)
+                                        callbacks.toggleSelection(log.id, multi)
                                     }
                                 },
-                                onAddFilter = viewModel::addFilter,
-                                onToggleBookmark = { viewModel.toggleBookmark(log.id) },
+                                onAddFilter = callbacks.addFilter,
+                                onToggleBookmark = { callbacks.toggleBookmark(log.id) },
                                 selectedCount = selectedIds.size,
                                 onCopySelected = copySelected,
                                 onCopyColumnSelected = copyColumnSelected,
                                 selectedMessages = {
-                                    viewModel.logs.filter { it.id in viewModel.selectedIds }
+                                    logs.filter { it.id in selectedIds }
                                         .joinToString("") { it.message }
                                 },
                                 activeCell = activeCell,
@@ -592,16 +583,16 @@ fun App(
                                     activeCell = log.id to column
                                     // Entering substring-copy mode: drop the row selection so the
                                     // highlighted text field isn't fighting the selected-row background.
-                                    viewModel.clearSelection()
-                                    viewModel.setAutoFollow(false)
+                                    callbacks.clearSelection()
+                                    callbacks.setAutoFollow(false)
                                 },
                                 onExitSelection = {
                                     activeCell = null
                                     runCatching { focusRequester.requestFocus() }
                                 },
-                                isExpanded = (log.id in viewModel.expandedIds) != expandMultilineByDefault,
-                                onToggleExpand = { viewModel.toggleExpand(log.id) },
-                                isCrash = log.id in viewModel.crashIds,
+                                isExpanded = (log.id in expandedIds) != state.expandMultilineByDefault,
+                                onToggleExpand = { callbacks.toggleExpand(log.id) },
+                                isCrash = log.id in crashIds,
                             )
                         }
                     }
@@ -620,7 +611,7 @@ fun App(
                                 ),
                             ),
                     )
-                    if (!autoFollow) {
+                    if (!state.autoFollow) {
                         VerticalScrollbar(
                             adapter = rememberScrollbarAdapter(listState),
                             modifier = Modifier
@@ -656,8 +647,8 @@ fun App(
 
                 // Floating navigators, top-right over the logs, stacked; they drop below the find
                 // bar when that's open so nothing overlaps. The crash pill counts and walks only
-                // crashes that survive the current filters; the bookmark pill walks all bookmarks
-                // (with "Always show bookmarks" on they are visible regardless of filters).
+                // crashes that survive the current state.filters; the bookmark pill walks all bookmarks
+                // (with "Always show bookmarks" on they are visible regardless of state.filters).
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -666,18 +657,18 @@ fun App(
                         .padding(horizontal = 12.dp)
                         .padding(top = if (findVisible) 48.dp else 4.dp),
                 ) {
-                    if (viewModel.visibleCrashes.isNotEmpty()) {
+                    if (visibleCrashes.isNotEmpty()) {
                         CrashNavigator(
-                            count = viewModel.visibleCrashes.size,
-                            current = viewModel.crashOrdinal(selectedIds.lastOrNull() ?: -1),
+                            count = visibleCrashes.size,
+                            current = callbacks.crashOrdinal(selectedIds.lastOrNull() ?: -1),
                             onPrev = { jumpToCrash(forward = false) },
                             onNext = { jumpToCrash(forward = true) },
                         )
                     }
-                    if (viewModel.bookmarkedIds.isNotEmpty()) {
+                    if (bookmarkedIds.isNotEmpty()) {
                         BookmarkNavigator(
-                            count = viewModel.bookmarkedIds.size,
-                            current = viewModel.bookmarkOrdinal(selectedIds.lastOrNull() ?: -1),
+                            count = bookmarkedIds.size,
+                            current = callbacks.bookmarkOrdinal(selectedIds.lastOrNull() ?: -1),
                             onPrev = { jumpToBookmark(forward = false) },
                             onNext = { jumpToBookmark(forward = true) },
                         )
@@ -696,33 +687,33 @@ fun App(
 
             Divider(Orientation.Horizontal)
 
-            if (quickFilterVisible) {
+            if (state.quickFilterVisible) {
                 QuickFilterBar(
-                    initialQuery = searchQuery,
-                    error = searchQueryError,
-                    history = searchHistory,
-                    onSearchChange = viewModel::updateSearchQuery,
-                    onCommit = viewModel::commitSearchQuery,
-                    onClearHistory = viewModel::clearSearchHistory,
+                    initialQuery = state.searchQuery,
+                    error = state.searchQueryError,
+                    history = state.searchHistory,
+                    onSearchChange = callbacks.updateSearchQuery,
+                    onCommit = callbacks.commitSearchQuery,
+                    onClearHistory = callbacks.clearSearchHistory,
                     onFocusChanged = { textInputFocused = it },
                 )
                 Divider(Orientation.Horizontal)
             }
 
             FilterBar(
-                filters = filters,
-                quickFilterVisible = quickFilterVisible,
+                filters = state.filters,
+                quickFilterVisible = state.quickFilterVisible,
                 onToggleQuickFilter = {
                     // Hiding the bar keeps the active filter; the bar reseeds from it when shown again.
-                    viewModel.setQuickFilterVisible(!quickFilterVisible)
+                    callbacks.setQuickFilterVisible(!state.quickFilterVisible)
                 },
                 onOpenFilters = {
                     filtersDialogInitialId = null
                     filtersDialogAddOnOpen = false
                     showFiltersDialog = true
                 },
-                onToggleEnabled = viewModel::setFilterEnabled,
-                onRemove = viewModel::removeFilter,
+                onToggleEnabled = callbacks.setFilterEnabled,
+                onRemove = callbacks.removeFilter,
                 onEdit = { id ->
                     filtersDialogInitialId = id
                     filtersDialogAddOnOpen = false
@@ -733,19 +724,19 @@ fun App(
                     filtersDialogAddOnOpen = true
                     showFiltersDialog = true
                 },
-                onMove = viewModel::reorderFilters,
+                onMove = callbacks.reorderFilters,
             )
         }
 
         if (showFiltersDialog) {
             FiltersDialog(
-                filters = filters,
+                filters = state.filters,
                 onDismiss = { showFiltersDialog = false },
-                onSave = viewModel::replaceFilters,
+                onSave = callbacks.replaceFilters,
                 initialSelectedId = filtersDialogInitialId,
                 addOnOpen = filtersDialogAddOnOpen,
-                listWidth = filtersListWidth,
-                onListWidthChange = viewModel::setFiltersListWidth,
+                listWidth = state.filtersListWidth,
+                onListWidthChange = callbacks.setFiltersListWidth,
                 appOptions = appOptions,
             )
         }
@@ -762,4 +753,150 @@ private fun indexAtY(state: LazyListState, y: Float): Int? {
     if (y < visible.first().offset) return visible.first().index
     if (y >= visible.last().offset + visible.last().size) return visible.last().index
     return visible.firstOrNull { y >= it.offset && y < it.offset + it.size }?.index
+}
+
+/**
+ * Every action [AppContent] can trigger, hoisted out of the view so it never touches the view model
+ * directly. The wrapping [App] binds these to [MainViewModel]; tests/previews can pass fakes.
+ */
+class AppCallbacks(
+    val setAutoFollow: (Boolean) -> Unit,
+    val toggleSelection: (Int, Boolean) -> Unit,
+    val selectRange: (Collection<Int>) -> Unit,
+    val ensureExpanded: (Int) -> Unit,
+    val toggleExpand: (Int) -> Unit,
+    val toggleBookmark: (Int) -> Unit,
+    val showToast: (String) -> Unit,
+    val setQuickFilterVisible: (Boolean) -> Unit,
+    val clearSelection: () -> Unit,
+    val addFilter: (FilterRule) -> Unit,
+    val removeFilter: (String) -> Unit,
+    val replaceFilters: (List<FilterRule>) -> Unit,
+    val reorderFilters: (Int, Int) -> Unit,
+    val setFilterEnabled: (String, Boolean) -> Unit,
+    val toggleRecording: () -> Unit,
+    val togglePause: () -> Unit,
+    val toggleLogBuffer: (LogBuffer) -> Unit,
+    val toggleColumn: (LogColumn) -> Unit,
+    val toggleCapture: () -> Unit,
+    val toggleAutoFollow: () -> Unit,
+    val setTheme: (ThemeMode) -> Unit,
+    val setSoftWrap: (Boolean) -> Unit,
+    val setScreenshotDir: (String) -> Unit,
+    val setRecordingSize: (String) -> Unit,
+    val setRecordingShowTaps: (Boolean) -> Unit,
+    val setRecordingDir: (String) -> Unit,
+    val setRecordingBitrateMbps: (Int) -> Unit,
+    val setOpenScreenshotAfterCapture: (Boolean) -> Unit,
+    val setFontWeight: (String) -> Unit,
+    val setFontSize: (Float) -> Unit,
+    val setFontFamily: (String) -> Unit,
+    val setFiltersListWidth: (Float) -> Unit,
+    val setExpandMultilineByDefault: (Boolean) -> Unit,
+    val setAlwaysShowBookmarks: (Boolean) -> Unit,
+    val setAdbPath: (String) -> Unit,
+    val selectDevice: (String?) -> Unit,
+    val refreshDevices: () -> Unit,
+    val openRecentFile: (String) -> Unit,
+    val loadLogsFromFile: (java.io.File) -> Unit,
+    val commitSearchQuery: () -> Unit,
+    val clearSearchHistory: () -> Unit,
+    val clearRecentFiles: () -> Unit,
+    val clearLogs: () -> Unit,
+    val updateSearchQuery: (String) -> Unit,
+    val updateColumnWidth: (LogColumn, Float) -> Unit,
+    val crashOrdinal: (Int) -> Int,
+    val bookmarkOrdinal: (Int) -> Int,
+    val findNextBookmark: (Int) -> Int?,
+    val findPreviousBookmark: (Int) -> Int?,
+    val findNextCrash: (Int) -> Int?,
+    val findPreviousCrash: (Int) -> Int?,
+    val getSelectionAnchor: () -> Int?,
+)
+
+/**
+ * Stateful entry point: owns the [MainViewModel], collects its [ScreenState] and exposes its data and
+ * actions to the stateless [AppContent].
+ */
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+@Composable
+fun App(
+    viewModel: MainViewModel = viewModel { MainViewModel() },
+    // Wraps the top bar; on macOS main() passes a WindowDraggableArea (plus a traffic-lights
+    // inset) so the bar doubles as the title bar when the native one is hidden.
+    topBarDecoration: @Composable (content: @Composable () -> Unit) -> Unit = { it() },
+) {
+    val state by viewModel.state.collectAsState()
+    val callbacks = remember(viewModel) {
+        AppCallbacks(
+            setAutoFollow = viewModel::setAutoFollow,
+            toggleSelection = viewModel::toggleSelection,
+            selectRange = viewModel::selectRange,
+            ensureExpanded = viewModel::ensureExpanded,
+            toggleExpand = viewModel::toggleExpand,
+            toggleBookmark = viewModel::toggleBookmark,
+            showToast = viewModel::showToast,
+            setQuickFilterVisible = viewModel::setQuickFilterVisible,
+            clearSelection = viewModel::clearSelection,
+            addFilter = viewModel::addFilter,
+            removeFilter = viewModel::removeFilter,
+            replaceFilters = viewModel::replaceFilters,
+            reorderFilters = viewModel::reorderFilters,
+            setFilterEnabled = viewModel::setFilterEnabled,
+            toggleRecording = viewModel::toggleRecording,
+            togglePause = viewModel::togglePause,
+            toggleLogBuffer = viewModel::toggleLogBuffer,
+            toggleColumn = viewModel::toggleColumn,
+            toggleCapture = viewModel::toggleCapture,
+            toggleAutoFollow = viewModel::toggleAutoFollow,
+            setTheme = viewModel::setTheme,
+            setSoftWrap = viewModel::setSoftWrap,
+            setScreenshotDir = viewModel::setScreenshotDir,
+            setRecordingSize = viewModel::setRecordingSize,
+            setRecordingShowTaps = viewModel::setRecordingShowTaps,
+            setRecordingDir = viewModel::setRecordingDir,
+            setRecordingBitrateMbps = viewModel::setRecordingBitrateMbps,
+            setOpenScreenshotAfterCapture = viewModel::setOpenScreenshotAfterCapture,
+            setFontWeight = viewModel::setFontWeight,
+            setFontSize = viewModel::setFontSize,
+            setFontFamily = viewModel::setFontFamily,
+            setFiltersListWidth = viewModel::setFiltersListWidth,
+            setExpandMultilineByDefault = viewModel::setExpandMultilineByDefault,
+            setAlwaysShowBookmarks = viewModel::setAlwaysShowBookmarks,
+            setAdbPath = viewModel::setAdbPath,
+            selectDevice = viewModel::selectDevice,
+            refreshDevices = viewModel::refreshDevices,
+            openRecentFile = viewModel::openRecentFile,
+            loadLogsFromFile = viewModel::loadLogsFromFile,
+            commitSearchQuery = viewModel::commitSearchQuery,
+            clearSearchHistory = viewModel::clearSearchHistory,
+            clearRecentFiles = viewModel::clearRecentFiles,
+            clearLogs = viewModel::clearLogs,
+            updateSearchQuery = viewModel::updateSearchQuery,
+            updateColumnWidth = viewModel::updateColumnWidth,
+            crashOrdinal = viewModel::crashOrdinal,
+            bookmarkOrdinal = viewModel::bookmarkOrdinal,
+            findNextBookmark = viewModel::findNextBookmark,
+            findPreviousBookmark = viewModel::findPreviousBookmark,
+            findNextCrash = viewModel::findNextCrash,
+            findPreviousCrash = viewModel::findPreviousCrash,
+            getSelectionAnchor = { viewModel.selectionAnchor },
+        )
+    }
+    AppContent(
+        state = state,
+        logs = viewModel.logs,
+        filteredLogs = viewModel.filteredLogs,
+        selectedIds = viewModel.selectedIds,
+        bookmarkedIds = viewModel.bookmarkedIds,
+        crashIds = viewModel.crashIds,
+        expandedIds = viewModel.expandedIds,
+        pidToPackage = viewModel.pidToPackage,
+        visibleCrashes = viewModel.visibleCrashes,
+        recomputeTick = { viewModel.recomputeTick },
+        recordingSaved = viewModel.recordingSaved,
+        toast = viewModel.toast,
+        callbacks = callbacks,
+        topBarDecoration = topBarDecoration,
+    )
 }
