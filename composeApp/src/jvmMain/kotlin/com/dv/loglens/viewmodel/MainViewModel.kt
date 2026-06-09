@@ -176,6 +176,14 @@ class MainViewModel(
     private val _recordingSaved = MutableSharedFlow<File>(extraBufferCapacity = 1)
     val recordingSaved = _recordingSaved.asSharedFlow()
 
+    /** One-shot user-facing toasts (screenshot saved, recording started/saved). */
+    private val _toast = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val toast = _toast.asSharedFlow()
+
+    fun showToast(text: String) {
+        _toast.tryEmit(text)
+    }
+
     @Volatile
     private var recordingProcess: Process? = null
     private var recordingJob: Job? = null
@@ -515,6 +523,7 @@ class MainViewModel(
         val serial = _selectedDevice.value
         if (_isRecording.value || serial == null || _loadedFile.value != null) return
         _isRecording.value = true
+        showToast("Recording started")
         // No ':' — illegal in sdcard (FAT/sdcardfs) filenames, screenrecord would fail to create the file.
         val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(Date())
         val devicePath = "/sdcard/loglens-rec-$stamp.mp4"
@@ -540,6 +549,7 @@ class MainViewModel(
                 // Process ended (manual stop or the ~180s screenrecord limit) — fetch the file.
                 if (ScreenRecordingService.pullAndCleanup(serial, devicePath, target)) {
                     _recordingSaved.emit(target)
+                    showToast("Recording saved → ${target.name}")
                 }
             } catch (e: Exception) {
                 System.err.println("loglens: recording failed: ${e.message}")

@@ -69,6 +69,7 @@ import com.dv.loglens.ui.CrashNavigator
 import com.dv.loglens.ui.FindBar
 import com.dv.loglens.ui.LogHeaders
 import com.dv.loglens.ui.ShortcutsDialog
+import com.dv.loglens.ui.Toast
 import com.dv.loglens.ui.LogRow
 import com.dv.loglens.ui.TopBar
 import com.dv.loglens.ui.logKeyboardShortcuts
@@ -78,6 +79,7 @@ import com.dv.loglens.ui.theme.islandsPanel
 import com.dv.loglens.ui.theme.islandsThemeDefinition
 import com.dv.loglens.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
@@ -135,6 +137,21 @@ fun App(
             if (openScreenshotAfterCapture) {
                 runCatching { ProcessBuilder("xdg-open", file.absolutePath).start() }
             }
+        }
+    }
+    // Transient toast over the log list; each new message restarts the auto-dismiss timer.
+    var toastText by remember { mutableStateOf<String?>(null) }
+    var toastSeq by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        viewModel.toast.collect { msg ->
+            toastText = msg
+            toastSeq++
+        }
+    }
+    LaunchedEffect(toastSeq) {
+        if (toastSeq > 0) {
+            delay(2500)
+            toastText = null
         }
     }
     val logBuffers by viewModel.logBuffers.collectAsState()
@@ -366,6 +383,7 @@ fun App(
                         scope.launch(Dispatchers.IO) {
                             if (ScreenshotService.capture(serial, target)) {
                                 runCatching { ImageIO.read(target)?.let(::copyToClipboard) }
+                                viewModel.showToast("Screenshot saved → ${target.name}")
                                 if (openScreenshotAfterCapture) {
                                     runCatching { ProcessBuilder("xdg-open", target.absolutePath).start() }
                                 }
@@ -651,6 +669,15 @@ fun App(
                         )
                     }
                 }
+
+                Toast(
+                    text = toastText,
+                    isDark = isDark,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(horizontal = 12.dp)
+                        .padding(top = 4.dp),
+                )
             }
 
             Divider(Orientation.Horizontal)
