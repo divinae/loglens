@@ -215,6 +215,13 @@ fun App(
                 it.enabled && (it.mode == FilterMode.HIGHLIGHT || it.mode == FilterMode.SHOW_AND_HIGHLIGHT)
             }
         }
+        // Resolved highlight colour per log id. Lives outside the LazyColumn items (which recompose
+        // from scratch on every scroll-in) so scrolling back over rows already seen doesn't re-run
+        // each highlight filter's matches() — that message scan per visible row is what makes scroll
+        // drag once highlight filters are on. Color.Unspecified is the "no highlight" sentinel so the
+        // common no-match rows are cached too (HashMap.getOrPut treats a null value as absent). Keyed
+        // on the filter set, so it's rebuilt whenever the highlight filters change.
+        val highlightColors = remember(highlightFilters) { HashMap<Int, Color>() }
 
         val findMatchIndices = remember(filteredLogs.size, findQuery) {
             if (findQuery.isBlank()) emptyList<Int>()
@@ -532,7 +539,14 @@ fun App(
                     CompositionLocalProvider(LocalBringIntoViewSpec provides NoScrollBringIntoViewSpec) {
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                         itemsIndexed(filteredLogs, key = { _, log -> log.id }) { index, log ->
-                            val hl = highlightFilters.firstOrNull { it.matches(log) }
+                            val highlightColor = if (highlightFilters.isEmpty()) {
+                                null
+                            } else {
+                                highlightColors.getOrPut(log.id) {
+                                    highlightFilters.firstOrNull { it.matches(log) }
+                                        ?.let { Color(it.highlightColor.toInt()) } ?: Color.Unspecified
+                                }.takeIf { it != Color.Unspecified }
+                            }
                             LogRow(
                                 log = log,
                                 visibleColumns = visibleColumns,
@@ -541,7 +555,7 @@ fun App(
                                 isSelected = log.id in selectedIds,
                                 isBookmarked = log.id in bookmarkedIds,
                                 findQuery = findQuery,
-                                highlightColor = hl?.let { Color(it.highlightColor.toInt()) },
+                                highlightColor = highlightColor,
                                 fontSize = fontSize.sp,
                                 fontFamily = resolvedFontFamily,
                                 fontWeight = fontWeight,
