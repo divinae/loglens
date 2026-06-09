@@ -52,12 +52,21 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val FLUSH_INTERVAL_MS = 40L
+
+/**
+ * Max captured lines processed per drain cycle. The capture loop runs on the main dispatcher, so an
+ * unbounded drain during a high-volume burst stalls the UI thread for the whole batch and makes
+ * scrolling stutter. Capping the chunk bounds that stall; the rest stays buffered in the (unbounded)
+ * channel and is drained on the next pass — nothing is dropped.
+ */
+private const val MAX_DRAIN_PER_FLUSH = 1500
 
 // Polling for a just-started process's name: `ps` reports the zygote fork's final name only
 // after bindApplication renames it, typically well within a second.
@@ -872,9 +881,12 @@ class MainViewModel(
                     val first = channel.receiveCatching().getOrNull() ?: break
                     val batch = ArrayList<CapturedLine>()
                     batch.add(first)
-                    while (true) {
+                    // Bounded drain: never grab more than one chunk per cycle so the main thread isn't
+                    // stalled for the whole backlog during a burst.
+                    while (batch.size < MAX_DRAIN_PER_FLUSH) {
                         batch.add(channel.tryReceive().getOrNull() ?: break)
                     }
+                    val hitCap = batch.size >= MAX_DRAIN_PER_FLUSH
                     if (gen == captureGen) {
                         for (cap in batch) {
                             val header = cap.header
@@ -935,7 +947,10 @@ class MainViewModel(
                             }
                         }
                     }
-                    delay(FLUSH_INTERVAL_MS)
+                    // Backlog left (we hit the cap): yield a frame so scrolling/input stay responsive,
+                    // then loop straight into the next chunk to keep catch-up throughput. Otherwise
+                    // idle the normal flush interval until more lines arrive.
+                    if (hitCap) yield() else delay(FLUSH_INTERVAL_MS)
                 }
             } finally {
                 producer.cancel()
