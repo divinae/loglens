@@ -288,6 +288,29 @@ fun LogRow(
                         }
                     }
 
+                    // Only the message column, when not wrapping and its single line is ellipsized,
+                    // gets a hover tooltip with the full text. Gating on overflow keeps the Tooltip
+                    // node (hover tracking + popup) off the many rows whose message already fits — a
+                    // real scroll saving, especially with soft-wrap off where far more rows are on screen.
+                    @Composable
+                    fun bodyMaybeTooltip() {
+                        if (column == LogColumn.MESSAGE && !softWrap && messageOverflows) {
+                            Tooltip(
+                                style = tooltipStyle,
+                                tooltip = {
+                                    Text(
+                                        log.message,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = fontSize,
+                                        modifier = Modifier.widthIn(max = tooltipMaxWidth),
+                                    )
+                                },
+                            ) { body() }
+                        } else {
+                            body()
+                        }
+                    }
+
                     val showRepeat = column == LogColumn.MESSAGE && log.repeatCount > 1
                     if (cellFoldable || showRepeat) {
                         Row(verticalAlignment = Alignment.Top) {
@@ -300,7 +323,7 @@ fun LogRow(
                                 )
                             }
                             // weight(1f) so body fills and the badges sit at the right edge.
-                            Box(Modifier.weight(1f)) { body() }
+                            Box(Modifier.weight(1f)) { bodyMaybeTooltip() }
                             if (showRepeat) {
                                 // Pill badge for back-to-back duplicates coalesced into this one row.
                                 val pill = linkColor(isDarkMode)
@@ -344,31 +367,14 @@ fun LogRow(
                             }
                         }
                     } else {
-                        body()
+                        bodyMaybeTooltip()
                     }
                 }
             }
         }
     }
 
-    if (softWrap) {
-        rowBody()
-    } else {
-        Tooltip(
-            enabled = messageOverflows,
-            style = tooltipStyle,
-            tooltip = {
-                Text(
-                    log.message,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = fontSize,
-                    modifier = Modifier.widthIn(max = tooltipMaxWidth),
-                )
-            },
-        ) {
-            rowBody()
-        }
-    }
+    rowBody()
 }
 
 @Composable
