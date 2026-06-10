@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -69,6 +68,7 @@ import com.dv.loglens.ui.CrashNavigator
 import com.dv.loglens.ui.FindBar
 import com.dv.loglens.ui.LogHeaders
 import com.dv.loglens.ui.ShortcutsDialog
+import com.dv.loglens.ui.rememberItemBasedScrollbarAdapter
 import com.dv.loglens.ui.Toast
 import com.dv.loglens.ui.LogRow
 import com.dv.loglens.ui.TopBar
@@ -611,7 +611,7 @@ fun AppContent(
                     )
                     if (!state.autoFollow) {
                         VerticalScrollbar(
-                            adapter = rememberScrollbarAdapter(listState),
+                            adapter = rememberItemBasedScrollbarAdapter(listState),
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
