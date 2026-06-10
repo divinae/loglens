@@ -62,12 +62,13 @@ import java.util.concurrent.atomic.AtomicInteger
 private const val FLUSH_INTERVAL_MS = 40L
 
 /**
- * Max captured lines processed per drain cycle. The capture loop runs on the main dispatcher, so an
- * unbounded drain during a high-volume burst stalls the UI thread for the whole batch and makes
- * scrolling stutter. Capping the chunk bounds that stall; the rest stays buffered in the (unbounded)
- * channel and is drained on the next pass — nothing is dropped.
+ * Max captured lines processed per drain cycle. The capture loop runs on the main dispatcher and
+ * processing costs ~15µs/line (parse-fold + filter match + crash detect + snapshot writes), so a big
+ * chunk blocks the UI thread well past a 16ms frame and makes scrolling stutter. Sized so one chunk
+ * stays under a frame; on a backlog the loop yields a frame between chunks, so the UI keeps painting
+ * while catch-up continues. The rest stays buffered in the (unbounded) channel — nothing is dropped.
  */
-private const val MAX_DRAIN_PER_FLUSH = 1500
+private const val MAX_DRAIN_PER_FLUSH = 350
 
 // Polling for a just-started process's name: `ps` reports the zygote fork's final name only
 // after bindApplication renames it, typically well within a second.
@@ -763,7 +764,16 @@ class MainViewModel(
         val producer = viewModelScope.launch(Dispatchers.Default) {
             try {
                 logcatService.stream(_state.value.selectedDevice, _state.value.logBuffers, sinceTime).collect { line ->
-                    channel.send(CapturedLine(line, LogParser.parseLine(line, pidSnapshot)))
+                    // Off the main thread: parse, and precompute the filter-match and crash flags
+                    // (the consumer's heaviest per-line work). They don't depend on the not-yet-
+                    // assigned id — a fresh line is never bookmarked — so the result matches the
+                    // consumer's entry. Only header lines are precomputed; orphan continuations are
+                    // rare and resolved by the consumer.
+                    val h = LogParser.parseLine(line, pidSnapshot)
+                    channel.send(
+                        if (h != null) CapturedLine(line, h, matches(h), CrashDetector.isCrash(h))
+                        else CapturedLine(line, null),
+                    )
                 }
             } finally {
                 channel.close()
@@ -840,13 +850,17 @@ class MainViewModel(
                                     val entry = candidate.copy(id = nextLogId.getAndIncrement())
                                     logs.add(entry)
                                     foldLogsIdx = logs.lastIndex
-                                    if (matches(entry)) {
+                                    // Reuse the producer's off-main flags for header lines; only the
+                                    // rare orphan (null header) is computed here.
+                                    val matched = if (header != null) cap.matchesFilter else matches(entry)
+                                    if (matched) {
                                         filteredLogs.add(entry)
                                         foldFilteredIdx = filteredLogs.lastIndex
                                     } else {
                                         foldFilteredIdx = -1
                                     }
-                                    if (CrashDetector.isCrash(entry)) {
+                                    val crash = if (header != null) cap.isCrash else CrashDetector.isCrash(entry)
+                                    if (crash) {
                                         registerCrash(entry.id, visible = foldFilteredIdx >= 0)
                                     }
                                     // A separator collects no continuations, so trailing text isn't
@@ -868,8 +882,17 @@ class MainViewModel(
         }
     }
 
-    /** A captured line and its parsed header ([LogParser.parseLine]), or null header for a continuation. */
-    private class CapturedLine(val raw: String, val header: LogEntry?)
+    /**
+     * A captured line and its parsed header ([LogParser.parseLine]), or null header for a
+     * continuation. [matchesFilter] and [isCrash] are precomputed off the main thread for header
+     * lines (false/false when header is null — the consumer recomputes for the rare orphan case).
+     */
+    private class CapturedLine(
+        val raw: String,
+        val header: LogEntry?,
+        val matchesFilter: Boolean = false,
+        val isCrash: Boolean = false,
+    )
 
     fun stopCapture() {
         captureGen++
