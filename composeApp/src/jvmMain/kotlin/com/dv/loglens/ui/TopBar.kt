@@ -222,7 +222,7 @@ fun TopBar(
         // Device screenshot — only meaningful with a live device source.
         if (loadedFile == null && selectedDevice != null) {
             IconActionButton(
-                key = AllIconsKeys.Actions.ViewAsImage,
+                key = AllIconsKeys.Actions.Dump,
                 contentDescription = "Screenshot device",
                 onClick = onTakeScreenshot,
                 colorFilter = iconTint(false),
