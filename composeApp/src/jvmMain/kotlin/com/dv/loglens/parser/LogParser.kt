@@ -34,6 +34,31 @@ object LogParser {
     /** True when [rawLine] is a logcat buffer separator (`--------- beginning of ...`). */
     fun isSeparator(rawLine: String): Boolean = rawLine.startsWith("---------")
 
+    /**
+     * True when [rawLine] is adb plumbing/diagnostic output (it arrives mixed into the logcat stream
+     * because stderr is redirected onto stdout), not an actual log record. A real `-v threadtime`
+     * line always starts with a `MM-DD HH:MM:SS.mmm` timestamp, so these prefixes never collide with
+     * one — they'd otherwise become orphan "D" entries that pollute the view.
+     */
+    fun isAdbNoise(rawLine: String): Boolean {
+        val t = rawLine.trimStart()
+        return t.startsWith("adb: ") ||
+            t.startsWith("adb.exe: ") ||
+            t.startsWith("error: ") ||
+            t.startsWith("* daemon") ||
+            t.startsWith("- waiting for device") ||
+            t.startsWith("adb server version") ||
+            t.startsWith("cannot connect to daemon") ||
+            t.contains("no devices/emulators found")
+    }
+
+    /** Subset of [isAdbNoise] worth surfacing to the user as an error banner (vs. silent plumbing). */
+    fun isAdbError(rawLine: String): Boolean {
+        val t = rawLine.trimStart()
+        return t.startsWith("adb: ") || t.startsWith("adb.exe: ") || t.startsWith("error: ") ||
+            t.startsWith("cannot connect to daemon") || t.contains("no devices/emulators found")
+    }
+
     // Tags whose consecutive same-process records are one logical dump (a crash/tombstone), even
     // though logcat prefixes every stack-trace line with its own header.
     private val foldedTags = setOf("AndroidRuntime", "DEBUG")

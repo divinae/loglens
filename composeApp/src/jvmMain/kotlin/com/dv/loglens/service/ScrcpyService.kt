@@ -26,7 +26,7 @@ object ScrcpyService {
      */
     suspend fun launch(serial: String?, connection: ConnectionType?): Boolean = withContext(Dispatchers.IO) {
         val cmd = buildList {
-            add("scrcpy")
+            add(Scrcpy.exe())
             if (serial != null) { add("-s"); add(serial) }
             addAll(if (connection == ConnectionType.WIFI) WIFI_FLAGS else USB_FLAGS)
         }

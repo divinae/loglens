@@ -21,6 +21,7 @@ data class UserConfig(
     val screenshotDir: String = "",
     val openScreenshotAfterCapture: Boolean = true,
     val adbPath: String = "",
+    val scrcpyPath: String = "",
     val recordingDir: String = "",
     val recordingShowTaps: Boolean = false,
     val recordingBitrateMbps: Int = 0,

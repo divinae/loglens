@@ -11,6 +11,8 @@ import androidx.lifecycle.viewModelScope
 import com.dv.loglens.config.ConfigManager
 import com.dv.loglens.config.FilterStore
 import com.dv.loglens.config.SearchHistoryStore
+import com.dv.loglens.model.ToastKind
+import com.dv.loglens.model.ToastMessage
 import com.dv.loglens.model.DEFAULT_COLUMN_WIDTHS
 import com.dv.loglens.model.DEFAULT_FILTERS_LIST_WIDTH
 import com.dv.loglens.model.DEFAULT_FONT_FAMILY
@@ -34,6 +36,7 @@ import com.dv.loglens.parser.BugreportParser
 import com.dv.loglens.parser.CrashDetector
 import com.dv.loglens.parser.LogParser
 import com.dv.loglens.service.Adb
+import com.dv.loglens.service.Scrcpy
 import com.dv.loglens.service.DeviceService
 import com.dv.loglens.service.LogcatService
 import com.dv.loglens.service.PackageService
@@ -144,12 +147,41 @@ class MainViewModel(
     private val _recordingSaved = MutableSharedFlow<File>(extraBufferCapacity = 1)
     val recordingSaved = _recordingSaved.asSharedFlow()
 
-    /** One-shot user-facing toasts (screenshot saved, recording started/saved). */
-    private val _toast = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    /** One-shot user-facing toasts (screenshot saved, recording started/saved, device events). */
+    private val _toast = MutableSharedFlow<ToastMessage>(extraBufferCapacity = 4)
     val toast = _toast.asSharedFlow()
 
     fun showToast(text: String) {
-        _toast.tryEmit(text)
+        _toast.tryEmit(ToastMessage(text, ToastKind.SUCCESS))
+    }
+
+    /** Neutral status note (blue) — e.g. a device connecting. */
+    fun showInfoToast(text: String) {
+        _toast.tryEmit(ToastMessage(text, ToastKind.INFO))
+    }
+
+    /** Warning (red, no success check mark) — e.g. a device drop or a missing tool. */
+    fun showErrorToast(text: String) {
+        _toast.tryEmit(ToastMessage(text, ToastKind.ERROR))
+    }
+
+    /**
+     * Current live-capture error, shown as an independent floating element (not a log entry).
+     * Null when there's nothing to show; cleared by [dismissCaptureError] or a fresh capture start.
+     */
+    private val _captureError = MutableStateFlow<String?>(null)
+    val captureError = _captureError.asStateFlow()
+
+    fun dismissCaptureError() {
+        _captureError.value = null
+    }
+
+    /** A failed file load, shown as a centered placeholder in the empty log view. */
+    private val _fileError = MutableStateFlow<String?>(null)
+    val fileError = _fileError.asStateFlow()
+
+    fun dismissFileError() {
+        _fileError.value = null
     }
 
     private val recordingController = RecordingController(
@@ -243,7 +275,10 @@ class MainViewModel(
                     _state.update { it.copy(selectedDevice = null) }
                     stopCapture()
                     appendSystemBanner("DEVICE DISCONNECTED ($current)")
-                } else if (current == null) {
+                    showErrorToast("Device disconnected ($current)")
+                } else if (current == null && _state.value.loadedFile == null) {
+                    // Don't hijack a file the user is viewing: only auto-pick a device when not
+                    // reading from a file.
                     // Prefer the device we lost; otherwise auto-pick a sole online device.
                     val returned = list.firstOrNull { it.serial == lastLiveSerial && it.isOnline }
                     val sole = list.singleOrNull()?.takeIf { it.isOnline }
@@ -254,9 +289,12 @@ class MainViewModel(
                         // Resume from the last seen line so the kept logs aren't duplicated and
                         // lines buffered on the device while unplugged still arrive.
                         appendSystemBanner("DEVICE RECONNECTED (${pick.serial})")
+                        showInfoToast("Device reconnected (${pick.serial})")
                         resumeSinceTimestamp = lastEntryTimestamp
                         restartCapture(clearLogs = false)
                     } else {
+                        appendSystemBanner("DEVICE CONNECTED (${pick.serial})")
+                        showInfoToast("Device connected (${pick.serial})")
                         restartCapture(clearLogs = true)
                     }
                     refreshPackages()
@@ -313,6 +351,7 @@ class MainViewModel(
         // Side effects that the state copy below references or that live outside ScreenState.
         parsedQuery = LogQuery.parse(config.searchQuery)
         Adb.path = config.adbPath
+        Scrcpy.path = config.scrcpyPath
         windowBounds = WindowBounds(config.windowX, config.windowY, config.windowWidth, config.windowHeight)
         // One copy() instead of ~25, so startup emits a single ScreenState rather than allocating
         // and publishing an intermediate per field.
@@ -335,6 +374,7 @@ class MainViewModel(
                 screenshotDir = config.screenshotDir,
                 openScreenshotAfterCapture = config.openScreenshotAfterCapture,
                 adbPath = config.adbPath,
+                scrcpyPath = config.scrcpyPath,
                 recordingDir = config.recordingDir,
                 recordingShowTaps = config.recordingShowTaps,
                 recordingBitrateMbps = config.recordingBitrateMbps,
@@ -361,6 +401,7 @@ class MainViewModel(
         screenshotDir = _state.value.screenshotDir,
         openScreenshotAfterCapture = _state.value.openScreenshotAfterCapture,
         adbPath = _state.value.adbPath,
+        scrcpyPath = _state.value.scrcpyPath,
         recordingDir = _state.value.recordingDir,
         recordingShowTaps = _state.value.recordingShowTaps,
         recordingBitrateMbps = _state.value.recordingBitrateMbps,
@@ -427,6 +468,13 @@ class MainViewModel(
         // typing the path char-by-char doesn't spawn a capture restart per keystroke.
     }
 
+    fun setScrcpyPath(path: String) {
+        if (_state.value.scrcpyPath == path) return
+        _state.update { it.copy(scrcpyPath = path) }
+        Scrcpy.path = path
+        persistConfig()
+    }
+
     fun setRecordingDir(path: String) {
         if (_state.value.recordingDir == path) return
         _state.update { it.copy(recordingDir = path) }
@@ -460,9 +508,9 @@ class MainViewModel(
         val connection = _state.value.devices.firstOrNull { it.serial == serial }?.connection
         viewModelScope.launch {
             if (ScrcpyService.launch(serial, connection)) {
-                showToast("Mirroring device — scrcpy window opened")
+                showInfoToast("Mirroring device — scrcpy window opened")
             } else {
-                showToast("scrcpy not found — install it and ensure it's on PATH")
+                showErrorToast("scrcpy not found — install it and ensure it's on PATH")
             }
         }
     }
@@ -569,6 +617,10 @@ class MainViewModel(
     }
 
     fun refreshPackages() {
+        // A loaded file's logs don't come from the live device, so there's nothing to backfill —
+        // and running the O(n) backfill scan over a large file on every 1–5s poll froze the UI
+        // when a device was plugged in while viewing a file.
+        if (_state.value.loadedFile != null) return
         viewModelScope.launch {
             val newMap = PackageService.fetchPidMap(_state.value.selectedDevice)
             if (newMap.isEmpty() || newMap == pidToPackage) return@launch
@@ -719,6 +771,9 @@ class MainViewModel(
 
     fun startCapture() {
         if (_state.value.isCapturing) return
+        // A fresh attempt clears any stale capture/file error from a previous run.
+        _captureError.value = null
+        _fileError.value = null
         // Going live: we are no longer reading from a file.
         _state.update { it.copy(loadedFile = null) }
         _state.update { it.copy(isCapturing = true) }
@@ -807,15 +862,14 @@ class MainViewModel(
     }
 
     /**
-     * adb failed to launch for the live stream. Surface it as a (live-only) banner plus a toast
-     * instead of a fake log line, and record it for diagnostics. Called from the producer's IO
-     * context, so the Compose-state mutation is hopped to the main thread.
+     * adb failed to launch (or emitted an error on stderr) for the live stream. Surface it as an
+     * independent floating element via [captureError] rather than a fake log line, and record it for
+     * diagnostics. Called from the producer's IO context, so the state mutation hops to the main thread.
      */
     private fun onCaptureError(message: String) {
         Log.w(message)
         viewModelScope.launch(Dispatchers.Main) {
-            showToast("Capture error — see log")
-            appendSystemBanner("CAPTURE ERROR: $message")
+            _captureError.value = message
         }
     }
 
@@ -922,45 +976,92 @@ class MainViewModel(
     }
 
     /** Stop live capture and load logs from a saved file, parsing each line as logcat output. */
+    /** Result of the off-main file load: parsed entries plus the derived crash/filter views. */
+    private class LoadedLogs(
+        val entries: List<LogEntry>,
+        val crashIds: Set<Int>,
+        val filtered: List<LogEntry>,
+        val visibleCrashes: List<Int>,
+    )
+
     fun loadLogsFromFile(file: File) {
         stopCapture()
+        // Switching to a file: any live-capture error and any prior file error are now stale.
+        _captureError.value = null
+        _fileError.value = null
+        // Snapshot the active filter criteria so the heavy filtering pass below can run off the main
+        // thread without touching live state.
+        refreshFilterPartition()
         viewModelScope.launch {
-            val parsed = withContext(Dispatchers.IO) {
-                // adb bugreports ship as a zip — pull the bugreport-*.txt out first. Otherwise slurp
-                // the file (Studio JSON / flat bugreports need the whole text), unless it's huge, in
-                // which case we stream the lines.
-                val text = BugreportParser.extractFromZip(file)
-                    ?: if (file.length() < MAX_JSON_LOG_BYTES) file.readText() else null
-                val structured = when {
-                    text == null -> null
-                    AndroidStudioLogParser.matches(text) -> AndroidStudioLogParser.parse(text)
-                    BugreportParser.matches(text) -> BugreportParser.parse(text)
-                    else -> null
+            // Do everything O(n) — parse, crash detection, and the initial filter pass — on IO, so
+            // the main thread only does the unavoidable observable-list inserts. Previously the
+            // crash scan and full filter ran on the main thread right after parse, freezing the
+            // whole app "for a moment" on a large file.
+            val loaded = try {
+                withContext(Dispatchers.IO) {
+                    // adb bugreports ship as a zip — pull the bugreport-*.txt out first. Otherwise slurp
+                    // the file (Studio JSON / flat bugreports need the whole text), unless it's huge, in
+                    // which case we stream the lines.
+                    val text = BugreportParser.extractFromZip(file)
+                        ?: if (file.length() < MAX_JSON_LOG_BYTES) file.readText() else null
+                    val structured = when {
+                        text == null -> null
+                        AndroidStudioLogParser.matches(text) -> AndroidStudioLogParser.parse(text)
+                        BugreportParser.matches(text) -> BugreportParser.parse(text)
+                        else -> null
+                    }
+                    val parsed = structured
+                        ?: text?.let { LogParser.parseLog(it.lineSequence()) }
+                        ?: file.useLines { lines -> LogParser.parseLog(lines) }
+                    val crashes = parsed.mapNotNullTo(HashSet()) { it.id.takeIf { _ -> CrashDetector.isCrash(it) } }
+                    val filtered = parsed.filter { matches(it) }
+                    val visible = if (crashes.isEmpty()) emptyList()
+                    else filtered.mapNotNull { log -> log.id.takeIf { it in crashes } }
+                    LoadedLogs(parsed, crashes, filtered, visible)
                 }
-                structured
-                    ?: text?.let { LogParser.parseLog(it.lineSequence()) }
-                    ?: file.useLines { lines -> LogParser.parseLog(lines) }
+            } catch (e: Exception) {
+                Log.w("failed to load ${file.name}", e)
+                failFileLoad("Couldn't open ${file.name}: ${e.message ?: e::class.simpleName}")
+                return@launch
             }
             logs.clear()
             filteredLogs.clear()
             selectedIds.clear()
             clearDerivedState()
-            logs.addAll(parsed)
-            nextLogId.set(parsed.size)
-            // visibleCrashes is derived from these in recomputeFiltered() below.
-            parsed.forEach { if (CrashDetector.isCrash(it)) crashIds.add(it.id) }
+            logs.addAll(loaded.entries)
+            nextLogId.set(loaded.entries.size)
+            crashIds.addAll(loaded.crashIds)
+            filteredLogs.addAll(loaded.filtered)
+            visibleCrashes = loaded.visibleCrashes
             _state.update { it.copy(autoFollow = false) }
             _state.update { it.copy(loadedFile = file.name) }
-            recomputeFiltered()
+            _recomputeTick.value++
             rememberRecentFile(file)
         }
     }
 
-    /** Open a previously loaded file by path; if it's gone, drop it from the recent list. */
+    /** Open a previously loaded file by path; if it's gone, tell the user and drop it from the list. */
     fun openRecentFile(path: String) {
         val file = File(path)
-        if (file.exists()) loadLogsFromFile(file)
-        else _state.update { it.copy(recentFiles = _state.value.recentFiles.filterNot { it == path }.also { persistConfig() }) }
+        if (file.exists()) {
+            loadLogsFromFile(file)
+        } else {
+            // Same treatment as a parse failure: clear whatever was open and show the centered
+            // panel (no toast for file-open errors). Drop the dead entry from the recent list.
+            failFileLoad("File no longer exists: ${file.name}")
+            _state.update { it.copy(recentFiles = _state.value.recentFiles.filterNot { it == path }.also { persistConfig() }) }
+        }
+    }
+
+    /** Clear the open logs and surface [message] as the centered file-load error panel. */
+    private fun failFileLoad(message: String) {
+        logs.clear()
+        filteredLogs.clear()
+        selectedIds.clear()
+        clearDerivedState()
+        _state.update { it.copy(loadedFile = null) }
+        _recomputeTick.value++
+        _fileError.value = message
     }
 
     fun clearRecentFiles() {
@@ -1043,6 +1144,7 @@ data class ScreenState(
     val screenshotDir: String = "",
     val openScreenshotAfterCapture: Boolean = true,
     val adbPath: String = "",
+    val scrcpyPath: String = "",
     val recordingDir: String = "",
     val isRecording: Boolean = false,
     val recordingShowTaps: Boolean = false,

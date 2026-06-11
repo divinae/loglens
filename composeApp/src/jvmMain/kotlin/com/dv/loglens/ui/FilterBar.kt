@@ -308,6 +308,33 @@ private fun AddFilterChip(onClick: () -> Unit) {
     }
 }
 
+/** Human-readable summary of what a rule does, shown as the chip's tooltip. */
+private fun describeFilter(rule: FilterRule): String {
+    val mode = when (rule.mode) {
+        FilterMode.SHOW -> "Show only"
+        FilterMode.HIDE -> "Hide"
+        FilterMode.HIGHLIGHT -> "Highlight"
+        FilterMode.SHOW_AND_HIGHLIGHT -> "Show & highlight"
+    }
+    val conditions = buildList {
+        fun field(label: String, p: com.dv.loglens.model.FieldPattern) {
+            if (p.pattern.isNotBlank()) {
+                val verb = if (p.isRegex) "matches" else "contains"
+                val cs = if (p.caseSensitive) ", case-sensitive" else ""
+                add("$label $verb \"${p.pattern}\"$cs")
+            }
+        }
+        field("Message", rule.message)
+        field("Tag", rule.tag)
+        field("App", rule.app)
+        field("PID", rule.pid)
+        if (rule.levels.isNotEmpty()) add("Level: ${rule.levels.sorted().joinToString(", ")}")
+    }
+    return if (conditions.isEmpty()) "$mode · matches everything"
+    else mode + "\n" + conditions.joinToString("\n") { "• $it" }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FilterChip(rule: FilterRule, onClick: () -> Unit) {
     val hasColor = rule.mode == FilterMode.HIGHLIGHT || rule.mode == FilterMode.SHOW_AND_HIGHLIGHT
@@ -318,32 +345,54 @@ private fun FilterChip(rule: FilterRule, onClick: () -> Unit) {
     val textColor = if (rule.enabled) JewelTheme.globalColors.text.normal
     else JewelTheme.globalColors.text.disabled
 
-    Row(
-        modifier = Modifier
-            .clip(shape)
-            .clickable(onClick = onClick)
-            .background(background, shape)
-            .hoverOverlay(shape)
-            .border(1.dp, borderColor, shape)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        val modeLabel = when (rule.mode) {
-            FilterMode.SHOW -> "S"
-            FilterMode.HIDE -> "H"
-            FilterMode.HIGHLIGHT -> null
-            FilterMode.SHOW_AND_HIGHLIGHT -> "S"
+    val popupBg = islandsPopup(JewelTheme.isDark)
+    val tooltipBorder = JewelTheme.globalColors.borders.normal
+    val tooltipText = JewelTheme.globalColors.text.normal
+    val tooltipStyle = remember(popupBg, tooltipBorder, tooltipText) {
+        TooltipStyle(
+            colors = TooltipColors(
+                background = popupBg,
+                content = tooltipText,
+                border = tooltipBorder,
+                shadow = Color(0x33000000),
+            ),
+            metrics = TooltipMetrics.defaults(
+                showDelay = 400.milliseconds,
+                regularDisappearDelay = 10_000.milliseconds,
+                placement = abovePlacement,
+            ),
+        )
+    }
+    val description = remember(rule) { describeFilter(rule) }
+
+    Tooltip(tooltip = { Text(description, fontSize = 12.sp) }, style = tooltipStyle) {
+        Row(
+            modifier = Modifier
+                .clip(shape)
+                .clickable(onClick = onClick)
+                .background(background, shape)
+                .hoverOverlay(shape)
+                .border(1.dp, borderColor, shape)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val modeLabel = when (rule.mode) {
+                FilterMode.SHOW -> "S"
+                FilterMode.HIDE -> "H"
+                FilterMode.HIGHLIGHT -> null
+                FilterMode.SHOW_AND_HIGHLIGHT -> "S"
+            }
+            if (hasColor) {
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .background(Color(rule.highlightColor.toInt()), CircleShape)
+                        .border(1.dp, Color.Gray.copy(alpha = 0.5f), CircleShape)
+                )
+            }
+            if (modeLabel != null) Text(modeLabel, fontSize = 10.sp, color = textColor)
+            Text(rule.name, fontSize = 12.sp, color = textColor)
         }
-        if (hasColor) {
-            Box(
-                Modifier
-                    .size(10.dp)
-                    .background(Color(rule.highlightColor.toInt()), CircleShape)
-                    .border(1.dp, Color.Gray.copy(alpha = 0.5f), CircleShape)
-            )
-        }
-        if (modeLabel != null) Text(modeLabel, fontSize = 10.sp, color = textColor)
-        Text(rule.name, fontSize = 12.sp, color = textColor)
     }
 }

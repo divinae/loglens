@@ -49,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dv.loglens.model.FilterMode
 import com.dv.loglens.model.FontWeightPreset
 import com.dv.loglens.model.LogColumn
+import com.dv.loglens.model.ToastMessage
 import com.dv.loglens.model.ThemeMode
 import com.dv.loglens.model.cell
 import com.dv.loglens.model.logDelta
@@ -70,6 +71,8 @@ import com.dv.loglens.ui.FindBar
 import com.dv.loglens.ui.LogHeaders
 import com.dv.loglens.ui.ShortcutsDialog
 import com.dv.loglens.ui.IntelliJVerticalScrollbar
+import com.dv.loglens.ui.CaptureErrorBanner
+import com.dv.loglens.ui.LogAreaErrorPanel
 import com.dv.loglens.ui.Toast
 import com.dv.loglens.ui.LogRow
 import com.dv.loglens.ui.TopBar
@@ -83,6 +86,7 @@ import com.dv.loglens.viewmodel.MainViewModel
 import com.dv.loglens.viewmodel.ScreenState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -110,7 +114,10 @@ fun AppContent(
     visibleCrashes: List<Int>,
     recomputeTick: () -> Int,
     recordingSaved: Flow<File>,
-    toast: Flow<String>,
+    toast: Flow<ToastMessage>,
+    captureError: StateFlow<String?>,
+    onDismissCaptureError: () -> Unit,
+    fileError: StateFlow<String?>,
     callbacks: AppCallbacks,
     // Wraps the top bar; on macOS main() passes a WindowDraggableArea (plus a traffic-lights
     // inset) so the bar doubles as the title bar when the native one is hidden.
@@ -126,20 +133,22 @@ fun AppContent(
         }
     }
     // Transient toast over the log list; each new message restarts the auto-dismiss timer.
-    var toastText by remember { mutableStateOf<String?>(null) }
+    var toastMsg by remember { mutableStateOf<ToastMessage?>(null) }
     var toastSeq by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
         toast.collect { msg ->
-            toastText = msg
+            toastMsg = msg
             toastSeq++
         }
     }
     LaunchedEffect(toastSeq) {
         if (toastSeq > 0) {
             delay(2500)
-            toastText = null
+            toastMsg = null
         }
     }
+    val captureErrorText by captureError.collectAsState()
+    val fileErrorText by fileError.collectAsState()
     val resolvedFontFamily = remember(state.fontFamily, state.fontWeight) {
         SystemFonts.resolve(state.fontFamily, FontWeightPreset.fromName(state.fontWeight).weight)
     }
@@ -453,6 +462,8 @@ fun AppContent(
                     onSetOpenScreenshotAfterCapture = callbacks.setOpenScreenshotAfterCapture,
                     adbPath = state.adbPath,
                     onSetAdbPath = callbacks.setAdbPath,
+                    scrcpyPath = state.scrcpyPath,
+                    onSetScrcpyPath = callbacks.setScrcpyPath,
                     recordingDir = state.recordingDir,
                     onSetRecordingDir = callbacks.setRecordingDir,
                     recordingShowTaps = state.recordingShowTaps,
@@ -600,6 +611,20 @@ fun AppContent(
                         }
                     }
                     }
+                    // With nothing to show, surface a capture/file error as a centered panel rather
+                    // than a blank pane. An error that arrives while logs ARE present stays in the
+                    // floating banner instead, so it doesn't hide the data.
+                    if (filteredLogs.isEmpty()) {
+                        val panelMessage = fileErrorText ?: captureErrorText
+                        if (panelMessage != null) {
+                            LogAreaErrorPanel(
+                                title = if (fileErrorText != null) "Couldn't load file" else "Capture error",
+                                message = panelMessage,
+                                isDark = isDark,
+                                modifier = Modifier.align(Alignment.Center),
+                            )
+                        }
+                    }
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
@@ -680,8 +705,20 @@ fun AppContent(
                 }
 
                 Toast(
-                    text = toastText,
+                    message = toastMsg,
                     isDark = isDark,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(horizontal = 12.dp)
+                        .padding(top = 4.dp),
+                )
+
+                CaptureErrorBanner(
+                    // When the list is empty the centered panel owns the error; only float the
+                    // banner when there are logs it would otherwise cover.
+                    text = captureErrorText?.takeIf { filteredLogs.isNotEmpty() },
+                    isDark = isDark,
+                    onDismiss = onDismissCaptureError,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(horizontal = 12.dp)
@@ -810,6 +847,7 @@ fun App(
             setExpandMultilineByDefault = viewModel::setExpandMultilineByDefault,
             setAlwaysShowBookmarks = viewModel::setAlwaysShowBookmarks,
             setAdbPath = viewModel::setAdbPath,
+            setScrcpyPath = viewModel::setScrcpyPath,
             selectDevice = viewModel::selectDevice,
             refreshDevices = viewModel::refreshDevices,
             openRecentFile = viewModel::openRecentFile,
@@ -842,6 +880,9 @@ fun App(
         recomputeTick = { viewModel.recomputeTick },
         recordingSaved = viewModel.recordingSaved,
         toast = viewModel.toast,
+        captureError = viewModel.captureError,
+        onDismissCaptureError = viewModel::dismissCaptureError,
+        fileError = viewModel.fileError,
         callbacks = callbacks,
         topBarDecoration = topBarDecoration,
     )

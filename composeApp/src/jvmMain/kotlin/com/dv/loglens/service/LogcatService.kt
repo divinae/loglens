@@ -1,6 +1,7 @@
 package com.dv.loglens.service
 
 import com.dv.loglens.model.LogBuffer
+import com.dv.loglens.parser.LogParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -43,7 +44,15 @@ class LogcatService {
         val reader = BufferedReader(InputStreamReader(proc.inputStream))
         reader.useLines { lines ->
             for (line in lines) {
-                if (line.isNotBlank()) emit(line)
+                if (line.isBlank()) continue
+                // adb writes diagnostics (errors, daemon/waiting notices) to stderr, which
+                // redirectErrorStream folds into this stream. Keep them out of the parsed log:
+                // surface real errors via onError, drop the rest as plumbing noise.
+                if (LogParser.isAdbNoise(line)) {
+                    if (LogParser.isAdbError(line)) onError(line.trim())
+                    continue
+                }
+                emit(line)
             }
         }
     }.flowOn(Dispatchers.IO)

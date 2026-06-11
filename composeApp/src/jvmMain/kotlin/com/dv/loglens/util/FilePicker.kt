@@ -3,6 +3,7 @@ package com.dv.loglens.util
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
+import javax.swing.JFileChooser
 
 /**
  * Native file dialogs. The JVM only ships X11/GTK file choosers, so on KDE we shell out to the
@@ -21,6 +22,20 @@ object FilePicker {
         kdialog != null -> runPicker(listOf(kdialog!!, "--title", title, "--getopenfilename", startDir(), KDIALOG_FILTER))
         zenity != null -> runPicker(listOf(zenity!!, "--file-selection", "--title", title))
         else -> awt(title, null, FileDialog.LOAD)
+    }
+
+    /** Pick any existing file (no log-type filter) — e.g. the adb/scrcpy binary. */
+    fun openExecutable(title: String): File? = when {
+        kdialog != null -> runPicker(listOf(kdialog!!, "--title", title, "--getopenfilename", startDir(), "*|All files (*)"))
+        zenity != null -> runPicker(listOf(zenity!!, "--file-selection", "--title", title))
+        else -> awt(title, null, FileDialog.LOAD)
+    }
+
+    /** Pick an existing directory — e.g. the screenshot/recording output folder. */
+    fun openDirectory(title: String): File? = when {
+        kdialog != null -> runPicker(listOf(kdialog!!, "--title", title, "--getexistingdirectory", startDir()))
+        zenity != null -> runPicker(listOf(zenity!!, "--file-selection", "--directory", "--title", title))
+        else -> awtDirectory(title)
     }
 
     fun saveFile(title: String, defaultName: String): File? {
@@ -48,6 +63,15 @@ object FilePicker {
         val dir = dialog.directory ?: return null
         val name = dialog.file ?: return null
         return File(dir, name)
+    }
+
+    // AWT's FileDialog can't pick directories on most platforms, so fall back to Swing's chooser.
+    private fun awtDirectory(title: String): File? {
+        val chooser = JFileChooser(startDir()).apply {
+            dialogTitle = title
+            fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+        }
+        return if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
     }
 
     private fun startDir(): String = System.getProperty("user.home") ?: "."

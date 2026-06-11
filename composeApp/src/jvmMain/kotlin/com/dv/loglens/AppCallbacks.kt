@@ -48,6 +48,7 @@ class AppCallbacks(
     val setExpandMultilineByDefault: (Boolean) -> Unit,
     val setAlwaysShowBookmarks: (Boolean) -> Unit,
     val setAdbPath: (String) -> Unit,
+    val setScrcpyPath: (String) -> Unit,
     val selectDevice: (String?) -> Unit,
     val refreshDevices: () -> Unit,
     val openRecentFile: (String) -> Unit,
