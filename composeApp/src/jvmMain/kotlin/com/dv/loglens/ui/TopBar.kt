@@ -62,6 +62,7 @@ fun TopBar(
     onTakeScreenshot: () -> Unit,
     isRecording: Boolean,
     onToggleRecording: () -> Unit,
+    onMirrorDevice: () -> Unit,
     onSaveLogs: (filtered: Boolean, asLogcat: Boolean) -> Unit,
     onOpenLogs: () -> Unit,
     recentFiles: List<String>,
@@ -226,6 +227,19 @@ fun TopBar(
                 tooltipPlacement = belowPlacement,
             ) {
                 Text(if (isRecording) "Stop recording" else "Record screen")
+            }
+
+            // Mirror the device with scrcpy in its own window (separate native app — it can't be
+            // embedded into this window).
+            IconActionButton(
+                key = AllIconsKeys.General.InspectionsEye,
+                contentDescription = "Mirror device (scrcpy)",
+                onClick = onMirrorDevice,
+                colorFilter = iconTint(false),
+                tooltipStyle = tooltipStyle,
+                tooltipPlacement = belowPlacement,
+            ) {
+                Text("Mirror device (scrcpy)")
             }
         }
 

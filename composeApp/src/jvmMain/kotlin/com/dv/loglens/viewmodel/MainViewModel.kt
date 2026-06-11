@@ -38,6 +38,7 @@ import com.dv.loglens.service.DeviceService
 import com.dv.loglens.service.LogcatService
 import com.dv.loglens.service.PackageService
 import com.dv.loglens.service.ProcessTrackerService
+import com.dv.loglens.service.ScrcpyService
 import com.dv.loglens.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -451,6 +452,19 @@ class MainViewModel(
     }
 
     fun toggleRecording() = recordingController.toggle()
+
+    /** Open scrcpy in its own window to mirror the live device. No-op while reading a file. */
+    fun launchScrcpy() {
+        val serial = _state.value.selectedDevice
+        if (serial == null || _state.value.loadedFile != null) return
+        viewModelScope.launch {
+            if (ScrcpyService.launch(serial)) {
+                showToast("Mirroring device — scrcpy window opened")
+            } else {
+                showToast("scrcpy not found — install it and ensure it's on PATH")
+            }
+        }
+    }
 
     /** Toggle one adb buffer. Refuses to clear the last one, then restarts capture from the new source. */
     fun toggleLogBuffer(buffer: LogBuffer) {

@@ -372,6 +372,7 @@ fun AppContent(
                     onTogglePause = callbacks.togglePause,
                     isRecording = state.isRecording,
                     onToggleRecording = callbacks.toggleRecording,
+                    onMirrorDevice = callbacks.launchScrcpy,
                     onTakeScreenshot = {
                         val serial = state.selectedDevice
                         val dir = File(state.screenshotDir.ifBlank { "${System.getProperty("user.home")}/Pictures/android" })
@@ -791,6 +792,7 @@ fun App(
             reorderFilters = viewModel::reorderFilters,
             setFilterEnabled = viewModel::setFilterEnabled,
             toggleRecording = viewModel::toggleRecording,
+            launchScrcpy = viewModel::launchScrcpy,
             togglePause = viewModel::togglePause,
             toggleLogBuffer = viewModel::toggleLogBuffer,
             toggleColumn = viewModel::toggleColumn,

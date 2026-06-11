@@ -20,7 +20,9 @@ Written with substantial AI assistance ([Claude Code](https://claude.com/claude-
 - **Process & device lifecycle banners** — Android-Studio-style `PROCESS STARTED/ENDED` lines for
   processes that logged in the session, plus `DEVICE DISCONNECTED/RECONNECTED` markers.
 - **Logcat buffers** — pick `adb logcat -b` buffers (main, system, crash, radio, events, kernel).
-- **Columns** — Index, Date, Time, PID, TID, App, Level, Tag, Message; toggleable and resizable (drag).
+- **Columns** — Index, Date, Time, Δt, PID, TID, App, Level, Tag, Message; toggleable and resizable (drag).
+  The optional **Δt** column shows the elapsed time since the previous visible row (e.g. `+123ms`,
+  `+1.45s`) — handy for spotting stalls between consecutive logs.
 - **Filters** — SHOW / HIDE / HIGHLIGHT / SHOW_AND_HIGHLIGHT rules per field (message, tag, app, pid, level) with regex and case-sensitive options; colored highlighting; reordering; persisted to disk.
 - **Quick filter** — a small query language in the quick-filter bar:
   - `foobar` — substring over the whole line (case-insensitive)
@@ -40,6 +42,7 @@ Written with substantial AI assistance ([Claude Code](https://claude.com/claude-
 - **Selection** — single, range (Shift), drag; copy lines or a single column.
 - **Screenshot** — capture the device to a file + clipboard, optionally open in the default viewer.
 - **Screen recording** — `screenrecord` with Android Studio-style options (show taps, bitrate, size); auto-open when finished.
+- **Mirror device** — opens [scrcpy](https://github.com/Genymobile/scrcpy) in its own window for a live, interactive view of the device (requires scrcpy on `PATH`); it runs as a separate app, not embedded.
 - **Open from file** — parse saved logs (`-v threadtime`), Android Studio `.logcat` exports (JSON), and full Android **bugreports / `dumpstate`** dumps — both the flat `.txt` and the `adb bugreport` **`.zip`** (the embedded `bugreport-*.txt` is read straight from the archive). Extracts every embedded logcat section and mines the `ps` section for pid→process names. Multiline messages (e.g. Java stack traces) are folded back into a single record.
 - **Save logs** — all or filtered, as plain text or `.logcat` format.
 - **Multiline folding** — stack traces and multiline `Log` calls (e.g. HTTP client dumps) are one

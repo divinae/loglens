@@ -27,6 +27,7 @@ class AppCallbacks(
     val reorderFilters: (Int, Int) -> Unit,
     val setFilterEnabled: (String, Boolean) -> Unit,
     val toggleRecording: () -> Unit,
+    val launchScrcpy: () -> Unit,
     val togglePause: () -> Unit,
     val toggleLogBuffer: (LogBuffer) -> Unit,
     val toggleColumn: (LogColumn) -> Unit,

@@ -6,6 +6,13 @@ All notable changes to LogLens are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **Mirror device** — a toolbar button opens scrcpy in its own window for a live, interactive view
+  of the device (requires scrcpy on `PATH`). scrcpy is a separate native app and can't be embedded
+  into the LogLens window; LogLens passes its configured adb to scrcpy via the `ADB` env var.
+- **Δt column** — an optional, toggleable column showing the elapsed time since the previous
+  visible row (`+123ms` / `+1.45s`), for spotting stalls between consecutive logs.
+
 ### Changed
 - Process lifecycle banners now come from the adb server's `track-jdwp` stream (the Android
   Studio mechanism), so a debugged app's restart banners appear immediately instead of on the
