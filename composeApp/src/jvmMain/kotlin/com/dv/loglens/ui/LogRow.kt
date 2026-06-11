@@ -108,6 +108,7 @@ fun LogRow(
     onToggleExpand: () -> Unit = {},
     isCrash: Boolean = false,
     deltaText: String = "",
+    scrubbing: Boolean = false,
 ) {
     val color = logLevelColor(log.level, isDarkMode)
     // Only offer collapse for records worth it: a crash dump, or enough folded lines that hiding them
@@ -153,12 +154,16 @@ fun LogRow(
 
     @Composable
     fun rowBody() {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
+        // While the scrollbar thumb is being scrubbed the row skips its expensive interactive
+        // machinery (per-cell context-menu cells, tooltips, find/link annotation) and renders plain
+        // text in the exact same layout — every scrollbar jump composes a fresh viewport of ~dozens
+        // of rows in one frame, and those extras are what makes that composition slow. Cheap handlers
+        // (row selection, expand link) stay on unconditionally so the row remains clickable no matter
+        // what. Layout metrics (paddings, fonts, wrap) are identical, so the viewport doesn't shift
+        // when the drag ends and the full rows come back.
+        val interactiveModifier = Modifier
                 .onPointerEvent(PointerEventType.Enter) { hovered = true }
                 .onPointerEvent(PointerEventType.Exit) { hovered = false }
-                .background(backgroundColor)
                 .onPointerEvent(PointerEventType.Press) {
                     // Right-click always selects the row (even when a cell consumed the press to show
                     // its own menu); only open the row's fallback menu for empty gutters.
@@ -176,6 +181,11 @@ fun LogRow(
                     val range = it.keyboardModifiers.isShiftPressed
                     onSelect(multi, range)
                 }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(backgroundColor)
+                .then(interactiveModifier)
                 .padding(vertical = 1.dp)
                 .padding(horizontal = 8.dp)
         ) {
@@ -226,34 +236,9 @@ fun LogRow(
                 val cellActive = activeCell?.first == log.id && activeCell.second == column
 
                 val copyMulti = isSelected && selectedCount > 1
-                FilterableCell(
-                    column = column,
-                    value = text,
-                    onAddFilter = onAddFilter,
-                    onCopyCell = {
-                        if (copyMulti) onCopyColumnSelected(column)
-                        else copyToClipboard(text)
-                    },
-                    copyCellLabel = if (copyMulti) {
-                        "Copy ${columnLabel(column)} ($selectedCount rows)"
-                    } else {
-                        "Copy ${columnLabel(column)}"
-                    },
-                    onCopyRow = {
-                        if (copyMulti) onCopySelected()
-                        else copyToClipboard(log.content)
-                    },
-                    copyRowLabel = if (copyMulti) "Copy $selectedCount rows" else "Copy row",
-                    isBookmarked = isBookmarked,
-                    onToggleBookmark = onToggleBookmark,
-                    jsonFontFamily = fontFamily,
-                    jsonFontSize = fontSize,
-                    jsonCandidate = {
-                        if (copyMulti && column == LogColumn.MESSAGE) selectedMessages() else text
-                    },
-                    onActivate = { onActivateCell(column) },
-                    modifier = cellModifier,
-                ) {
+
+                // The cell body, shared by the scrub fast path and the full interactive cell below.
+                val cellContent: @Composable () -> Unit = {
                     // A foldable record (crash dump / multiline print) collapses to one ellipsized
                     // line with the whole message flattened — not just the first line, so key fields
                     // past the first newline (e.g. a request URL) stay visible and clickable.
@@ -286,12 +271,14 @@ fun LogRow(
                                 fontSize = fontSize,
                                 fontFamily = fontFamily,
                                 fontWeight = resolvedWeight,
-                                findQuery = findQuery,
+                                // Find/URL spans are colour-only (no layout impact), so the scrub fast
+                                // path can skip both scans without changing the row height.
+                                findQuery = if (scrubbing) "" else findQuery,
                                 findColor = findHighlightColor,
                                 // Only the message column gets clickable URLs; other columns skip
                                 // the scan entirely.
-                                linkColor = if (column == LogColumn.MESSAGE) urlLinkColor(isDarkMode) else null,
-                                onTextLayout = if (column == LogColumn.MESSAGE) {
+                                linkColor = if (column == LogColumn.MESSAGE && !scrubbing) urlLinkColor(isDarkMode) else null,
+                                onTextLayout = if (column == LogColumn.MESSAGE && !scrubbing) {
                                     { result -> messageOverflows = result.hasVisualOverflow }
                                 } else null,
                             )
@@ -304,7 +291,7 @@ fun LogRow(
                     // real scroll saving, especially with soft-wrap off where far more rows are on screen.
                     @Composable
                     fun bodyMaybeTooltip() {
-                        if (column == LogColumn.MESSAGE && !softWrap && messageOverflows) {
+                        if (column == LogColumn.MESSAGE && !softWrap && messageOverflows && !scrubbing) {
                             Tooltip(
                                 style = tooltipStyle,
                                 tooltip = {
@@ -379,6 +366,41 @@ fun LogRow(
                     } else {
                         bodyMaybeTooltip()
                     }
+                }
+
+                if (scrubbing) {
+                    // Fast path: same Box wrapper as FilterableCell (identical layout), none of its
+                    // pointer/menu machinery.
+                    Box(cellModifier) { cellContent() }
+                } else {
+                    FilterableCell(
+                        column = column,
+                        value = text,
+                        onAddFilter = onAddFilter,
+                        onCopyCell = {
+                            if (copyMulti) onCopyColumnSelected(column)
+                            else copyToClipboard(text)
+                        },
+                        copyCellLabel = if (copyMulti) {
+                            "Copy ${columnLabel(column)} ($selectedCount rows)"
+                        } else {
+                            "Copy ${columnLabel(column)}"
+                        },
+                        onCopyRow = {
+                            if (copyMulti) onCopySelected()
+                            else copyToClipboard(log.content)
+                        },
+                        copyRowLabel = if (copyMulti) "Copy $selectedCount rows" else "Copy row",
+                        isBookmarked = isBookmarked,
+                        onToggleBookmark = onToggleBookmark,
+                        jsonFontFamily = fontFamily,
+                        jsonFontSize = fontSize,
+                        jsonCandidate = {
+                            if (copyMulti && column == LogColumn.MESSAGE) selectedMessages() else text
+                        },
+                        onActivate = { onActivateCell(column) },
+                        modifier = cellModifier,
+                    ) { cellContent() }
                 }
             }
         }

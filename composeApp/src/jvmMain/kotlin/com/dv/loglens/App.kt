@@ -6,6 +6,8 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.layout.Arrangement
@@ -466,6 +468,10 @@ fun AppContent(
             Box(modifier = Modifier.weight(1f)) {
                 var dragAnchorIdx by remember { mutableStateOf<Int?>(null) }
                 val filteredLogsRef = rememberUpdatedState(filteredLogs)
+                // Shared with the scrollbar: while its thumb is dragged the rows render in a cheap
+                // "scrub" mode so each jump's viewport composes fast (see LogRow).
+                val scrollbarInteraction = remember { MutableInteractionSource() }
+                val isScrubbing by scrollbarInteraction.collectIsDraggedAsState()
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -589,6 +595,7 @@ fun AppContent(
                                 isExpanded = (log.id in expandedIds) != state.expandMultilineByDefault,
                                 onToggleExpand = { callbacks.toggleExpand(log.id) },
                                 isCrash = log.id in crashIds,
+                                scrubbing = isScrubbing,
                             )
                         }
                     }
@@ -615,6 +622,7 @@ fun AppContent(
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
                                 .padding(horizontal = 2.dp),
+                            interactionSource = scrollbarInteraction,
                         )
                     }
                     }
