@@ -457,8 +457,9 @@ class MainViewModel(
     fun launchScrcpy() {
         val serial = _state.value.selectedDevice
         if (serial == null || _state.value.loadedFile != null) return
+        val connection = _state.value.devices.firstOrNull { it.serial == serial }?.connection
         viewModelScope.launch {
-            if (ScrcpyService.launch(serial)) {
+            if (ScrcpyService.launch(serial, connection)) {
                 showToast("Mirroring device — scrcpy window opened")
             } else {
                 showToast("scrcpy not found — install it and ensure it's on PATH")
