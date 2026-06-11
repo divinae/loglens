@@ -1,7 +1,5 @@
 package com.dv.loglens
 
-import androidx.compose.foundation.ScrollbarStyle
-import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -69,7 +67,7 @@ import com.dv.loglens.ui.CrashNavigator
 import com.dv.loglens.ui.FindBar
 import com.dv.loglens.ui.LogHeaders
 import com.dv.loglens.ui.ShortcutsDialog
-import com.dv.loglens.ui.rememberItemBasedScrollbarAdapter
+import com.dv.loglens.ui.IntelliJVerticalScrollbar
 import com.dv.loglens.ui.Toast
 import com.dv.loglens.ui.LogRow
 import com.dv.loglens.ui.TopBar
@@ -466,15 +464,6 @@ fun AppContent(
             }
 
             Box(modifier = Modifier.weight(1f)) {
-                val thumbBase = if (isDark) Color.White else Color.Black
-                val scrollbarStyle = ScrollbarStyle(
-                    minimalHeight = 24.dp,
-                    thickness = 8.dp,
-                    shape = RoundedCornerShape(50),
-                    hoverDurationMillis = 200,
-                    unhoverColor = thumbBase.copy(alpha = 0.20f),
-                    hoverColor = thumbBase.copy(alpha = 0.45f),
-                )
                 var dragAnchorIdx by remember { mutableStateOf<Int?>(null) }
                 val filteredLogsRef = rememberUpdatedState(filteredLogs)
                 Box(
@@ -619,13 +608,13 @@ fun AppContent(
                             ),
                     )
                     if (!state.autoFollow) {
-                        VerticalScrollbar(
-                            adapter = rememberItemBasedScrollbarAdapter(listState),
+                        IntelliJVerticalScrollbar(
+                            state = listState,
+                            isDark = isDark,
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
-                                .padding(vertical = 8.dp, horizontal = 4.dp),
-                            style = scrollbarStyle,
+                                .padding(horizontal = 2.dp),
                         )
                     }
                     }
