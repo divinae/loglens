@@ -64,6 +64,17 @@ internal fun FilterableCell(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var menuOffset by remember { mutableStateOf(IntOffset.Zero) }
+    // Dialog state lives here, not in the menu: dismissing the menu unmounts CellContextMenu, so a
+    // dialog owned by it would be torn down before it could ever render.
+    var jsonDialog by remember { mutableStateOf<String?>(null) }
+    jsonDialog?.let { json ->
+        JsonViewerDialog(
+            json = json,
+            fontFamily = jsonFontFamily,
+            fontSize = jsonFontSize,
+            onDismiss = { jsonDialog = null },
+        )
+    }
     // Manual double-click detection (desktop awtEvent.clickCount is unreliable across CMP versions).
     var lastPressTime by remember { mutableStateOf(0L) }
     var lastPressPos by remember { mutableStateOf(Offset.Zero) }
@@ -104,9 +115,8 @@ internal fun FilterableCell(
                 copyRowLabel = copyRowLabel,
                 isBookmarked = isBookmarked,
                 onToggleBookmark = onToggleBookmark,
-                jsonFontFamily = jsonFontFamily,
-                jsonFontSize = jsonFontSize,
                 jsonCandidate = jsonCandidate,
+                onShowJson = { jsonDialog = it },
                 offset = menuOffset,
                 onDismiss = { showMenu = false },
             )
@@ -131,9 +141,8 @@ internal fun CellContextMenu(
     copyRowLabel: String,
     isBookmarked: Boolean,
     onToggleBookmark: () -> Unit,
-    jsonFontFamily: FontFamily,
-    jsonFontSize: TextUnit,
     jsonCandidate: () -> String,
+    onShowJson: (String) -> Unit,
     offset: IntOffset,
     onDismiss: () -> Unit,
 ) {
@@ -150,15 +159,6 @@ internal fun CellContextMenu(
         if (isBookmarked) AllIconsKeys.Actions.Cancel else AllIconsKeys.Nodes.Bookmark,
         onToggleBookmark,
     )
-    var jsonDialog by remember { mutableStateOf<String?>(null) }
-    jsonDialog?.let { json ->
-        JsonViewerDialog(
-            json = json,
-            fontFamily = jsonFontFamily,
-            fontSize = jsonFontSize,
-            onDismiss = { jsonDialog = null },
-        )
-    }
     PopupMenu(
         onDismissRequest = { onDismiss(); true },
         popupPositionProvider = CursorPositionProvider(offset),
@@ -192,7 +192,7 @@ internal fun CellContextMenu(
             selectableItem(
                 selected = false,
                 iconKey = AllIconsKeys.Actions.PrettyPrint,
-                onClick = { jsonDialog = formattedJson; onDismiss() },
+                onClick = { onShowJson(formattedJson); onDismiss() },
             ) {
                 Text("Format JSON")
             }

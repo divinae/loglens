@@ -128,6 +128,9 @@ fun LogRow(
     var messageOverflows by remember { mutableStateOf(false) }
     // Press position of a right-click that landed on an empty gutter, anchoring the fallback menu.
     var rowMenuOffset by remember { mutableStateOf<IntOffset?>(null) }
+    // Owned by the row, not the popup: the menu's onDismiss unmounts CellContextMenu, which would
+    // tear down a dialog hosted inside it before it renders.
+    var rowJsonDialog by remember { mutableStateOf<String?>(null) }
     val popupBg = islandsPopup(isDarkMode)
     val borderColor = JewelTheme.globalColors.borders.normal
     val textColor = JewelTheme.globalColors.text.normal
@@ -203,11 +206,18 @@ fun LogRow(
                     copyRowLabel = if (copyMulti) "Copy $selectedCount rows" else "Copy row",
                     isBookmarked = isBookmarked,
                     onToggleBookmark = onToggleBookmark,
-                    jsonFontFamily = fontFamily,
-                    jsonFontSize = fontSize,
                     jsonCandidate = { if (copyMulti) selectedMessages() else log.message },
+                    onShowJson = { rowJsonDialog = it },
                     offset = off,
                     onDismiss = { rowMenuOffset = null },
+                )
+            }
+            rowJsonDialog?.let { json ->
+                JsonViewerDialog(
+                    json = json,
+                    fontFamily = fontFamily,
+                    fontSize = fontSize,
+                    onDismiss = { rowJsonDialog = null },
                 )
             }
             Box(Modifier.width(12.dp).align(Alignment.Top).padding(top = 2.dp)) {
@@ -462,6 +472,15 @@ private fun SelectableLogCell(
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
 
+    // Inherit Jewel's default text metrics (lineHeight, letterSpacing) just like the Text in LogCell,
+    // then override only the per-row fields — otherwise BasicTextField's bare TextStyle uses a
+    // different line height and the cell visibly grows/shifts the instant it goes active.
+    val baseStyle = JewelTheme.defaultTextStyle
+    val cellStyle = remember(baseStyle, color, fontSize, fontFamily, fontWeight) {
+        baseStyle.merge(
+            TextStyle(color = color, fontSize = fontSize, fontFamily = fontFamily, fontWeight = fontWeight),
+        )
+    }
     BasicTextField(
         value = tfv,
         // readOnly: the text never changes, so adopt only the caret/selection from edits.
@@ -469,7 +488,7 @@ private fun SelectableLogCell(
         readOnly = true,
         singleLine = !wrapText,
         maxLines = if (wrapText) Int.MAX_VALUE else 1,
-        textStyle = TextStyle(color = color, fontSize = fontSize, fontFamily = fontFamily, fontWeight = fontWeight),
+        textStyle = cellStyle,
         cursorBrush = SolidColor(color),
         modifier = Modifier
             .padding(horizontal = 4.dp)
