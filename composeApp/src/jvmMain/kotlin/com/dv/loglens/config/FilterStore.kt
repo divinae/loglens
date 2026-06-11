@@ -1,6 +1,7 @@
 package com.dv.loglens.config
 
 import com.dv.loglens.model.FilterRule
+import com.dv.loglens.util.Log
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -16,7 +17,7 @@ class FilterStore(
         if (file.exists()) json.decodeFromString(serializer, file.readText())
         else emptyList()
     } catch (e: Exception) {
-        System.err.println("loglens: failed to load filters (${e.message})")
+        Log.w("failed to load filters", e)
         emptyList()
     }
 
@@ -25,7 +26,7 @@ class FilterStore(
             if (!configDir.exists()) configDir.mkdirs()
             file.writeText(json.encodeToString(serializer, filters))
         } catch (e: Exception) {
-            System.err.println("loglens: failed to save filters: ${e.message}")
+            Log.w("failed to save filters", e)
         }
     }
 }

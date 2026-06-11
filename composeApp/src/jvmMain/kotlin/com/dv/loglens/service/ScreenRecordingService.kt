@@ -1,5 +1,6 @@
 package com.dv.loglens.service
 
+import com.dv.loglens.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -82,7 +83,7 @@ object ScreenRecordingService {
                 if (!ok) target.delete()
                 ok
             } catch (e: Exception) {
-                System.err.println("loglens: pull recording failed: ${e.message}")
+                Log.w("pull recording failed", e)
                 target.delete()
                 false
             }

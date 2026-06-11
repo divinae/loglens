@@ -1,6 +1,7 @@
 package com.dv.loglens.config
 
 import com.dv.loglens.model.UserConfig
+import com.dv.loglens.util.Log
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -14,7 +15,7 @@ class ConfigManager(
         if (configFile.exists()) json.decodeFromString<UserConfig>(configFile.readText())
         else UserConfig()
     } catch (e: Exception) {
-        System.err.println("loglens: failed to load config (${e.message}); using defaults")
+        Log.w("failed to load config; using defaults", e)
         UserConfig()
     }
 
@@ -23,7 +24,7 @@ class ConfigManager(
             if (!configDir.exists()) configDir.mkdirs()
             configFile.writeText(json.encodeToString(config))
         } catch (e: Exception) {
-            System.err.println("loglens: failed to save config: ${e.message}")
+            Log.w("failed to save config", e)
         }
     }
 }

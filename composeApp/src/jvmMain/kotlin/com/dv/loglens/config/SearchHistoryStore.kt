@@ -1,5 +1,6 @@
 package com.dv.loglens.config
 
+import com.dv.loglens.util.Log
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -17,7 +18,7 @@ class SearchHistoryStore(
         if (file.exists()) json.decodeFromString(serializer, file.readText())
         else emptyList()
     } catch (e: Exception) {
-        System.err.println("loglens: failed to load search history (${e.message})")
+        Log.w("failed to load search history", e)
         emptyList()
     }
 
@@ -26,7 +27,7 @@ class SearchHistoryStore(
             if (!configDir.exists()) configDir.mkdirs()
             file.writeText(json.encodeToString(serializer, history))
         } catch (e: Exception) {
-            System.err.println("loglens: failed to save search history: ${e.message}")
+            Log.w("failed to save search history", e)
         }
     }
 }

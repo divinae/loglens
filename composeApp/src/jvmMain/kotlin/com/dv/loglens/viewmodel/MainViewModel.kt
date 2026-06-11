@@ -19,7 +19,6 @@ import com.dv.loglens.model.DEFAULT_FONT_WEIGHT
 import com.dv.loglens.model.DEFAULT_LOG_BUFFERS
 import com.dv.loglens.model.DEFAULT_VISIBLE_COLUMNS
 import com.dv.loglens.model.Device
-import com.dv.loglens.model.FilterMode
 import com.dv.loglens.model.FilterRule
 import com.dv.loglens.model.LogBuffer
 import com.dv.loglens.model.LogColumn
@@ -39,6 +38,7 @@ import com.dv.loglens.service.DeviceService
 import com.dv.loglens.service.LogcatService
 import com.dv.loglens.service.PackageService
 import com.dv.loglens.service.ProcessTrackerService
+import com.dv.loglens.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -124,15 +124,9 @@ class MainViewModel(
      */
     val expandedIds = mutableStateSetOf<Int>()
 
-    // Cached partition of the active filters, refreshed whenever the filter set changes so per-log
-    // matching doesn't re-scan/re-categorise the rule list. @Volatile because the capture producer
-    // calls matches() off the main thread (Dispatchers.Default) while the UI thread rewrites the
-    // partition in refreshFilterPartition(); a stale read is harmless (a filter change triggers a
-    // full recomputeFiltered() anyway) but the publish must be visible across threads.
-    @Volatile
-    private var showFilters: List<FilterRule> = emptyList()
-    @Volatile
-    private var hideFilters: List<FilterRule> = emptyList()
+    // Query + SHOW/HIDE rule predicate (the testable part of matching); the bookmark override below
+    // stays here because it reads Compose state. Refreshed via refreshFilterPartition().
+    private val logFilter = LogFilter()
 
     // Bookmarks kept pre-sorted so next/prev navigation doesn't sort the whole set on each keypress.
     private var sortedBookmarks: List<Int> = emptyList()
@@ -682,19 +676,12 @@ class MainViewModel(
     /** True if [log] should appear in [filteredLogs] under the current criteria. */
     private fun matches(log: LogEntry): Boolean {
         if (_state.value.alwaysShowBookmarks && log.id in bookmarkedIds) return true
-        if (!parsedQuery.matches(log)) return false
-        if (hideFilters.any { it.matches(log) }) return false
-        if (showFilters.isNotEmpty() && showFilters.none { it.matches(log) }) return false
-        return true
+        return logFilter.matches(log)
     }
 
-    /** Refresh the cached active-filter partition; call before any (re)filtering pass. */
+    /** Refresh the cached query + filter partition; call before any (re)filtering pass. */
     private fun refreshFilterPartition() {
-        val active = _state.value.filters.filter { it.enabled }
-        showFilters = active.filter {
-            it.mode == FilterMode.SHOW || it.mode == FilterMode.SHOW_AND_HIGHLIGHT
-        }
-        hideFilters = active.filter { it.mode == FilterMode.HIDE }
+        logFilter.update(parsedQuery, _state.value.filters)
     }
 
     /** Full rebuild of [filteredLogs] from [logs]. Use only when criteria change, not per batch. */
@@ -734,7 +721,12 @@ class MainViewModel(
         // continuation line (stack frame) the consumer folds into the preceding entry.
         val producer = viewModelScope.launch(Dispatchers.Default) {
             try {
-                logcatService.stream(_state.value.selectedDevice, _state.value.logBuffers, sinceTime).collect { line ->
+                logcatService.stream(
+                    _state.value.selectedDevice,
+                    _state.value.logBuffers,
+                    sinceTime,
+                    onError = ::onCaptureError,
+                ).collect { line ->
                     // Off the main thread: parse, and precompute the filter-match and crash flags
                     // (the consumer's heaviest per-line work). They don't depend on the not-yet-
                     // assigned id — a fresh line is never bookmarked — so the result matches the
@@ -796,6 +788,19 @@ class MainViewModel(
                 producer.cancel()
                 if (gen == captureGen) _state.update { it.copy(isCapturing = false) }
             }
+        }
+    }
+
+    /**
+     * adb failed to launch for the live stream. Surface it as a (live-only) banner plus a toast
+     * instead of a fake log line, and record it for diagnostics. Called from the producer's IO
+     * context, so the Compose-state mutation is hopped to the main thread.
+     */
+    private fun onCaptureError(message: String) {
+        Log.w(message)
+        viewModelScope.launch(Dispatchers.Main) {
+            showToast("Capture error — see log")
+            appendSystemBanner("CAPTURE ERROR: $message")
         }
     }
 

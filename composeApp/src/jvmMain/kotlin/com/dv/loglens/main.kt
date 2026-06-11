@@ -17,6 +17,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.isSpecified
+import com.dv.loglens.util.Log
 import com.dv.loglens.viewmodel.MainViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
@@ -50,7 +51,7 @@ private fun installCrashHandler() {
                 },
             )
         }
-        System.err.println("loglens: uncaught exception on ${thread.name}: ${throwable.message}")
+        Log.e("uncaught exception on ${thread.name}", throwable)
         previous?.uncaughtException(thread, throwable)
     }
 }
