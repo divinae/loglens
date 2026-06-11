@@ -49,6 +49,10 @@ private object LoglensIcons
 private val ScreenshotIcon = PathIconKey("icons/screenshot.svg", LoglensIcons::class.java)
 private val RecordIcon = PathIconKey("icons/record.svg", LoglensIcons::class.java)
 
+// A phone glyph for the scrcpy mirror button (Jewel's set has no phone/device icon). Monochrome,
+// tinted by the button's ColorFilter.
+private val MirrorIcon = PathIconKey("icons/phone.svg", LoglensIcons::class.java)
+
 // Tooltips anchored below the trigger so they don't cover the button being hovered.
 @OptIn(ExperimentalFoundationApi::class)
 private val belowPlacement = TooltipPlacement.ComponentRect(
@@ -250,7 +254,7 @@ fun TopBar(
             // Mirror the device with scrcpy in its own window (separate native app — it can't be
             // embedded into this window).
             IconActionButton(
-                key = AllIconsKeys.CodeWithMe.CwmScreenOn,
+                key = MirrorIcon,
                 contentDescription = "Mirror device (scrcpy)",
                 onClick = onMirrorDevice,
                 colorFilter = iconTint(false),

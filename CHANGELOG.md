@@ -23,7 +23,7 @@ All notable changes to LogLens are documented here. The format is based on
   the device awake, use a UHID keyboard and disable audio forwarding.
 - The top bar dims while LogLens isn't the focused window (macOS-style inactive chrome).
 - New toolbar icons: capture-style glyphs (corner brackets framing a camera / a record dot) for the
-  screenshot and recording buttons — the record dot turns red while recording — and a screen glyph
+  screenshot and recording buttons — the record dot turns red while recording — and a phone glyph
   for the scrcpy mirror button.
 - Process lifecycle banners now come from the adb server's `track-jdwp` stream (the Android
   Studio mechanism), so a debugged app's restart banners appear immediately instead of on the
