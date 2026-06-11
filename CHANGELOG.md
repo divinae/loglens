@@ -12,8 +12,17 @@ All notable changes to LogLens are documented here. The format is based on
   into the LogLens window; LogLens passes its configured adb to scrcpy via the `ADB` env var.
 - **Δt column** — an optional, toggleable column showing the elapsed time since the previous
   visible row (`+123ms` / `+1.45s`), for spotting stalls between consecutive logs.
+- **Hover highlight** — the log row under the cursor gets a faint wash, making long lines easier to
+  track across columns.
+- Diagnostics are now also written to a rotating log file (`~/.config/loglens/loglens.log`), so a
+  past session's errors survive after the console is gone.
 
 ### Changed
+- **Mirror device** flags are now tuned per connection: a wireless device gets H.265 + a 12 Mbps
+  bitrate cap + 60 fps (smoother over the limited link), while USB uses scrcpy's defaults. Both keep
+  the device awake, use a UHID keyboard and disable audio forwarding.
+- The top bar dims while LogLens isn't the focused window (macOS-style inactive chrome).
+- The device-screenshot toolbar button now uses a proper camera icon.
 - Process lifecycle banners now come from the adb server's `track-jdwp` stream (the Android
   Studio mechanism), so a debugged app's restart banners appear immediately instead of on the
   next `ps` poll; the poll remains as a catch-all for non-debuggable processes. Banners carry

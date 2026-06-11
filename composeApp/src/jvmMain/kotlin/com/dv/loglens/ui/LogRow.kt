@@ -62,6 +62,8 @@ import com.dv.loglens.model.LogEntry
 import com.dv.loglens.model.cell
 import com.dv.loglens.ui.theme.IslandsDark
 import com.dv.loglens.ui.theme.IslandsLight
+import com.dv.loglens.ui.theme.ROW_HOVER_DARK
+import com.dv.loglens.ui.theme.ROW_HOVER_LIGHT
 import com.dv.loglens.ui.theme.ROW_SELECTED_DARK
 import com.dv.loglens.ui.theme.ROW_SELECTED_LIGHT
 import com.dv.loglens.ui.theme.islandsPopup
@@ -112,10 +114,13 @@ fun LogRow(
     // helps. Short multi-line messages (e.g. a 2-line warning) render normally without a fold link.
     val foldable = isCrash || log.message.count { it == '\n' } >= COLLAPSE_MIN_NEWLINES
     val resolvedWeight = remember(fontWeight) { FontWeight(FontWeightPreset.fromName(fontWeight).weight) }
+    var hovered by remember { mutableStateOf(false) }
     val backgroundColor = when {
         isSelected && isDarkMode -> ROW_SELECTED_DARK
         isSelected -> ROW_SELECTED_LIGHT
         highlightColor != null -> highlightColor
+        hovered && isDarkMode -> ROW_HOVER_DARK
+        hovered -> ROW_HOVER_LIGHT
         else -> Color.Transparent
     }
     val findHighlightColor = if (isDarkMode) Color(0xFF5A4A1F) else Color(0xFFFFF59D)
@@ -151,6 +156,8 @@ fun LogRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .onPointerEvent(PointerEventType.Enter) { hovered = true }
+                .onPointerEvent(PointerEventType.Exit) { hovered = false }
                 .background(backgroundColor)
                 .onPointerEvent(PointerEventType.Press) {
                     // Right-click always selects the row (even when a cell consumed the press to show

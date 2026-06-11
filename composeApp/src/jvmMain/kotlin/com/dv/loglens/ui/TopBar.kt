@@ -16,8 +16,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -34,8 +36,16 @@ import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.component.styling.TooltipColors
 import org.jetbrains.jewel.ui.component.styling.TooltipMetrics
 import org.jetbrains.jewel.ui.component.styling.TooltipStyle
+import org.jetbrains.jewel.ui.icon.PathIconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import kotlin.time.Duration.Companion.milliseconds
+
+// Classloader anchor for resource-backed icons bundled under resources/icons/.
+private object LoglensIcons
+
+// A proper camera glyph for the device-screenshot action — Jewel's icon set has no camera, and
+// "view as image" read as the wrong thing. Monochrome, so the button's ColorFilter tints it.
+private val CameraIcon = PathIconKey("icons/camera.svg", LoglensIcons::class.java)
 
 // Tooltips anchored below the trigger so they don't cover the button being hovered.
 @OptIn(ExperimentalFoundationApi::class)
@@ -118,6 +128,9 @@ fun TopBar(
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
     }
+    // Dim the whole bar while the window is in the background (macOS-style inactive chrome), so the
+    // controls read as inactive when LogLens isn't the focused window.
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
     val popupBg = islandsPopup(isDark)
     val borderColor = JewelTheme.globalColors.borders.normal
     val textColor = JewelTheme.globalColors.text.normal
@@ -137,7 +150,10 @@ fun TopBar(
         )
     }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (windowFocused) 1f else 0.55f)
+            .padding(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -206,7 +222,7 @@ fun TopBar(
         // Device screenshot — only meaningful with a live device source.
         if (loadedFile == null && selectedDevice != null) {
             IconActionButton(
-                key = AllIconsKeys.Actions.ViewAsImage,
+                key = CameraIcon,
                 contentDescription = "Screenshot device",
                 onClick = onTakeScreenshot,
                 colorFilter = iconTint(false),
