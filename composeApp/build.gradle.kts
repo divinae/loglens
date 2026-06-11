@@ -40,12 +40,12 @@ val gitSha: String = providers.environmentVariable("CI_COMMIT_SHORT_SHA").orNull
 val fullVersion = "$appVersion+$gitSha"
 
 kotlin {
-    // Compile our own code to Java 21 bytecode (we don't need newer language-level features) even
-    // though the toolchain runs on JBR 25 — Jewel 0.37 (IntelliJ 262) ships class-file v69 and only
-    // loads on a Java 25 runtime, so the toolchain/bundled runtime must be 25.
+    // Compile to Java 25 bytecode to match the JBR 25 toolchain and Jewel 0.37 (IntelliJ 262,
+    // class-file v69): Jewel ships `inline` helpers (e.g. Modifier.thenIf) as v69 bytecode, which
+    // can't be inlined into an older jvmTarget, so we must target 25 to consume them.
     jvm {
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_21)
+            jvmTarget.set(JvmTarget.JVM_25)
         }
     }
 
