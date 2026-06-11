@@ -39,7 +39,6 @@ import com.dv.loglens.service.DeviceService
 import com.dv.loglens.service.LogcatService
 import com.dv.loglens.service.PackageService
 import com.dv.loglens.service.ProcessTrackerService
-import com.dv.loglens.service.ScreenRecordingService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -55,8 +54,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val FLUSH_INTERVAL_MS = 40L
@@ -128,8 +125,13 @@ class MainViewModel(
     val expandedIds = mutableStateSetOf<Int>()
 
     // Cached partition of the active filters, refreshed whenever the filter set changes so per-log
-    // matching doesn't re-scan/re-categorise the rule list.
+    // matching doesn't re-scan/re-categorise the rule list. @Volatile because the capture producer
+    // calls matches() off the main thread (Dispatchers.Default) while the UI thread rewrites the
+    // partition in refreshFilterPartition(); a stale read is harmless (a filter change triggers a
+    // full recomputeFiltered() anyway) but the publish must be visible across threads.
+    @Volatile
     private var showFilters: List<FilterRule> = emptyList()
+    @Volatile
     private var hideFilters: List<FilterRule> = emptyList()
 
     // Bookmarks kept pre-sorted so next/prev navigation doesn't sort the whole set on each keypress.
@@ -155,9 +157,23 @@ class MainViewModel(
         _toast.tryEmit(text)
     }
 
-    @Volatile
-    private var recordingProcess: Process? = null
-    private var recordingJob: Job? = null
+    private val recordingController = RecordingController(
+        scope = viewModelScope,
+        isRecording = { _state.value.isRecording },
+        setRecording = { value -> _state.update { it.copy(isRecording = value) } },
+        currentSerial = { _state.value.selectedDevice },
+        isFileLoaded = { _state.value.loadedFile != null },
+        settings = {
+            RecordingSettings(
+                dir = _state.value.recordingDir,
+                showTaps = _state.value.recordingShowTaps,
+                bitrateMbps = _state.value.recordingBitrateMbps,
+                size = _state.value.recordingSize,
+            )
+        },
+        showToast = ::showToast,
+        onSaved = { _recordingSaved.emit(it) },
+    )
 
     private var captureJob: Job? = null
     private var captureGen: Long = 0
@@ -299,31 +315,38 @@ class MainViewModel(
     }
 
     private fun applyConfig(config: UserConfig) {
-        _state.update { it.copy(visibleColumns = config.visibleColumns) }
-        _state.update { it.copy(columnWidths = config.columnWidths) }
-        _state.update { it.copy(themeMode = config.themeMode) }
-        _state.update { it.copy(fontSize = config.fontSize.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)) }
-        _state.update { it.copy(fontFamily = config.fontFamily) }
-        _state.update { it.copy(fontWeight = config.fontWeight) }
-        _state.update { it.copy(softWrap = config.softWrap) }
-        _state.update { it.copy(expandMultilineByDefault = config.expandMultilineByDefault) }
-        _state.update { it.copy(filtersListWidth = config.filtersListWidth) }
-        _state.update { it.copy(alwaysShowBookmarks = config.alwaysShowBookmarks) }
-        _state.update { it.copy(quickFilterVisible = config.quickFilterVisible) }
-        _state.update { it.copy(logBuffers = config.logBuffers) }
-        _state.update { it.copy(searchQuery = config.searchQuery) }
+        // Side effects that the state copy below references or that live outside ScreenState.
         parsedQuery = LogQuery.parse(config.searchQuery)
-        _state.update { it.copy(searchQueryError = parsedQuery.error) }
-        _state.update { it.copy(screenshotDir = config.screenshotDir) }
-        _state.update { it.copy(openScreenshotAfterCapture = config.openScreenshotAfterCapture) }
-        _state.update { it.copy(adbPath = config.adbPath) }
         Adb.path = config.adbPath
-        _state.update { it.copy(recordingDir = config.recordingDir) }
-        _state.update { it.copy(recordingShowTaps = config.recordingShowTaps) }
-        _state.update { it.copy(recordingBitrateMbps = config.recordingBitrateMbps) }
-        _state.update { it.copy(recordingSize = config.recordingSize) }
         windowBounds = WindowBounds(config.windowX, config.windowY, config.windowWidth, config.windowHeight)
-        _state.update { it.copy(recentFiles = config.recentFiles) }
+        // One copy() instead of ~25, so startup emits a single ScreenState rather than allocating
+        // and publishing an intermediate per field.
+        _state.update {
+            it.copy(
+                visibleColumns = config.visibleColumns,
+                columnWidths = config.columnWidths,
+                themeMode = config.themeMode,
+                fontSize = config.fontSize.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE),
+                fontFamily = config.fontFamily,
+                fontWeight = config.fontWeight,
+                softWrap = config.softWrap,
+                expandMultilineByDefault = config.expandMultilineByDefault,
+                filtersListWidth = config.filtersListWidth,
+                alwaysShowBookmarks = config.alwaysShowBookmarks,
+                quickFilterVisible = config.quickFilterVisible,
+                logBuffers = config.logBuffers,
+                searchQuery = config.searchQuery,
+                searchQueryError = parsedQuery.error,
+                screenshotDir = config.screenshotDir,
+                openScreenshotAfterCapture = config.openScreenshotAfterCapture,
+                adbPath = config.adbPath,
+                recordingDir = config.recordingDir,
+                recordingShowTaps = config.recordingShowTaps,
+                recordingBitrateMbps = config.recordingBitrateMbps,
+                recordingSize = config.recordingSize,
+                recentFiles = config.recentFiles,
+            )
+        }
     }
 
     private fun currentConfig(): UserConfig = UserConfig(
@@ -433,59 +456,7 @@ class MainViewModel(
         persistConfig()
     }
 
-    fun toggleRecording() {
-        if (_state.value.isRecording) stopRecording() else startRecording()
-    }
-
-    private fun startRecording() {
-        val serial = _state.value.selectedDevice
-        if (_state.value.isRecording || serial == null || _state.value.loadedFile != null) return
-        _state.update { it.copy(isRecording = true) }
-        showToast("Recording started")
-        // No ':' — illegal in sdcard (FAT/sdcardfs) filenames, screenrecord would fail to create the file.
-        val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(Date())
-        val devicePath = "/sdcard/loglens-rec-$stamp.mp4"
-        val dir = File(_state.value.recordingDir.ifBlank { "${System.getProperty("user.home")}/Videos/android" })
-        val target = File(dir, "rec_$stamp.mp4")
-        val showTaps = _state.value.recordingShowTaps
-        val bitrate = _state.value.recordingBitrateMbps
-        val size = _state.value.recordingSize
-        recordingJob = viewModelScope.launch(Dispatchers.IO) {
-            var priorTaps: String? = null
-            try {
-                if (showTaps) {
-                    priorTaps = ScreenRecordingService.getShowTouches(serial)
-                    ScreenRecordingService.setShowTouches(serial, true)
-                }
-                val proc = ScreenRecordingService.start(serial, devicePath, bitrate, size)
-                recordingProcess = proc
-                // Drain the merged output (blocks until the process ends) so the pipe never stalls
-                // and any screenrecord error surfaces.
-                val output = proc.inputStream.bufferedReader().readText()
-                proc.waitFor()
-                if (output.isNotBlank()) System.err.println("loglens: screenrecord: ${output.trim()}")
-                // Process ended (manual stop or the ~180s screenrecord limit) — fetch the file.
-                if (ScreenRecordingService.pullAndCleanup(serial, devicePath, target)) {
-                    _recordingSaved.emit(target)
-                    showToast("Recording saved → ${target.name}")
-                }
-            } catch (e: Exception) {
-                System.err.println("loglens: recording failed: ${e.message}")
-            } finally {
-                // Restore the device's prior show-touches setting (don't clobber the user's choice).
-                if (showTaps) runCatching { ScreenRecordingService.setShowTouches(serial, priorTaps == "1") }
-                recordingProcess = null
-                _state.update { it.copy(isRecording = false) }
-            }
-        }
-    }
-
-    private fun stopRecording() {
-        val serial = _state.value.selectedDevice
-        // SIGINT the on-device process so the mp4 is finalized; destroy() is only a backstop.
-        viewModelScope.launch(Dispatchers.IO) { ScreenRecordingService.signalStop(serial) }
-        recordingProcess?.destroy()
-    }
+    fun toggleRecording() = recordingController.toggle()
 
     /** Toggle one adb buffer. Refuses to clear the last one, then restarts capture from the new source. */
     fun toggleLogBuffer(buffer: LogBuffer) {
@@ -782,13 +753,21 @@ class MainViewModel(
 
         // Consumer: batch-flush parsed entries to the observable list on the main thread, so a large
         // backlog collapses into a few list updates per second instead of one recomposition per line.
-        // Continuation lines are folded onto the current record in place (O(1)): the stream is ordered
-        // and nothing appends between a header and its continuations, so the record stays at the tail
-        // index we recorded. State persists across batches because a trace can span a flush boundary.
+        // The per-line fold/dedup/crash logic lives in [LogIngestor]; the ingestor holds the fold
+        // cursor across batches because a trace can span a flush boundary, so one instance lives for
+        // the length of this capture session.
+        val ingestor = LogIngestor(
+            logs = logs,
+            filteredLogs = filteredLogs,
+            nextLogId = nextLogId::getAndIncrement,
+            matches = ::matches,
+            isCrash = CrashDetector::isCrash,
+            isKnownCrash = crashIds::contains,
+            onHeader = ::observeCapturedHeader,
+            registerCrash = ::registerCrash,
+            onCrashBecameVisible = { visibleCrashes = visibleCrashes + it },
+        )
         captureJob = viewModelScope.launch {
-            var foldCurrent: LogEntry? = null
-            var foldLogsIdx = -1
-            var foldFilteredIdx = -1
             try {
                 while (isActive) {
                     // Display pause: stop draining; the unbounded channel keeps buffering the
@@ -806,70 +785,8 @@ class MainViewModel(
                         batch.add(channel.tryReceive().getOrNull() ?: break)
                     }
                     val hitCap = batch.size >= MAX_DRAIN_PER_FLUSH
-                    if (gen == captureGen) {
-                        for (cap in batch) {
-                            val header = cap.header
-                            if (header != null && header.time.isNotBlank()) {
-                                // Reconnect resume point + process-banner bookkeeping.
-                                lastEntryTimestamp = "${header.date} ${header.time}"
-                                if (header.pid.isNotBlank()) pidsSeenInLogs.add(header.pid)
-                                if (header.appName.isNotBlank()) packagesSeenInLogs.add(header.appName)
-                            }
-                            if (foldCurrent != null && LogParser.shouldFold(foldCurrent, header, cap.raw)) {
-                                // Continuation (or another line of the same crash dump): grow the
-                                // current record in place. Re-prefixed crash lines contribute only
-                                // their parsed message, not the repeated `E AndroidRuntime:` prefix.
-                                val merged =
-                                    LogParser.foldContinuation(foldCurrent, cap.raw, header?.message ?: cap.raw)
-                                logs[foldLogsIdx] = merged
-                                if (foldFilteredIdx >= 0) {
-                                    filteredLogs[foldFilteredIdx] = merged
-                                } else if (matches(merged)) {
-                                    // The grown message now matches a filter it didn't before.
-                                    filteredLogs.add(merged)
-                                    foldFilteredIdx = filteredLogs.lastIndex
-                                    // A previously hidden crash just became visible.
-                                    if (merged.id in crashIds) visibleCrashes = visibleCrashes + merged.id
-                                }
-                                foldCurrent = merged
-                            } else {
-                                val isSep = LogParser.isSeparator(cap.raw)
-                                val prev = if (foldLogsIdx >= 0) logs[foldLogsIdx] else null
-                                // Recognised header, or an orphan continuation with no current record
-                                // → standalone D entry, as in LogParser.parseLog. id assigned only if
-                                // we actually add it (a dedup bump consumes no id).
-                                val candidate = header
-                                    ?: LogEntry(id = 0, content = cap.raw, message = cap.raw, level = "D")
-                                if (prev != null && !isSep && candidate.sameLogAs(prev)) {
-                                    // Same log again back-to-back: bump the count in place, no new row.
-                                    val bumped = prev.copy(repeatCount = prev.repeatCount + 1)
-                                    logs[foldLogsIdx] = bumped
-                                    if (foldFilteredIdx >= 0) filteredLogs[foldFilteredIdx] = bumped
-                                    foldCurrent = if (header != null) bumped else null
-                                } else {
-                                    val entry = candidate.copy(id = nextLogId.getAndIncrement())
-                                    logs.add(entry)
-                                    foldLogsIdx = logs.lastIndex
-                                    // Reuse the producer's off-main flags for header lines; only the
-                                    // rare orphan (null header) is computed here.
-                                    val matched = if (header != null) cap.matchesFilter else matches(entry)
-                                    if (matched) {
-                                        filteredLogs.add(entry)
-                                        foldFilteredIdx = filteredLogs.lastIndex
-                                    } else {
-                                        foldFilteredIdx = -1
-                                    }
-                                    val crash = if (header != null) cap.isCrash else CrashDetector.isCrash(entry)
-                                    if (crash) {
-                                        registerCrash(entry.id, visible = foldFilteredIdx >= 0)
-                                    }
-                                    // A separator collects no continuations, so trailing text isn't
-                                    // glued onto an unrelated record.
-                                    foldCurrent = if (header != null && !isSep) entry else null
-                                }
-                            }
-                        }
-                    }
+                    // A restart bumps the generation; drop a batch parsed against the old source.
+                    if (gen == captureGen) ingestor.ingest(batch)
                     // Backlog left (we hit the cap): yield a frame so scrolling/input stay responsive,
                     // then loop straight into the next chunk to keep catch-up throughput. Otherwise
                     // idle the normal flush interval until more lines arrive.
@@ -882,17 +799,13 @@ class MainViewModel(
         }
     }
 
-    /**
-     * A captured line and its parsed header ([LogParser.parseLine]), or null header for a
-     * continuation. [matchesFilter] and [isCrash] are precomputed off the main thread for header
-     * lines (false/false when header is null — the consumer recomputes for the rare orphan case).
-     */
-    private class CapturedLine(
-        val raw: String,
-        val header: LogEntry?,
-        val matchesFilter: Boolean = false,
-        val isCrash: Boolean = false,
-    )
+    /** Per-header capture bookkeeping: reconnect resume point and seen pids/packages for banners. */
+    private fun observeCapturedHeader(header: LogEntry) {
+        if (header.time.isBlank()) return
+        lastEntryTimestamp = "${header.date} ${header.time}"
+        if (header.pid.isNotBlank()) pidsSeenInLogs.add(header.pid)
+        if (header.appName.isNotBlank()) packagesSeenInLogs.add(header.appName)
+    }
 
     fun stopCapture() {
         captureGen++
