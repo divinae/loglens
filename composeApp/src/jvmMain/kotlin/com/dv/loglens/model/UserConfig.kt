@@ -61,6 +61,7 @@ val DEFAULT_COLUMN_WIDTHS: Map<LogColumn, Float> = mapOf(
     LogColumn.INDEX to 60f,
     LogColumn.DATE to 60f,
     LogColumn.TIME to 100f,
+    LogColumn.DELTA to 70f,
     LogColumn.PID to 60f,
     LogColumn.TID to 60f,
     LogColumn.PROCESS to 120f,

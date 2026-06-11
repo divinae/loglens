@@ -1,6 +1,7 @@
 package com.dv.loglens.viewmodel
 
 import com.dv.loglens.service.ScreenRecordingService
+import com.dv.loglens.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -64,14 +65,14 @@ class RecordingController(
                 // and any screenrecord error surfaces.
                 val output = proc.inputStream.bufferedReader().readText()
                 proc.waitFor()
-                if (output.isNotBlank()) System.err.println("loglens: screenrecord: ${output.trim()}")
+                if (output.isNotBlank()) Log.i("screenrecord: ${output.trim()}")
                 // Process ended (manual stop or the ~180s screenrecord limit) — fetch the file.
                 if (ScreenRecordingService.pullAndCleanup(serial, devicePath, target)) {
                     onSaved(target)
                     showToast("Recording saved → ${target.name}")
                 }
             } catch (e: Exception) {
-                System.err.println("loglens: recording failed: ${e.message}")
+                Log.w("recording failed", e)
             } finally {
                 // Restore the device's prior show-touches setting (don't clobber the user's choice).
                 if (cfg.showTaps) runCatching { ScreenRecordingService.setShowTouches(serial, priorTaps == "1") }

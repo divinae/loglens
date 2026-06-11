@@ -272,7 +272,7 @@ private fun ruleBuilder(column: LogColumn, value: String): ((FilterMode) -> Filt
         }
 
         LogColumn.LEVEL -> { mode -> FilterRule(name = name, mode = mode, levels = setOf(value)) }
-        LogColumn.INDEX, LogColumn.DATE, LogColumn.TIME, LogColumn.TID -> null
+        LogColumn.INDEX, LogColumn.DATE, LogColumn.TIME, LogColumn.DELTA, LogColumn.TID -> null
     }
 }
 

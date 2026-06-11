@@ -105,6 +105,7 @@ fun LogRow(
     isExpanded: Boolean = false,
     onToggleExpand: () -> Unit = {},
     isCrash: Boolean = false,
+    deltaText: String = "",
 ) {
     val color = logLevelColor(log.level, isDarkMode)
     // Only offer collapse for records worth it: a crash dump, or enough folded lines that hiding them
@@ -205,7 +206,9 @@ fun LogRow(
 
             LogColumn.entries.forEach { column ->
                 if (column !in visibleColumns) return@forEach
-                val text = log.cell(column)
+                // Δt is relative to the previous row, computed by the caller; every other column is
+                // a plain field of this entry.
+                val text = if (column == LogColumn.DELTA) deltaText else log.cell(column)
 
                 val cellModifier = if (column == LogColumn.MESSAGE) {
                     Modifier.weight(1f).fillMaxHeight()

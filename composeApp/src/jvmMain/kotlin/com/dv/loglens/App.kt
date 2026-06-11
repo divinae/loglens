@@ -51,6 +51,7 @@ import com.dv.loglens.model.FontWeightPreset
 import com.dv.loglens.model.LogColumn
 import com.dv.loglens.model.ThemeMode
 import com.dv.loglens.model.cell
+import com.dv.loglens.model.logDelta
 import com.dv.loglens.service.SystemFonts
 import com.dv.loglens.parser.LogcatExporter
 import com.dv.loglens.service.ScreenshotService
@@ -536,8 +537,15 @@ fun AppContent(
                                         ?.let { Color(it.highlightColor.toInt()) } ?: Color.Unspecified
                                 }.takeIf { it != Color.Unspecified }
                             }
+                            // Δt vs the previous visible row; only computed when the column is shown.
+                            val deltaText = if (LogColumn.DELTA in state.visibleColumns) {
+                                logDelta(filteredLogs.getOrNull(index - 1), log)
+                            } else {
+                                ""
+                            }
                             LogRow(
                                 log = log,
+                                deltaText = deltaText,
                                 visibleColumns = state.visibleColumns,
                                 columnWidths = state.columnWidths,
                                 isDarkMode = isDark,
