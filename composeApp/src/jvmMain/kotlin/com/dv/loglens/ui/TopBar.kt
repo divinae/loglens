@@ -43,12 +43,6 @@ import kotlin.time.Duration.Companion.milliseconds
 // Classloader anchor for resource-backed icons bundled under resources/icons/.
 private object LoglensIcons
 
-// Capture-style glyphs (corner brackets framing a camera / a record dot) for the device screenshot
-// and recording actions. Monochrome, so the buttons' ColorFilter tints them with the theme — and
-// the record dot turns red on its own when a recording is active.
-private val ScreenshotIcon = PathIconKey("icons/screenshot.svg", LoglensIcons::class.java)
-private val RecordIcon = PathIconKey("icons/record.svg", LoglensIcons::class.java)
-
 // A phone glyph for the scrcpy mirror button (Jewel's set has no phone/device icon). Monochrome,
 // tinted by the button's ColorFilter.
 private val MirrorIcon = PathIconKey("icons/phone.svg", LoglensIcons::class.java)
@@ -228,7 +222,7 @@ fun TopBar(
         // Device screenshot — only meaningful with a live device source.
         if (loadedFile == null && selectedDevice != null) {
             IconActionButton(
-                key = ScreenshotIcon,
+                key = AllIconsKeys.Actions.ViewAsImage,
                 contentDescription = "Screenshot device",
                 onClick = onTakeScreenshot,
                 colorFilter = iconTint(false),
@@ -239,7 +233,7 @@ fun TopBar(
             }
 
             ToggleableIconActionButton(
-                key = RecordIcon,
+                key = if (isRecording) AllIconsKeys.Run.Stop else AllIconsKeys.Profiler.Rec,
                 contentDescription = if (isRecording) "Stop recording" else "Record screen",
                 value = isRecording,
                 onValueChange = { onToggleRecording() },

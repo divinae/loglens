@@ -22,9 +22,7 @@ All notable changes to LogLens are documented here. The format is based on
   bitrate cap + 60 fps (smoother over the limited link), while USB uses scrcpy's defaults. Both keep
   the device awake, use a UHID keyboard and disable audio forwarding.
 - The top bar dims while LogLens isn't the focused window (macOS-style inactive chrome).
-- New toolbar icons: capture-style glyphs (corner brackets framing a camera / a record dot) for the
-  screenshot and recording buttons — the record dot turns red while recording — and a phone glyph
-  for the scrcpy mirror button.
+- The scrcpy mirror toolbar button uses a phone icon.
 - Process lifecycle banners now come from the adb server's `track-jdwp` stream (the Android
   Studio mechanism), so a debugged app's restart banners appear immediately instead of on the
   next `ps` poll; the poll remains as a catch-all for non-debuggable processes. Banners carry
