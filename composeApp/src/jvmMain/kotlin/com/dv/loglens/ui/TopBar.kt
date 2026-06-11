@@ -43,9 +43,11 @@ import kotlin.time.Duration.Companion.milliseconds
 // Classloader anchor for resource-backed icons bundled under resources/icons/.
 private object LoglensIcons
 
-// A proper camera glyph for the device-screenshot action — Jewel's icon set has no camera, and
-// "view as image" read as the wrong thing. Monochrome, so the button's ColorFilter tints it.
-private val CameraIcon = PathIconKey("icons/camera.svg", LoglensIcons::class.java)
+// Capture-style glyphs (corner brackets framing a camera / a record dot) for the device screenshot
+// and recording actions. Monochrome, so the buttons' ColorFilter tints them with the theme — and
+// the record dot turns red on its own when a recording is active.
+private val ScreenshotIcon = PathIconKey("icons/screenshot.svg", LoglensIcons::class.java)
+private val RecordIcon = PathIconKey("icons/record.svg", LoglensIcons::class.java)
 
 // Tooltips anchored below the trigger so they don't cover the button being hovered.
 @OptIn(ExperimentalFoundationApi::class)
@@ -222,7 +224,7 @@ fun TopBar(
         // Device screenshot — only meaningful with a live device source.
         if (loadedFile == null && selectedDevice != null) {
             IconActionButton(
-                key = CameraIcon,
+                key = ScreenshotIcon,
                 contentDescription = "Screenshot device",
                 onClick = onTakeScreenshot,
                 colorFilter = iconTint(false),
@@ -233,7 +235,7 @@ fun TopBar(
             }
 
             ToggleableIconActionButton(
-                key = if (isRecording) AllIconsKeys.Run.Stop else AllIconsKeys.Profiler.Rec,
+                key = RecordIcon,
                 contentDescription = if (isRecording) "Stop recording" else "Record screen",
                 value = isRecording,
                 onValueChange = { onToggleRecording() },
@@ -248,7 +250,7 @@ fun TopBar(
             // Mirror the device with scrcpy in its own window (separate native app — it can't be
             // embedded into this window).
             IconActionButton(
-                key = AllIconsKeys.General.InspectionsEye,
+                key = AllIconsKeys.CodeWithMe.CwmScreenOn,
                 contentDescription = "Mirror device (scrcpy)",
                 onClick = onMirrorDevice,
                 colorFilter = iconTint(false),
