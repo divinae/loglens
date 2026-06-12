@@ -59,6 +59,7 @@ import com.dv.loglens.model.FilterRule
 import com.dv.loglens.model.FontWeightPreset
 import com.dv.loglens.model.LogColumn
 import com.dv.loglens.model.LogEntry
+import com.dv.loglens.model.LogQuery
 import com.dv.loglens.model.cell
 import com.dv.loglens.ui.theme.IslandsDark
 import com.dv.loglens.ui.theme.IslandsLight
@@ -88,7 +89,7 @@ fun LogRow(
     isDarkMode: Boolean,
     isSelected: Boolean,
     isBookmarked: Boolean,
-    findQuery: String = "",
+    findQuery: LogQuery = LogQuery.EMPTY,
     highlightColor: Color? = null,
     fontSize: TextUnit = 12.sp,
     fontFamily: FontFamily = FontFamily.Monospace,
@@ -283,7 +284,7 @@ fun LogRow(
                                 fontWeight = resolvedWeight,
                                 // Find/URL spans are colour-only (no layout impact), so the scrub fast
                                 // path can skip both scans without changing the row height.
-                                findQuery = if (scrubbing) "" else findQuery,
+                                findQuery = if (scrubbing) LogQuery.EMPTY else findQuery,
                                 findColor = findHighlightColor,
                                 // Only the message column gets clickable URLs; other columns skip
                                 // the scan entirely.
@@ -428,7 +429,7 @@ private fun LogCell(
     fontSize: TextUnit,
     fontFamily: FontFamily,
     fontWeight: FontWeight,
-    findQuery: String,
+    findQuery: LogQuery,
     findColor: Color,
     linkColor: Color? = null,
     onTextLayout: ((TextLayoutResult) -> Unit)? = null,

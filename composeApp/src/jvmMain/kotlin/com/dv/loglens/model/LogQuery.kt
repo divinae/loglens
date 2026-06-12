@@ -8,7 +8,7 @@ import java.time.format.DateTimeFormatter
  * Parsed quick-filter query. Supports a small field query language layered over the old
  * "bare substring on content" behaviour, so plain text keeps working unchanged.
  *
- * Grammar (terms are implicitly AND-ed):
+ * Grammar (terms within a group are implicitly AND-ed; a top-level `|` separates OR groups):
  *   foobar              bare → substring on content (case-insensitive)
  *   "two words"         quoted phrase (may contain spaces)
  *   tag:Foo             tag contains "Foo"
@@ -22,6 +22,9 @@ import java.time.format.DateTimeFormatter
  *   is:crash            crash/ANR/native-crash records; is:stacktrace = records with a stack trace
  *   age:5m              records from the last 30s / 5m / 2h / 1d (evaluated against query time)
  *   -tag:Spam           negate any term (also bare: -foobar)
+ *   tag:Foo | tag:Bar   a standalone `|` ORs groups; AND binds tighter than OR.
+ *                       `a b | c d` = (a AND b) OR (c AND d). `|` must be whitespace-delimited;
+ *                       a `|` inside a token (e.g. tag:/Foo|Bar/) stays a literal regex alternation.
  *
  * Parsed once per query change; [matches] is allocation-free per log line.
  */
@@ -29,17 +32,59 @@ class LogQuery private constructor(
     val text: String,
     /** Non-null when the query had a syntax/regex error; then [matches] falls back to a plain content substring of [text]. */
     val error: String?,
-    private val terms: List<(LogEntry) -> Boolean>,
+    /** OR groups: a log matches when ANY group matches (all of that group's terms are AND-ed). */
+    private val groups: List<List<(LogEntry) -> Boolean>>,
+    /** Text patterns from positive content/text terms, used to paint find highlights; see [matchRanges]. */
+    private val highlighters: List<Highlighter>,
 ) {
     fun matches(log: LogEntry): Boolean {
-        for (term in terms) if (!term(log)) return false
-        return true
+        if (groups.isEmpty()) return true
+        for (group in groups) {
+            var all = true
+            for (term in group) if (!term(log)) { all = false; break }
+            if (all) return true
+        }
+        return false
     }
 
-    val isEmpty: Boolean get() = terms.isEmpty()
+    val isEmpty: Boolean get() = groups.isEmpty()
+
+    /**
+     * Inclusive `[first..last]` offsets of every highlightable term within [text], for the find bar's
+     * in-cell highlighting. Only positive text-bearing terms contribute (bare words, quoted phrases,
+     * substring/regex field values); gating-only terms (level/pid/tid/is/age) and negations paint
+     * nothing. Patterns are matched against whatever cell text is passed, so a term highlights wherever
+     * its text appears. Empty list when the query carries no highlightable term.
+     */
+    fun matchRanges(text: String): List<IntRange> {
+        if (highlighters.isEmpty()) return emptyList()
+        val out = ArrayList<IntRange>()
+        for (h in highlighters) h.appendRanges(text, out)
+        return out
+    }
+
+    /** A literal substring (case-insensitive) or a regex to highlight in cell text. */
+    private class Highlighter private constructor(private val literal: String?, private val regex: Regex?) {
+        fun appendRanges(text: String, out: MutableList<IntRange>) {
+            if (regex != null) {
+                for (m in regex.findAll(text)) if (!m.range.isEmpty()) out.add(m.range)
+            } else if (literal != null) {
+                var i = text.indexOf(literal, ignoreCase = true)
+                while (i >= 0) {
+                    out.add(i until i + literal.length)
+                    i = text.indexOf(literal, i + literal.length, ignoreCase = true)
+                }
+            }
+        }
+
+        companion object {
+            fun literal(s: String): Highlighter? = if (s.isEmpty()) null else Highlighter(s, null)
+            fun regex(pattern: String): Highlighter = Highlighter(null, Regex(pattern, RegexOption.IGNORE_CASE))
+        }
+    }
 
     companion object {
-        val EMPTY = LogQuery("", null, emptyList())
+        val EMPTY = LogQuery("", null, emptyList(), emptyList())
 
         private enum class Field { CONTENT, MESSAGE, TAG, APP, PID, TID, LEVEL }
 
@@ -89,9 +134,16 @@ class LogQuery private constructor(
 
         fun parse(text: String): LogQuery {
             if (text.isBlank()) return EMPTY
-            val terms = ArrayList<(LogEntry) -> Boolean>()
+            val groups = ArrayList<List<(LogEntry) -> Boolean>>()
+            var current = ArrayList<(LogEntry) -> Boolean>()
+            val highlighters = ArrayList<Highlighter>()
             try {
                 for (token in tokenize(text)) {
+                    if (token == "|") {
+                        // Close the current AND group; stray/leading `|` (empty group) is ignored.
+                        if (current.isNotEmpty()) { groups.add(current); current = ArrayList() }
+                        continue
+                    }
                     var t = token
                     var negate = false
                     if (t.length > 1 && t[0] == '-') {
@@ -99,13 +151,34 @@ class LogQuery private constructor(
                         t = t.substring(1)
                     }
                     val term = buildTerm(t)
-                    terms.add(if (negate) { log -> !term(log) } else term)
+                    current.add(if (negate) { log -> !term(log) } else term)
+                    // Negated terms hide rather than mark text, so they contribute no highlight.
+                    if (!negate) buildHighlighter(t)?.let { highlighters.add(it) }
                 }
             } catch (e: Exception) {
                 // Bad regex etc. — fall back to treating the whole input as a content substring.
-                return LogQuery(text, e.message ?: "invalid query", listOf(substringTerm({ it.content }, text)))
+                val fallback = Highlighter.literal(text)?.let { listOf(it) } ?: emptyList()
+                return LogQuery(text, e.message ?: "invalid query", listOf(listOf(substringTerm({ it.content }, text))), fallback)
             }
-            return LogQuery(text, null, terms)
+            if (current.isNotEmpty()) groups.add(current)
+            if (groups.isEmpty()) return EMPTY
+            return LogQuery(text, null, groups, highlighters)
+        }
+
+        /** The highlight pattern a positive [t] paints, or null for gating-only terms (level/pid/tid/is/age). */
+        private fun buildHighlighter(t: String): Highlighter? {
+            val m = TOKEN_REGEX.find(t) ?: return Highlighter.literal(t) // bare token → substring on content
+            val key = m.groupValues[1].lowercase()
+            val op = m.groupValues[2]
+            val raw = m.groupValues[3]
+            val field = FIELDS[key]
+            return when {
+                key == "is" || key == "age" -> null
+                field == Field.LEVEL || field == Field.PID || field == Field.TID -> null
+                field != null -> regexPatternOf(op, raw)?.let { Highlighter.regex(it) } ?: Highlighter.literal(raw)
+                // Unknown field (e.g. http://x) → buildTerm treats the whole token as a content substring.
+                else -> Highlighter.literal(t)
+            }
         }
 
         private fun buildTerm(t: String): (LogEntry) -> Boolean {

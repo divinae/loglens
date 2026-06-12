@@ -11,6 +11,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -31,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.dv.loglens.ui.theme.islandsPopup
 import kotlinx.coroutines.flow.collectLatest
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.Outline
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.TextField
@@ -41,6 +46,8 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 fun FindBar(
     query: String,
     onQueryChange: (String) -> Unit,
+    /** Non-null when the query has a syntax/regex error; the field shows the error outline then. */
+    error: String?,
     matchCount: Int,
     currentIdx: Int,
     onNext: () -> Unit,
@@ -52,6 +59,7 @@ fun FindBar(
     onFocusChanged: (Boolean) -> Unit = {},
 ) {
     val state = rememberTextFieldState(query)
+    var showHelp by remember { mutableStateOf(false) }
 
     LaunchedEffect(state) {
         snapshotFlow { state.text.toString() }.collectLatest { onQueryChange(it) }
@@ -68,7 +76,8 @@ fun FindBar(
     ) {
         TextField(
             state = state,
-            placeholder = { Text("Search...") },
+            placeholder = { Text("Find: text, or tag:Foo level>=W -msg:spam foo|bar tag~:regex") },
+            outline = if (error != null) Outline.Error else Outline.None,
             modifier = Modifier
                 .weight(1f)
                 .focusRequester(focusRequester)
@@ -82,6 +91,10 @@ fun FindBar(
                     when (e.key) {
                         Key.Escape -> {
                             onClose(); true
+                        }
+
+                        Key.F1 -> {
+                            showHelp = true; true
                         }
 
                         Key.Enter, Key.NumPadEnter -> {
@@ -112,11 +125,21 @@ fun FindBar(
             colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.7f)),
         )
         IconActionButton(
+            key = AllIconsKeys.Actions.Help,
+            contentDescription = "Find query syntax help",
+            onClick = { showHelp = true },
+            colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.7f)),
+        )
+        IconActionButton(
             onClick = onClose,
             key = AllIconsKeys.Actions.Close,
             contentDescription = "Close find bar",
             iconModifier = Modifier.size(24.dp),
             colorFilter = ColorFilter.tint(JewelTheme.globalColors.text.normal.copy(alpha = 0.7f)),
         )
+    }
+
+    if (showHelp) {
+        QueryHelpDialog(onDismiss = { showHelp = false })
     }
 }

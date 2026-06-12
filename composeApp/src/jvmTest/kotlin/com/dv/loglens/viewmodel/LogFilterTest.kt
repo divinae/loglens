@@ -6,6 +6,7 @@ import com.dv.loglens.model.FilterRule
 import com.dv.loglens.model.LogEntry
 import com.dv.loglens.model.LogQuery
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -87,6 +88,66 @@ class LogFilterTest {
         assertFalse(f.matches(entry(tag = "Net", level = "I")))
         // Passes the query but fails the SHOW rule.
         assertFalse(f.matches(entry(tag = "Other", level = "E")))
+    }
+
+    @Test
+    fun orGroupsMatchEitherSide() {
+        val q = LogQuery.parse("tag:Foo | tag:Bar")
+        assertTrue(q.matches(entry(tag = "Foo")))
+        assertTrue(q.matches(entry(tag = "Bar")))
+        assertFalse(q.matches(entry(tag = "Baz")))
+    }
+
+    @Test
+    fun andBindsTighterThanOr() {
+        // (tag:Foo AND level:E) OR (tag:Bar)
+        val q = LogQuery.parse("tag:Foo level:E | tag:Bar")
+        assertTrue(q.matches(entry(tag = "Foo", level = "E")))
+        assertFalse(q.matches(entry(tag = "Foo", level = "I")))
+        assertTrue(q.matches(entry(tag = "Bar", level = "I")))
+    }
+
+    @Test
+    fun pipeInsideRegexStaysLiteralAlternation() {
+        // The | is inside the token, so it is regex alternation, not an OR separator.
+        val q = LogQuery.parse("tag:/Foo|Bar/")
+        assertTrue(q.matches(entry(tag = "Foo")))
+        assertTrue(q.matches(entry(tag = "Bar")))
+        assertFalse(q.matches(entry(tag = "Baz")))
+    }
+
+    @Test
+    fun strayPipeIsIgnored() {
+        val q = LogQuery.parse("| tag:Foo |")
+        assertTrue(q.matches(entry(tag = "Foo")))
+        assertFalse(q.matches(entry(tag = "Bar")))
+    }
+
+    @Test
+    fun highlightRangesCoverBareAndOrTerms() {
+        // Both alternatives of an OR are highlightable text, wherever they appear in the cell.
+        val q = LogQuery.parse("foo | bar")
+        assertEquals(listOf(0..2, 8..10), q.matchRanges("foo and bar"))
+    }
+
+    @Test
+    fun highlightUsesFieldValueAndRegex() {
+        assertEquals(listOf(4..10), LogQuery.parse("msg:timeout").matchRanges("got timeout now"))
+        assertEquals(listOf(0..2, 8..10), LogQuery.parse("tag:/foo|bar/").matchRanges("foo and bar"))
+    }
+
+    @Test
+    fun gatingAndNegatedTermsHighlightNothing() {
+        // level/pid and negations gate rows but mark no text.
+        assertTrue(LogQuery.parse("level:E").matchRanges("E error here").isEmpty())
+        assertTrue(LogQuery.parse("-spam").matchRanges("spam spam").isEmpty())
+    }
+
+    @Test
+    fun emptyQueryHasNoHighlightOrMatch() {
+        val q = LogQuery.parse("")
+        assertTrue(q.isEmpty)
+        assertTrue(q.matchRanges("anything").isEmpty())
     }
 
     @Test

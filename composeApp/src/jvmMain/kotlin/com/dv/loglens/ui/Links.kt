@@ -7,6 +7,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
+import com.dv.loglens.model.LogQuery
 import java.awt.Desktop
 import java.net.URI
 
@@ -49,14 +50,13 @@ private fun urlEndIndex(text: String, start: Int, rawEnd: Int): Int {
  */
 internal fun buildLogCellAnnotated(
     text: String,
-    findQuery: String,
+    findQuery: LogQuery,
     findColor: Color,
     linkColor: Color?,
 ): AnnotatedString {
     val linkify = linkColor != null && "http" in text
-    // indexOf(ignoreCase) compares via regionMatches — no lowercased copies of text/query allocated.
-    val firstMatch = if (findQuery.isBlank()) -1 else text.indexOf(findQuery, ignoreCase = true)
-    if (!linkify && firstMatch < 0) return AnnotatedString(text)
+    val matches = findQuery.matchRanges(text)
+    if (!linkify && matches.isEmpty()) return AnnotatedString(text)
 
     return buildAnnotatedString {
         append(text)
@@ -70,10 +70,8 @@ internal fun buildLogCellAnnotated(
                 addLink(LinkAnnotation.Url(url, styles, linkInteractionListener = { openInBrowser(url) }), start, end)
             }
         }
-        var i = firstMatch
-        while (i >= 0) {
-            addStyle(SpanStyle(background = findColor), i, i + findQuery.length)
-            i = text.indexOf(findQuery, i + findQuery.length, ignoreCase = true)
+        for (range in matches) {
+            addStyle(SpanStyle(background = findColor), range.first, range.last + 1)
         }
     }
 }

@@ -49,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dv.loglens.model.FilterMode
 import com.dv.loglens.model.FontWeightPreset
 import com.dv.loglens.model.LogColumn
+import com.dv.loglens.model.LogQuery
 import com.dv.loglens.model.ToastMessage
 import com.dv.loglens.model.ThemeMode
 import com.dv.loglens.model.cell
@@ -212,10 +213,13 @@ fun AppContent(
         // on the filter set, so it's rebuilt whenever the highlight state.filters change.
         val highlightColors = remember(highlightFilters) { HashMap<Int, Color>() }
 
-        val findMatchIndices = remember(filteredLogs.size, findQuery) {
-            if (findQuery.isBlank()) emptyList<Int>()
+        // Same query language as the filter bar (fields, regex, OR, age, is:, negation) — but here it
+        // selects which rows the find nav walks and which text gets highlighted, not what's hidden.
+        val findParsed = remember(findQuery) { LogQuery.parse(findQuery) }
+        val findMatchIndices = remember(filteredLogs.size, findParsed) {
+            if (findParsed.isEmpty) emptyList<Int>()
             else filteredLogs.mapIndexedNotNull { idx, log ->
-                if (log.content.contains(findQuery, ignoreCase = true)) idx else null
+                if (findParsed.matches(log)) idx else null
             }
         }
         LaunchedEffect(findMatchIndices) {
@@ -558,7 +562,7 @@ fun AppContent(
                                 isDarkMode = isDark,
                                 isSelected = log.id in selectedIds,
                                 isBookmarked = log.id in bookmarkedIds,
-                                findQuery = findQuery,
+                                findQuery = findParsed,
                                 highlightColor = highlightColor,
                                 fontSize = state.fontSize.sp,
                                 fontFamily = resolvedFontFamily,
@@ -658,6 +662,7 @@ fun AppContent(
                     FindBar(
                         query = findQuery,
                         onQueryChange = { findQuery = it; currentMatchIdx = 0 },
+                        error = findParsed.error,
                         matchCount = findMatchIndices.size,
                         currentIdx = currentMatchIdx,
                         onNext = { jumpToMatch(currentMatchIdx + 1) },

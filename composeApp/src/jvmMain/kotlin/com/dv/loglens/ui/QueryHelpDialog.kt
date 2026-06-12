@@ -31,7 +31,7 @@ import org.jetbrains.jewel.ui.component.Text
 /** One row of the quick-filter syntax reference: the example token and what it does. */
 private data class QuerySyntaxSpec(val example: String, val description: String)
 
-/** Single source of truth for the filter-bar help; keep in sync with [com.dv.loglens.model.LogQuery]. */
+/** Single source of truth for the filter- and find-bar help; keep in sync with [com.dv.loglens.model.LogQuery]. */
 private val QUERY_SYNTAX: List<QuerySyntaxSpec> = listOf(
     QuerySyntaxSpec("timeout", "Bare text: line contains it (case-insensitive)"),
     QuerySyntaxSpec("\"two words\"", "Quoted phrase may contain spaces"),
@@ -47,6 +47,7 @@ private val QUERY_SYNTAX: List<QuerySyntaxSpec> = listOf(
     QuerySyntaxSpec("age:5m", "Newer than 30s / 5m / 2h / 1d ago"),
     QuerySyntaxSpec("-msg:spam", "A leading - negates any term"),
     QuerySyntaxSpec("tag:Foo level>=W", "Terms combine with AND"),
+    QuerySyntaxSpec("tag:Foo | tag:Bar", "A standalone | ORs groups (AND binds tighter)"),
 )
 
 @Composable
@@ -55,7 +56,7 @@ fun QueryHelpDialog(onDismiss: () -> Unit) {
     DialogWindow(
         onCloseRequest = onDismiss,
         state = state,
-        title = "Filter Query Syntax",
+        title = "Query Syntax",
         onKeyEvent = {
             if (it.type == KeyEventType.KeyDown && it.key == Key.Escape) {
                 onDismiss()
