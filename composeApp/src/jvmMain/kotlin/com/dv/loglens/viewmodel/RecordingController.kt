@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.concurrent.TimeUnit
 
 /** Snapshot of the recording-related settings, read once when a recording starts. */
 data class RecordingSettings(
@@ -84,8 +85,18 @@ class RecordingController(
 
     private fun stop() {
         val serial = currentSerial()
-        // SIGINT the on-device process so the mp4 is finalized; destroy() is only a backstop.
-        scope.launch(Dispatchers.IO) { ScreenRecordingService.signalStop(serial) }
-        recordingProcess?.destroy()
+        val proc = recordingProcess
+        scope.launch(Dispatchers.IO) {
+            // SIGINT the on-device process so it writes the moov atom and exits cleanly.
+            ScreenRecordingService.signalStop(serial)
+            // Wait for the adb client to exit on its own — that only happens once the device-side
+            // screenrecord has finalized the mp4. Destroying it early makes pullAndCleanup race the
+            // finalization and pull a file with no moov atom (unplayable). destroy() is a backstop
+            // for when SIGINT didn't take (e.g. no pkill on device).
+            if (proc != null && !proc.waitFor(10, TimeUnit.SECONDS)) {
+                Log.w("screenrecord didn't exit after SIGINT; forcing destroy()")
+                proc.destroy()
+            }
+        }
     }
 }
