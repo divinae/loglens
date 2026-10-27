@@ -17,7 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import com.dv.loglens.model.LogBuffer
 import com.dv.loglens.ui.theme.islandsPanel
@@ -32,7 +31,7 @@ fun BuffersDialog(
     onDismiss: () -> Unit,
 ) {
     val state = rememberDialogState(size = DpSize(320.dp, 320.dp))
-    DialogWindow(
+    AppDialogWindow(
         onCloseRequest = onDismiss,
         state = state,
         title = "Log Buffers",

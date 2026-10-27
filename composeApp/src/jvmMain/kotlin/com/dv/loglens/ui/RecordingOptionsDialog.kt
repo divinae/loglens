@@ -21,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import com.dv.loglens.ui.theme.islandsPanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -41,7 +40,7 @@ fun RecordingOptionsDialog(
     onDismiss: () -> Unit,
 ) {
     val state = rememberDialogState(size = DpSize(360.dp, 300.dp))
-    DialogWindow(
+    AppDialogWindow(
         onCloseRequest = onDismiss,
         state = state,
         title = "Recording options",

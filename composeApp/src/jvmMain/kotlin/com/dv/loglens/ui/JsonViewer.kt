@@ -47,7 +47,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import com.dv.loglens.ui.theme.islandsEditor
 import com.dv.loglens.ui.theme.islandsPanel
@@ -203,7 +202,7 @@ internal fun JsonViewerDialog(
 ) {
     val isDark = JewelTheme.isDark
     val dialogState = rememberDialogState(size = DpSize(720.dp, 600.dp))
-    DialogWindow(
+    AppDialogWindow(
         onCloseRequest = onDismiss,
         state = dialogState,
         title = "Formatted JSON",

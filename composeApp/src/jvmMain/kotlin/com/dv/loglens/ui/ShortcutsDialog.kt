@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import com.dv.loglens.ui.theme.islandsPanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -31,7 +30,7 @@ import org.jetbrains.jewel.ui.component.Text
 @Composable
 fun ShortcutsDialog(onDismiss: () -> Unit) {
     val state = rememberDialogState(size = DpSize(440.dp, 400.dp))
-    DialogWindow(
+    AppDialogWindow(
         onCloseRequest = onDismiss,
         state = state,
         title = "Keyboard Shortcuts",

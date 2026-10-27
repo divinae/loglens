@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import com.dv.loglens.ui.theme.islandsPanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -40,7 +39,7 @@ fun SaveOptionsDialog(
     var filtered by remember { mutableStateOf(true) }
     var asLogcat by remember { mutableStateOf(false) }
 
-    DialogWindow(
+    AppDialogWindow(
         onCloseRequest = onDismiss,
         state = state,
         title = "Save logs to file",

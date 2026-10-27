@@ -20,7 +20,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import com.dv.loglens.BuildInfo
 import com.dv.loglens.ui.theme.islandsPanel
@@ -33,7 +32,7 @@ private const val REPO_URL = "https://gitlab.com/divinae/loglens"
 @Composable
 fun AboutDialog(onDismiss: () -> Unit) {
     val state = rememberDialogState(size = DpSize(380.dp, 380.dp))
-    DialogWindow(
+    AppDialogWindow(
         onCloseRequest = onDismiss,
         state = state,
         title = "About",

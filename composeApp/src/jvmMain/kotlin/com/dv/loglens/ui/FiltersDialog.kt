@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
@@ -138,7 +137,7 @@ fun FiltersDialog(
     val islandShape = RoundedCornerShape(8.dp)
     var width by remember { mutableStateOf(listWidth.dp) }
     val density = LocalDensity.current
-    DialogWindow(
+    AppDialogWindow(
         onCloseRequest = onDismiss,
         state = state,
         title = if (dirty) "Saved Filters *" else "Saved Filters",
