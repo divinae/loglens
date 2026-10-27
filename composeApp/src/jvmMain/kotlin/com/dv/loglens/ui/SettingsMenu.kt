@@ -133,7 +133,7 @@ fun SettingsMenu(
     val fontOptions = remember {
         (EmbeddedFonts.names + LOGICAL_FONTS + SystemFonts.list()).distinct()
     }
-    val weightOptions = remember { FontWeightPreset.entries.toList() }
+    val weightOptions = remember(fontFamily) { SystemFonts.availableWeights(fontFamily) }
 
     Box {
         IconActionButton(
@@ -199,12 +199,16 @@ fun SettingsMenu(
                     ) {
                         Text("Font", modifier = Modifier.padding(end = 8.dp))
                         Spacer(Modifier.weight(1f))
-                        val selectedIdx = fontOptions.indexOf(fontFamily).let { if (it < 0) 0 else it }
-                        ListComboBox(
-                            items = fontOptions,
-                            selectedIndex = selectedIdx,
-                            onSelectedItemChange = { idx -> onSetFontFamily(fontOptions[idx]) },
+                        // Searchable: the installed-font list is long. Each entry previews in its own font.
+                        SearchablePicker(
+                            options = fontOptions,
+                            current = fontFamily,
+                            onPick = onSetFontFamily,
+                            buttonLabel = fontFamily,
+                            searchPlaceholder = "Search fonts…",
+                            emptyText = "No matching font",
                             modifier = Modifier.width(220.dp),
+                            itemFontFamily = { SystemFonts.resolve(it) },
                         )
                     }
                 }

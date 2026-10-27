@@ -23,6 +23,7 @@ import com.dv.loglens.model.DEFAULT_VISIBLE_COLUMNS
 import com.dv.loglens.model.Device
 import com.dv.loglens.model.FilterRule
 import com.dv.loglens.model.LogBuffer
+import com.dv.loglens.model.FontWeightPreset
 import com.dv.loglens.model.LogColumn
 import com.dv.loglens.model.LogEntry
 import com.dv.loglens.model.LogQuery
@@ -38,6 +39,7 @@ import com.dv.loglens.parser.CrashDetector
 import com.dv.loglens.parser.LogParser
 import com.dv.loglens.service.Adb
 import com.dv.loglens.service.Scrcpy
+import com.dv.loglens.service.SystemFonts
 import com.dv.loglens.service.DeviceService
 import com.dv.loglens.service.LogcatService
 import com.dv.loglens.service.PackageService
@@ -535,7 +537,10 @@ class MainViewModel(
 
     fun setFontFamily(family: String) {
         if (_state.value.fontFamily == family) return
-        _state.update { it.copy(fontFamily = family) }
+        // A weight the new family has no face for would render as Normal; make that explicit.
+        val weight = FontWeightPreset.fromName(_state.value.fontWeight)
+        val keptWeight = if (weight in SystemFonts.availableWeights(family)) weight else FontWeightPreset.NORMAL
+        _state.update { it.copy(fontFamily = family, fontWeight = keptWeight.name) }
         persistConfig()
     }
 
