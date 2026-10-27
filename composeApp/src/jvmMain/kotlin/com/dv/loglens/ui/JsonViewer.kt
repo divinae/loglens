@@ -53,6 +53,7 @@ import com.dv.loglens.ui.theme.islandsPanel
 import com.dv.loglens.util.copyToClipboard
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.DefaultButton
 import org.jetbrains.jewel.ui.component.Icon
@@ -193,6 +194,8 @@ internal fun findMatches(text: String, query: String): List<IntRange> {
     return out
 }
 
+// The search field uses Jewel's TextFieldValue TextField, experimental since Jewel 0.41.
+@OptIn(ExperimentalJewelApi::class)
 @Composable
 internal fun JsonViewerDialog(
     json: String,

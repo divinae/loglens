@@ -1,13 +1,13 @@
 [versions]
-androidx-lifecycle = "2.10.0"
-composeHotReload = "1.1.1"
-composeMultiplatform = "1.11.1"
+androidx-lifecycle = "2.11.0"
+composeHotReload = "1.2.0"
+composeMultiplatform = "1.12.2"
 junit = "4.13.2"
-kotlin = "2.3.21"
+kotlin = "2.4.21"
 kotlinx-coroutines = "1.11.0"
-kotlinx-serialization = "1.11.0"
-jewel = "0.37.0-262.4852.51"
-icons = "262.10968.176"
+kotlinx-serialization = "1.12.0"
+jewel = "0.41.0-262.10968.63"
+icons = "262.10968.63"
 detekt = "1.23.8"
 
 [libraries]
