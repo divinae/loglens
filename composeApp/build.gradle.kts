@@ -162,3 +162,10 @@ val generateBuildInfo by tasks.registering {
 kotlin.sourceSets.named("jvmMain") {
     resources.srcDir(generateBuildInfo)
 }
+
+// Test classes are Java 25 bytecode, which Gradle's class scanner treats loosely: helper classes
+// such as LogIngestorTest's nested Harness got run as tests and failed. Run *Test classes only.
+tasks.withType<Test>().configureEach {
+    isScanForTestClasses = false
+    include("**/*Test.class")
+}

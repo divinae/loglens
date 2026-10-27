@@ -7,7 +7,7 @@ kotlin = "2.3.21"
 kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.11.0"
 jewel = "0.37.0-262.4852.51"
-icons = "262.4852.74"
+icons = "262.10968.176"
 detekt = "1.23.8"
 
 [libraries]
