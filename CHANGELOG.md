@@ -6,7 +6,20 @@ All notable changes to LogLens are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-27
+
 ### Added
+- **Native Wayland on Linux** — under a Wayland session LogLens now runs on JetBrains Runtime's
+  Wayland toolkit instead of XWayland, so text stays sharp on fractionally scaled displays (e.g.
+  130%) rather than being upscaled and blurred. The window renders in software and dialogs open
+  inside the main window (Compose can't open GPU windows under the Wayland toolkit yet).
+  `LOGLENS_X11=1` forces the previous XWayland mode.
+- **OR in queries** — a top-level `|` separates OR groups (AND binds tighter), and the find bar
+  (Ctrl+F) now understands the full query language: fields, regex, OR, `age:`, `is:`, negation.
+- **JSON viewer search** — find with highlight and navigation inside the Format JSON dialog, which
+  now also extracts JSON embedded in folded HTTP logs.
+- **Toasts** for screenshot, recording and device connect/disconnect events, with severity colours.
+- Configurable scrcpy path, and Browse buttons for the adb/scrcpy/screenshot/recording paths.
 - **Mirror device** — a toolbar button opens scrcpy in its own window for a live, interactive view
   of the device (requires scrcpy on `PATH`). scrcpy is a separate native app and can't be embedded
   into the LogLens window; LogLens passes its configured adb to scrcpy via the `ADB` env var.
@@ -29,6 +42,16 @@ All notable changes to LogLens are documented here. The format is based on
   next `ps` poll; the poll remains as a catch-all for non-debuggable processes. Banners carry
   the process's pid and package, so `package:`/`pid:` filters keep them visible, and a just
   started process's name is polled briefly so the banner never shows a placeholder.
+- IntelliJ-style scrollbar with smooth thumb dragging on long lists; capture, filtering and file
+  loading do less work on the UI thread.
+- Capture and file-load errors show in a banner / centered panel instead of as stray log lines.
+
+### Fixed
+- Screen recordings are finalized on the device before being pulled, so the mp4 is no longer
+  missing its `moov` atom (unplayable).
+- Columns enabled in the header menu but saved with a zero width (e.g. Time, App) are visible again.
+- The config file is written atomically, so quitting while a setting is being saved can no longer
+  leave a truncated `config.json` that resets every setting.
 
 ## [1.1.0] - 2026-06-03
 
@@ -111,7 +134,8 @@ First public release.
   Build/runtime toolchain is JetBrains Runtime 25 (Jewel 0.37 / IntelliJ 262 ships Java 25 class files);
   Gradle still bootstraps on JDK 21 and our own code targets Java 21 bytecode.
 
-[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.1.0...main
+[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.2.0...main
+[1.2.0]: https://gitlab.com/divinae/loglens/-/compare/v1.1.0...v1.2.0
 [1.1.0]: https://gitlab.com/divinae/loglens/-/compare/v1.0.1...v1.1.0
 [1.0.1]: https://gitlab.com/divinae/loglens/-/compare/v1.0.0...v1.0.1
 [1.0.0]: https://gitlab.com/divinae/loglens/-/tags/v1.0.0
