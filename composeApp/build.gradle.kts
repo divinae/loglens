@@ -82,6 +82,18 @@ kotlin {
 }
 
 
+// IntelliJ's icons-api (via Jewel 0.41) depends on IntelliJ's own coroutines fork, published under a
+// different group, so Gradle keeps it next to kotlinx-coroutines instead of picking one. Whichever
+// comes first on the classpath wins: in the packaged app that was the older fork, and code compiled
+// against 1.11 died with NoSuchMethodError (Job.cancel$default). Use the mainline artifact only.
+configurations.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute(module("org.jetbrains.intellij.deps.kotlinx:kotlinx-coroutines-core-jvm"))
+            .using(module("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:${libs.versions.kotlinx.coroutines.get()}"))
+            .because("one coroutines on the classpath; the IntelliJ fork shadowed 1.11")
+    }
+}
+
 // Compose's run/package tasks don't inherit the kotlin jvmToolchain — point them at JBR explicitly.
 val jbrLauncher = javaToolchains.launcherFor {
     languageVersion.set(JavaLanguageVersion.of(25))
