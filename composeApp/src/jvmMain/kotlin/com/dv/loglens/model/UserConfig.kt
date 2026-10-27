@@ -58,6 +58,9 @@ val DEFAULT_VISIBLE_COLUMNS: Set<LogColumn> = setOf(
     LogColumn.MESSAGE
 )
 
+/** Narrowest a column can be dragged to; anything below (e.g. 0 from a corrupt config) is invalid. */
+const val MIN_COLUMN_WIDTH = 10f
+
 val DEFAULT_COLUMN_WIDTHS: Map<LogColumn, Float> = mapOf(
     LogColumn.INDEX to 60f,
     LogColumn.DATE to 60f,

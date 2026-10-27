@@ -27,6 +27,7 @@ import com.dv.loglens.model.LogColumn
 import com.dv.loglens.model.LogEntry
 import com.dv.loglens.model.LogQuery
 import com.dv.loglens.model.MAX_FONT_SIZE
+import com.dv.loglens.model.MIN_COLUMN_WIDTH
 import com.dv.loglens.model.MIN_FONT_SIZE
 import com.dv.loglens.model.ThemeMode
 import com.dv.loglens.model.UserConfig
@@ -701,7 +702,11 @@ class MainViewModel(
 
     fun updateColumnWidth(column: LogColumn, width: Float) {
         _state.update {
-            it.copy(columnWidths = it.columnWidths.toMutableMap().apply { this[column] = width.coerceAtLeast(10f) })
+            it.copy(
+                columnWidths = it.columnWidths.toMutableMap().apply {
+                    this[column] = width.coerceAtLeast(MIN_COLUMN_WIDTH)
+                },
+            )
         }
         persistConfig()
     }
