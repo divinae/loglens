@@ -2,6 +2,12 @@ package com.dv.loglens.ui.theme
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.FontHinting
+import androidx.compose.ui.text.FontRasterizationSettings
+import androidx.compose.ui.text.FontSmoothing
+import androidx.compose.ui.text.PlatformParagraphStyle
+import androidx.compose.ui.text.PlatformTextStyle
 import org.jetbrains.jewel.foundation.BorderColors
 import org.jetbrains.jewel.foundation.GlobalColors
 import org.jetbrains.jewel.foundation.TextColors
@@ -9,6 +15,8 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.foundation.theme.ThemeDefinition
 import org.jetbrains.jewel.intui.standalone.styling.dark as iconDark
 import org.jetbrains.jewel.intui.standalone.styling.light as iconLight
+import org.jetbrains.jewel.intui.standalone.theme.createDefaultTextStyle
+import org.jetbrains.jewel.intui.standalone.theme.createEditorTextStyle
 import org.jetbrains.jewel.intui.standalone.theme.dark
 import org.jetbrains.jewel.intui.standalone.theme.darkThemeDefinition
 import org.jetbrains.jewel.intui.standalone.theme.default
@@ -18,6 +26,21 @@ import org.jetbrains.jewel.ui.ComponentStyling
 import org.jetbrains.jewel.ui.component.styling.IconButtonColors
 import org.jetbrains.jewel.ui.component.styling.IconButtonStyle
 import org.jetbrains.jewel.ui.component.styling.LocalIconButtonStyle
+
+// Compose's Linux default is grayscale antialiasing with slight hinting, which looks soft next to
+// native apps (KDE: RGB subpixel + full hinting). Rasterize like the desktop does.
+@OptIn(ExperimentalTextApi::class)
+private val desktopTextRasterization = PlatformTextStyle(
+    spanStyle = null,
+    paragraphStyle = PlatformParagraphStyle(
+        fontRasterizationSettings = FontRasterizationSettings(
+            smoothing = FontSmoothing.SubpixelAntiAlias,
+            hinting = FontHinting.Full,
+            subpixelPositioning = false,
+            autoHintingForced = false,
+        ),
+    ),
+)
 
 /** Jewel theme definition using the islands color palette. */
 fun islandsThemeDefinition(isDark: Boolean): ThemeDefinition =
@@ -38,6 +61,8 @@ fun islandsThemeDefinition(isDark: Boolean): ThemeDefinition =
                     error = IslandsDark.textError,
                 ),
             ),
+            defaultTextStyle = JewelTheme.createDefaultTextStyle(platformStyle = desktopTextRasterization),
+            editorTextStyle = JewelTheme.createEditorTextStyle(platformStyle = desktopTextRasterization),
             contentColor = IslandsDark.textNormal,
         )
     } else {
@@ -57,6 +82,8 @@ fun islandsThemeDefinition(isDark: Boolean): ThemeDefinition =
                     error = IslandsLight.textError,
                 ),
             ),
+            defaultTextStyle = JewelTheme.createDefaultTextStyle(platformStyle = desktopTextRasterization),
+            editorTextStyle = JewelTheme.createEditorTextStyle(platformStyle = desktopTextRasterization),
             contentColor = IslandsLight.textNormal,
         )
     }

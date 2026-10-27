@@ -4,6 +4,7 @@ import java.io.File
 import java.net.StandardProtocolFamily
 import java.net.UnixDomainSocketAddress
 import java.nio.channels.SocketChannel
+import java.util.concurrent.TimeUnit
 
 /**
  * Native Wayland via JetBrains Runtime's WLToolkit instead of XWayland, so fractional scaling is
@@ -14,6 +15,9 @@ import java.nio.channels.SocketChannel
  * a `ComposePanel` rendered through Swing graphics (Skia raster), and dialogs render in-window.
  */
 object Wayland {
+    const val PIXEL_GEOMETRY_PROPERTY = "loglens.pixelGeometry"
+    private const val FC_MATCH_TIMEOUT_MS = 2000L
+
     /** True once [selectToolkit] chose WLToolkit for this process. */
     var active: Boolean = false
         private set
@@ -37,7 +41,40 @@ object Wayland {
         System.setProperty("compose.swing.render.on.graphics", "true")
         // There's no GL context to get under WLToolkit; skip the failing attempt and its warning.
         System.setProperty("skiko.renderApi", "SOFTWARE")
+        // Read by the patched org.jetbrains.skiko.swing.SoftwareSwingRedrawer for subpixel text.
+        System.setProperty(PIXEL_GEOMETRY_PROPERTY, subpixelGeometry())
+        warnIfRedrawerNotPatched()
         Log.i("using native Wayland (WLToolkit)")
+    }
+
+    /**
+     * The desktop's subpixel order as a Skia PixelGeometry name, from fontconfig (which KDE/GNOME
+     * font settings write to). `none` maps to UNKNOWN, i.e. grayscale antialiasing; an unset or
+     * unreadable value assumes the common horizontal RGB.
+     */
+    private fun subpixelGeometry(): String {
+        val rgba = runCatching {
+            val proc = ProcessBuilder("fc-match", "-f", "%{rgba}", "monospace").redirectErrorStream(true).start()
+            if (proc.waitFor(FC_MATCH_TIMEOUT_MS, TimeUnit.MILLISECONDS)) proc.inputStream.reader().readText().trim()
+            else null.also { proc.destroy() }
+        }.getOrNull()
+        return when (rgba) {
+            "2" -> "BGR_H"
+            "3" -> "RGB_V"
+            "4" -> "BGR_V"
+            "5" -> "UNKNOWN"
+            else -> "RGB_H"
+        }
+    }
+
+    // The subpixel fix only works if our copy of the redrawer shadows Skiko's, i.e. the app jar
+    // precedes skiko-awt on the classpath (true for `run` and jpackage today). Loaded, not inited.
+    private fun warnIfRedrawerNotPatched() {
+        val redrawer = Class.forName("org.jetbrains.skiko.swing.SoftwareSwingRedrawer", false, javaClass.classLoader)
+        val appJar = javaClass.protectionDomain?.codeSource?.location
+        if (redrawer.protectionDomain?.codeSource?.location != appJar) {
+            Log.w("Skiko's own SoftwareSwingRedrawer loaded; text renders without subpixel AA")
+        }
     }
 
     // Only JetBrains Runtime ships the Wayland toolkit.
