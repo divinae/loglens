@@ -6,6 +6,17 @@ All notable changes to LogLens are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-27
+
+### Fixed
+- The packaged app (1.3.0, 1.3.1) crashed as soon as a device was detected
+  (`NoSuchMethodError: Job.cancel$default`): a dependency shipped a second, older copy of
+  kotlinx-coroutines that shadowed the right one. Only one copy is bundled now.
+
+### Removed
+- Unused dependencies (Compose Material3, Compose Resources, UI tooling preview,
+  lifecycle-runtime-compose), so the package is smaller.
+
 ## [1.3.1] - 2026-10-27
 
 ### Changed
@@ -154,7 +165,8 @@ First public release.
   Build/runtime toolchain is JetBrains Runtime 25 (Jewel 0.37 / IntelliJ 262 ships Java 25 class files);
   Gradle still bootstraps on JDK 21 and our own code targets Java 21 bytecode.
 
-[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.3.1...main
+[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.3.2...main
+[1.3.2]: https://gitlab.com/divinae/loglens/-/compare/v1.3.1...v1.3.2
 [1.3.1]: https://gitlab.com/divinae/loglens/-/compare/v1.3.0...v1.3.1
 [1.3.0]: https://gitlab.com/divinae/loglens/-/compare/v1.2.0...v1.3.0
 [1.2.0]: https://gitlab.com/divinae/loglens/-/compare/v1.1.0...v1.2.0
