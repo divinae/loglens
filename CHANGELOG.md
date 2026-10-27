@@ -6,6 +6,21 @@ All notable changes to LogLens are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-27
+
+### Added
+- **Font search** — the font picker in Settings has a search field and previews each font in its
+  own face, so a long list of installed fonts is easy to browse.
+- The weight picker only offers weights the selected font actually has; switching to a font
+  without the current weight falls back to Normal.
+
+### Changed
+- **Sharper text on Linux (Wayland)** — text now renders with subpixel antialiasing in the
+  desktop's subpixel order (read from fontconfig) and full hinting, matching native KDE/GNOME apps
+  instead of Compose's grayscale default.
+- Updated to Kotlin 2.4.21, Compose Multiplatform 1.12.2, Jewel 0.41.0-262, lifecycle 2.11.0 and
+  kotlinx-serialization 1.12.0.
+
 ## [1.2.0] - 2026-10-27
 
 ### Added
@@ -134,7 +149,8 @@ First public release.
   Build/runtime toolchain is JetBrains Runtime 25 (Jewel 0.37 / IntelliJ 262 ships Java 25 class files);
   Gradle still bootstraps on JDK 21 and our own code targets Java 21 bytecode.
 
-[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.2.0...main
+[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.3.0...main
+[1.3.0]: https://gitlab.com/divinae/loglens/-/compare/v1.2.0...v1.3.0
 [1.2.0]: https://gitlab.com/divinae/loglens/-/compare/v1.1.0...v1.2.0
 [1.1.0]: https://gitlab.com/divinae/loglens/-/compare/v1.0.1...v1.1.0
 [1.0.1]: https://gitlab.com/divinae/loglens/-/compare/v1.0.0...v1.0.1
