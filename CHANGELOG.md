@@ -6,6 +6,11 @@ All notable changes to LogLens are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-27
+
+### Changed
+- Build moved to Gradle 9.8.2 (still bootstrapped on JDK 21); no functional changes.
+
 ## [1.3.0] - 2026-10-27
 
 ### Added
@@ -149,7 +154,8 @@ First public release.
   Build/runtime toolchain is JetBrains Runtime 25 (Jewel 0.37 / IntelliJ 262 ships Java 25 class files);
   Gradle still bootstraps on JDK 21 and our own code targets Java 21 bytecode.
 
-[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.3.0...main
+[Unreleased]: https://gitlab.com/divinae/loglens/-/compare/v1.3.1...main
+[1.3.1]: https://gitlab.com/divinae/loglens/-/compare/v1.3.0...v1.3.1
 [1.3.0]: https://gitlab.com/divinae/loglens/-/compare/v1.2.0...v1.3.0
 [1.2.0]: https://gitlab.com/divinae/loglens/-/compare/v1.1.0...v1.2.0
 [1.1.0]: https://gitlab.com/divinae/loglens/-/compare/v1.0.1...v1.1.0
