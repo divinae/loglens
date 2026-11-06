@@ -16,9 +16,10 @@ own platform. Linux (`.deb` + portable tarball) is automated in CI; macOS (`.dmg
 1. Update [`CHANGELOG.md`](CHANGELOG.md): move items from `Unreleased` into a new
    `## [X.Y.Z] - YYYY-MM-DD` section; refresh the compare links at the bottom.
 2. Set the version in [`gradle.properties`](gradle.properties) (`appVersion=X.Y.Z`).
-3. `./gradlew :composeApp:jvmTest detekt` is green (CI enforces this on every push/MR).
+3. `./gradlew :composeApp:jvmTest detekt` is green (CI enforces this on every push and pull
+   request).
 4. Commit, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-   The tag triggers the CI `release-linux` job (`.gitlab-ci.yml`).
+   The tag triggers the `Release` workflow (`.github/workflows/release.yml`).
 
 ## 2. Build artifacts per platform
 
@@ -52,23 +53,13 @@ Current builds are **unsigned**. Until certificates are configured, users will h
 
 ## 4. Publish
 
-The tag pipeline handles Linux automatically: `release-linux` uploads the `.deb` and portable
-`.tar.gz` to the generic Package Registry (`loglens/<version>/`), and `release-create` creates
-the GitLab Release for the tag with asset links to those files
-(https://gitlab.com/divinae/loglens/-/releases).
+The tag's workflow handles Linux automatically: it builds the `.deb` and the portable `.tar.gz`
+and creates the GitHub Release for the tag with both attached
+(https://github.com/divinae/loglens/releases).
 
-macOS (`.dmg`) and Windows (`.msi`) artifacts are uploaded and linked manually until those
-builds are automated:
+macOS (`.dmg`) and Windows (`.msi`) are attached by hand until those builds are automated:
 
 ```shell
-# Upload to the generic Package Registry (needs a PAT with api scope)
-curl --fail --header "PRIVATE-TOKEN: <token>" --upload-file loglens-X.Y.Z.dmg \
-  "https://gitlab.com/api/v4/projects/<project-id>/packages/generic/loglens/X.Y.Z/loglens-X.Y.Z.dmg"
-
-# Add an asset link to the existing release
-curl --fail --request POST --header "PRIVATE-TOKEN: <token>" \
-  --data "name=loglens-X.Y.Z.dmg" \
-  --data "url=https://gitlab.com/api/v4/projects/<project-id>/packages/generic/loglens/X.Y.Z/loglens-X.Y.Z.dmg" \
-  --data "link_type=package" \
-  "https://gitlab.com/api/v4/projects/<project-id>/releases/vX.Y.Z/assets/links"
+gh release upload vX.Y.Z loglens-X.Y.Z.dmg
+gh release upload vX.Y.Z loglens-X.Y.Z.msi
 ```
