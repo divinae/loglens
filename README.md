@@ -1,18 +1,64 @@
 # LogLens
 
-Desktop viewer for Android logs (`adb logcat`), built with Kotlin Multiplatform + Compose for Desktop and the JetBrains Jewel (IntelliJ) UI style. Streams live logcat from a connected device, filters, highlights and searches logs, and captures device screenshots and screen recordings.
+[![CI](https://github.com/divinae/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/divinae/loglens/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/divinae/loglens?color=3ddc84)](https://github.com/divinae/loglens/releases/latest)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](#license)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/divinae4535)
+
+**Android Studio's Logcat, without Android Studio.** A desktop viewer for Android logs
+(`adb logcat`): stream live logcat from a connected device, filter, highlight and search it,
+open saved logs and bugreports, and capture screenshots and screen recordings. Built with
+Kotlin Multiplatform, Compose for Desktop and the JetBrains Jewel (IntelliJ) look.
 
 Inspired by [Android Studio's Logcat](https://developer.android.com/studio/debug/logcat) and [AndLogView](https://github.com/mlopatkin/andlogview).
 
 Written with substantial AI assistance ([Claude Code](https://claude.com/claude-code)).
 
-## Screenshots
+![Live logcat with quick-filter pills](docs/screenshots/main-log-view.png)
 
-| Live logcat with quick-filter pills | Settings | Filter rules |
-|---|---|---|
-| ![Live log view](docs/screenshots/main-log-view.png) | ![Settings](docs/screenshots/settings.png) | ![Filters](docs/screenshots/filters.png) |
+### Why you'll like it
+
+- ⚡ **Live and resilient.** Streams from the device you pick, finds devices as they come, and a
+  device that drops and returns reconnects without clearing or duplicating anything; pause holds
+  the view while capture keeps going.
+- 🔎 **Find it in seconds.** A small query language in the quick filter (`tag:Foo level>=W
+  -tag:Spam age:5m`), saved filter rules that show, hide or highlight, and an in-view find bar.
+- 💥 **Crashes stand out.** Crash, ANR and native crash records are marked, with a navigator to
+  step between them; stack traces fold into one record, as in Android Studio.
+- 🗂️ **Any log you have.** Saved `threadtime` logs, Android Studio `.logcat` exports, and full
+  bugreports (`.txt` or `adb bugreport` `.zip`), with process names mined from them.
+- 📸 **The device, a click away.** Screenshots to a file and the clipboard, screen recordings with
+  Android Studio's options, and scrcpy for a live mirror.
+- 🧩 **No Android Studio needed.** A native package with its own runtime: no JDK on the machine,
+  only `adb`.
+
+| Settings | Filter rules |
+|---|---|
+| ![Settings](docs/screenshots/settings.png) | ![Filters](docs/screenshots/filters.png) |
+
+## Install
+
+From the [latest release](https://github.com/divinae/loglens/releases/latest), with its own
+runtime (no JDK needed), and `adb` on `PATH` (Android platform-tools) or set in its settings:
+
+- **Debian / Ubuntu:** the `.deb`
+  ```shell
+  sudo apt install ./loglens_<version>_amd64.deb   # installs to /opt/loglens, with a menu entry
+  ```
+- **Any Linux:** the portable `.tar.gz`
+  ```shell
+  tar xzf loglens-v<version>-linux-x64.tar.gz
+  ./loglens/bin/loglens
+  ```
+- **macOS and Windows:** build the `.dmg` or `.msi` on that system (see
+  [Build and run](#build-and-run)); jpackage only packages for the system it runs on. On macOS,
+  see [below](#macos-loglens-not-opened--cannot-be-opened) for the first launch.
 
 ## Features
+
+<details>
+<summary><b>Everything it does</b></summary>
+
 
 - **Live logcat** — stream from the selected device, with automatic device detection and switching.
   Pause holds the display while capture keeps buffering (resume flushes the backlog); a device that
@@ -50,6 +96,8 @@ Written with substantial AI assistance ([Claude Code](https://claude.com/claude-
   and can start expanded via a setting. Back-to-back duplicates coalesce into one row with a `×N` badge.
 - **Appearance** — System/Light/Dark theme, font size/family/weight (system fonts), soft wrap. HiDPI-aware (Compose renders at native display scale; the app/window icon ships at 256px so it stays crisp).
 - Configuration and filters persist across launches.
+
+</details>
 
 ## Keyboard shortcuts
 
@@ -123,6 +171,17 @@ Kotlin Multiplatform targeting Desktop (JVM). Code lives in `composeApp/src/jvmM
 - `parser/` — `LogParser`, `AndroidStudioLogParser`, `BugreportParser`, `LogcatExporter`.
 - `ui/` — bars, dialogs, log rows, shortcuts.
 - `config/` — `ConfigManager`, `FilterStore`, `SearchHistoryStore`.
+
+## Support
+
+If LogLens is useful to you, you can buy me a coffee on [Ko-fi](https://ko-fi.com/divinae4535).
+
+## Bugs and ideas
+
+Report them in [GitHub Issues](https://github.com/divinae/loglens/issues): your system, LogLens's
+version, the device's Android version, and what you did. For a problem, start LogLens from a
+terminal (`/opt/loglens/bin/loglens` or `./loglens/bin/loglens`) and attach what it prints; a log
+that doesn't open right helps most attached itself, if it holds nothing private.
 
 ## Releasing
 
