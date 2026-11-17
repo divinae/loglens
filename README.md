@@ -193,3 +193,4 @@ Version history is in [`CHANGELOG.md`](CHANGELOG.md); the build/sign/publish pro
 LogLens is released under the **GNU General Public License v3.0** — see [`LICENSE`](LICENSE).
 Third-party components and their licenses are listed in
 [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md).
+<!-- agentbox e2e test -->
